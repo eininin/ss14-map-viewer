@@ -429,15 +429,13 @@ function drawNow() {
       const ly0 = Math.min(...corners.map(c => c[1])), ly1 = Math.max(...corners.map(c => c[1]));
       setGridXf(g, gr);
       const ov = gr.ov;
-      if (ov) {
+      if (useOverview && ov) {
         g.save();
         g.imageSmoothingEnabled = S.cam.s < ov.op;
         g.translate(ov.x0, ov.y1);
         g.scale(1 / ov.op, -1 / ov.op);
         g.drawImage(ov.canvas, 0, 0);
         g.restore();
-      }
-      if (useOverview && ov) {
         // fill chunks the overview doesn't have yet
         for (const c of gr.chunks.values()) if (!ov.done.has(c) && performance.now() - t0 < 12) r.renderChunk(gr, c);
         for (const c of gr.chunks.values()) if (!ov.done.has(c)) { pending = true; break; }
@@ -449,7 +447,20 @@ function drawNow() {
         const c = gr.chunks.get(cx + ',' + cy);
         if (!c) continue;
         if (!c.canvas) {
-          if (performance.now() - t0 > 14) { pending = true; continue; }
+          if (performance.now() - t0 > 14) {
+            pending = true;
+            // stand-in until the sharp chunk is drawn: just this chunk's part of the overview
+            if (ov && ov.done.has(c)) {
+              const sx = (cx * CHUNK - ov.x0) * ov.op, sy = (ov.y1 - (cy + 1) * CHUNK) * ov.op, sz = CHUNK * ov.op;
+              g.save();
+              g.imageSmoothingEnabled = true;
+              g.translate(cx * CHUNK, (cy + 1) * CHUNK);
+              g.scale(CHUNK / sz, -CHUNK / sz);
+              g.drawImage(ov.canvas, sx, sy, sz, sz, 0, 0, sz, sz);
+              g.restore();
+            }
+            continue;
+          }
           r.renderChunk(gr, c);
         }
         c.used = performance.now();
