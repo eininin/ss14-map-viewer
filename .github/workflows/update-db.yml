@@ -1,0 +1,76 @@
+name: Update sprite database
+
+on:
+  schedule:
+    - cron: "17 3 * * 1"   # every Monday
+  workflow_dispatch:
+  push:
+    paths:
+      - "tools/**"
+      - "packs/**"
+      - "sources.json"
+      - ".github/workflows/update-db.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-db
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install pyyaml
+
+      - name: Fetch prototypes of every source fork
+        run: |
+          set -e
+          mkdir -p /tmp/src
+          python3 - <<'EOF' > /tmp/src/list.txt
+          import json
+          for s in json.load(open("sources.json"))["sources"]:
+              print(s["id"], s["repo"], s.get("branch", "master"))
+          EOF
+          while read id repo branch; do
+            git clone -q --filter=blob:none --no-checkout --depth 1 --branch "$branch" "https://github.com/$repo" "/tmp/src/$id"
+            git -C "/tmp/src/$id" sparse-checkout set --no-cone '/Resources/Prototypes/'
+            git -C "/tmp/src/$id" checkout -q
+            git -C "/tmp/src/$id" ls-tree -r --name-only HEAD Resources/Maps > "/tmp/src/$id.maps.txt"
+            git -C "/tmp/src/$id" rev-parse HEAD > "/tmp/src/$id.commit"
+          done < /tmp/src/list.txt
+
+      - name: Build database
+        run: |
+          set -e
+          read -r MAIN MAINREPO MAINBRANCH < /tmp/src/list.txt
+          tail -n +2 /tmp/src/list.txt | while read id repo branch; do echo "--extra /tmp/src/$id/Resources $repo $(cat /tmp/src/$id.commit)"; done > /tmp/src/extra.txt
+          python3 tools/build_db.py "/tmp/src/$MAIN/Resources" db/starlight.json \
+            --repo "$MAINREPO" --commit "$(cat /tmp/src/$MAIN.commit)" \
+            --maps-out db/starlight-maps.json --maps-file "/tmp/src/$MAIN.maps.txt" \
+            $(cat /tmp/src/extra.txt)
+
+      - name: Index sprite packs and maps
+        run: |
+          python3 tools/packtool.py index packs/*/
+          python3 - <<'EOF'
+          import json, os
+          maps = sorted(f for f in os.listdir("maps") if f.endswith(".yml")) if os.path.isdir("maps") else []
+          json.dump({"maps": maps}, open("maps/index.json", "w"), indent=2)
+          EOF
+
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add -A db packs maps
+          if git diff --cached --quiet; then echo "nothing changed"; exit 0; fi
+          git commit -m "Update sprite database"
+          git push

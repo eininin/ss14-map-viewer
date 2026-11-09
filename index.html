@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SS14 Map Viewer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<header id="top">
+  <div class="brand"><span class="mark"></span>SS14 MAP VIEWER</div>
+  <div class="mapname" id="mapName">No map loaded</div>
+  <div class="topbtns">
+    <button id="btnOpenFile" class="btn primary" title="Open a .yml map file (or drop it on the page)">Open .yml</button>
+    <button id="btnBrowse" class="btn" title="Browse maps from Starlight and this repo">Browse maps</button>
+    <input type="file" id="fileInput" accept=".yml,.yaml" hidden>
+  </div>
+</header>
+
+<main id="stage">
+  <canvas id="mapCanvas"></canvas>
+  <canvas id="overlayCanvas"></canvas>
+  <textarea id="textInput" class="textinput" hidden spellcheck="false"></textarea>
+
+  <div id="empty" class="empty">
+    <div class="emptybox">
+      <h1>Drop a map <code>.yml</code> here</h1>
+      <p>or use <b>Open .yml</b> / <b>Browse maps</b> above. Sprites are taken from the packs in the
+        <b>Packs</b> tab, top to bottom, and anything no pack has is drawn with the dev texture.</p>
+    </div>
+  </div>
+
+  <nav id="tools" class="tools">
+    <button data-tool="pan" class="tool active" title="Pan (H)"><svg viewBox="0 0 24 24"><path d="M12 2v20M2 12h20M12 2l-3 3M12 2l3 3M12 22l-3-3M12 22l3-3M2 12l3-3M2 12l3 3M22 12l-3-3M22 12l-3 3"/></svg></button>
+    <button data-tool="pick" class="tool" title="Pick a sprite (V)"><svg viewBox="0 0 24 24"><path d="M5 3l14 8-6 2-2 6z"/></svg></button>
+    <div class="sep"></div>
+    <button data-tool="pen" class="tool" title="Draw lines (B)"><svg viewBox="0 0 24 24"><path d="M4 20l4-1L19 8l-3-3L5 16zM14 7l3 3"/></svg></button>
+    <button data-tool="eraser" class="tool" title="Erase drawings (E)"><svg viewBox="0 0 24 24"><path d="M8 20h12M5 15l8-8 6 6-6 6H9z"/></svg></button>
+    <button data-tool="text" class="tool" title="Add text (T)"><svg viewBox="0 0 24 24"><path d="M5 5h14M12 5v15M9 20h6"/></svg></button>
+    <div class="sep"></div>
+    <div class="swatches" id="swatches"></div>
+    <label class="custom" title="Custom colour"><input type="color" id="colorPick" value="#ffd23f"></label>
+    <div class="sizebox" title="Line width / text size">
+      <input type="range" id="sizeRange" min="1" max="12" value="3">
+      <span id="sizeVal">3</span>
+    </div>
+    <div class="sep"></div>
+    <button id="btnUndo" class="tool small" title="Undo (Ctrl+Z)"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5M4 9h10a6 6 0 010 12h-3"/></svg></button>
+    <button id="btnRedo" class="tool small" title="Redo (Ctrl+Shift+Z)"><svg viewBox="0 0 24 24"><path d="M15 14l5-5-5-5M20 9H10a6 6 0 000 12h3"/></svg></button>
+  </nav>
+
+  <aside id="panel" class="panel">
+    <div class="tabs">
+      <button data-tab="inspect" class="tab active">Inspect</button>
+      <button data-tab="packs" class="tab">Packs</button>
+      <button data-tab="layers" class="tab">View</button>
+      <button data-tab="map" class="tab">Map</button>
+      <button data-tab="draw" class="tab">Drawings</button>
+      <button data-tab="repo" class="tab">Repo</button>
+      <button id="btnCollapse" class="collapse" title="Hide panel">›</button>
+    </div>
+    <div class="tabbody">
+      <section data-pane="inspect" class="pane active" id="paneInspect">
+        <p class="hint">Choose the <b>pick</b> tool (V) and click anything on the map to see its sprite, where it came from, and open its folder.</p>
+      </section>
+
+      <section data-pane="packs" class="pane" id="panePacks">
+        <p class="hint">Packs are searched top to bottom for every sprite. The first one that has it is used; the dev texture catches the rest.</p>
+        <ol id="packList" class="packlist"></ol>
+        <details class="add">
+          <summary>Add a pack</summary>
+          <div class="addgrid">
+            <h4>From a GitHub repo</h4>
+            <label>Repo <input id="ghRepo" placeholder="owner/name"></label>
+            <label>Branch / tag / commit <input id="ghRef" placeholder="master"></label>
+            <label>Textures folder <input id="ghPath" value="Resources/Textures"></label>
+            <button class="btn" id="btnAddGh">Add GitHub pack</button>
+            <h4>From a folder on this computer</h4>
+            <p class="hint">Pick <code>Resources/Textures</code> (or any folder of <code>.rsi</code> folders). Stays until you reload the page.</p>
+            <label class="btn file">Choose folder… <input type="file" id="localPick" webkitdirectory directory multiple hidden></label>
+            <h4>From this site's repo</h4>
+            <label>Folder in this repo <input id="sitePath" placeholder="packs/my-pack"></label>
+            <button class="btn" id="btnAddSite">Add repo folder</button>
+          </div>
+        </details>
+        <div class="row gap">
+          <button class="btn" id="btnPacksReset">Reset to defaults</button>
+          <button class="btn" id="btnPacksSave" title="Write this order to packs.json in the repo">Save order to repo</button>
+        </div>
+      </section>
+
+      <section data-pane="layers" class="pane" id="paneLayers">
+        <div class="toggles" id="toggles"></div>
+        <label class="row">Background <input type="color" id="bgColor" value="#06080d"></label>
+      </section>
+
+      <section data-pane="map" class="pane" id="paneMap">
+        <div id="mapInfo" class="kv"></div>
+        <h3>Objects in this map</h3>
+        <input id="protoFilter" class="search" placeholder="Filter by id or name…">
+        <div id="protoList" class="plist"></div>
+        <h3>Missing sprites <span id="missCount" class="badge"></span></h3>
+        <p class="hint">Drawn with the dev texture because no pack has them. Click one to highlight it on the map.</p>
+        <div id="missList" class="plist"></div>
+        <div class="row gap">
+          <button class="btn" id="btnCopyMissing">Copy list</button>
+          <button class="btn" id="btnExportPng">Save view as PNG</button>
+        </div>
+      </section>
+
+      <section data-pane="draw" class="pane" id="paneDraw">
+        <p class="hint">Drawings are saved in this browser for each map. Export them to share, or save them into the repo.</p>
+        <div class="row gap wrap">
+          <button class="btn" id="btnDrawToggle">Hide drawings</button>
+          <button class="btn" id="btnDrawClear">Clear all</button>
+          <button class="btn" id="btnDrawExport">Export .json</button>
+          <label class="btn file">Import .json <input type="file" id="drawImport" accept=".json" hidden></label>
+          <button class="btn" id="btnDrawRepo">Save to repo</button>
+        </div>
+        <div id="drawStats" class="hint"></div>
+      </section>
+
+      <section data-pane="repo" class="pane" id="paneRepo">
+        <div id="repoInfo" class="kv"></div>
+        <h3>Write access</h3>
+        <p class="hint">To save packs, maps and drawings into the repo, paste a fine-grained GitHub token with <b>Contents: read and write</b> on this repo only. It is stored in this browser only.</p>
+        <label>Token <input id="ghToken" type="password" placeholder="github_pat_…" autocomplete="off"></label>
+        <div class="row gap"><button class="btn" id="btnTokenSave">Save token</button><button class="btn" id="btnTokenClear">Forget token</button></div>
+        <div id="tokenStatus" class="hint"></div>
+        <h3>Save to repo</h3>
+        <div class="row gap wrap">
+          <button class="btn" id="btnSaveMap">Save current map to <code>maps/</code></button>
+        </div>
+        <div id="repoStatus" class="hint"></div>
+      </section>
+    </div>
+  </aside>
+  <button id="btnExpand" class="expand" hidden title="Show panel">‹</button>
+
+  <footer id="status">
+    <span id="stCoords">–</span>
+    <span id="stZoom">100%</span>
+    <span id="stMsg"></span>
+    <span class="help">drag to pan · scroll / double-click to zoom · WASD / arrows to move · F to fit</span>
+  </footer>
+  <div id="progress" class="progress" hidden><div class="bar"><i id="progBar"></i></div><span id="progText"></span></div>
+</main>
+
+<div id="modal" class="modal" hidden>
+  <div class="modalbox">
+    <div class="modalhead"><h2 id="modalTitle"></h2><button class="btn" id="modalClose">Close</button></div>
+    <div id="modalBody" class="modalbody"></div>
+  </div>
+</div>
+<div id="toast" class="toast" hidden></div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

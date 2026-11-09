@@ -1,0 +1,14 @@
+{
+  "sources": [
+    {
+      "id": "starlight",
+      "repo": "ss14Starlight/space-station-14",
+      "branch": "starlight-dev"
+    },
+    {
+      "id": "hardlight",
+      "repo": "Vontens/HardLight-new",
+      "branch": "master"
+    }
+  ]
+}
