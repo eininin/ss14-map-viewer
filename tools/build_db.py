@@ -124,7 +124,8 @@ def clean_layer(ly):
     return out
 
 def categorize(pid, d, comps, e):
-    """Layer group for the viewer: atmos, hv, mv, lv, disposal, walls, doors, furniture (None = other)."""
+    """Layer group for the viewer: atmos, hv, mv, lv, disposal, doors, walls, wallmount, storage,
+    machines, furniture, items (None = other). The first rule that matches wins."""
     names = set(comps)
     tags = set()
     t = comps.get("Tag", {}).get("tags")
@@ -151,9 +152,23 @@ def categorize(pid, d, comps, e):
             sprite.startswith(("Structures/Walls/", "Structures/Windows/")) or \
             "/Structures/Walls/" in f or "/Structures/Windows/" in f:
         return "walls"
+    if "WallMount" in names or e.get("d") == 2 or "/Wallmounts/" in f or sprite.startswith("Structures/Wallmounts/") \
+            or names & {"Apc", "AirAlarm", "FireAlarm", "Intercom", "PoweredLight", "Sign", "ExtinguisherCabinet"}:
+        return "wallmount"
+    if names & {"EntityStorage"} or "/Structures/Storage/" in f or sprite.startswith("Structures/Storage/"):
+        return "storage"
+    if names & {"Machine", "VendingMachine", "Lathe", "Computer", "ComputerBoard", "MaterialStorage",
+                "PowerNetworkBattery", "PowerSupplier", "Battery", "GravityGenerator", "ParticleAcceleratorControlBox",
+                "SingularityGenerator", "ContainmentFieldGenerator", "Thruster", "ShuttleConsole", "RadarConsole",
+                "MedicalScanner", "CloningPod", "Microwave", "ReagentDispenser", "ChemMaster", "Anomaly"} or \
+            sprite.startswith(("Structures/Machines/", "Structures/Power/", "Structures/Shuttles/")) or \
+            "/Structures/Machines/" in f or "/Structures/Power/" in f or "/Structures/Shuttles/" in f:
+        return "machines"
     if "/Furniture/" in f or sprite.startswith("Structures/Furniture/") or "Strap" in names or \
             "Table" in tags or (sm and "table" in sm[0].lower()):
         return "furniture"
+    if "Item" in names:
+        return "items"
     return None
 
 

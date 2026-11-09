@@ -4,11 +4,12 @@ import { texRel } from './packs.js';
 export const PX = 32;
 
 // every layer can be shown on its own
-export const LAYER_KEYS = ['tiles', 'decals', 'atmos', 'hv', 'mv', 'lv', 'disposal', 'walls', 'doors', 'furniture', 'other', 'markers'];
+export const LAYER_KEYS = ['tiles', 'decals', 'atmos', 'hv', 'mv', 'lv', 'disposal',
+  'walls', 'doors', 'wallmount', 'machines', 'storage', 'furniture', 'items', 'other', 'markers'];
 export const DEFAULT_OPTS = {
   tiles: true, decals: true,
   atmos: true, hv: true, mv: true, lv: true, disposal: true,
-  walls: true, doors: true, furniture: true, other: true,
+  walls: true, doors: true, wallmount: true, machines: true, storage: true, furniture: true, items: true, other: true,
   markers: false, allLayers: false,
   coverHide: true,   // pipes and cables under floor tiles are hidden, as in game
 };          // pixels per tile in RSIs

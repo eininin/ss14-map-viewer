@@ -24,14 +24,15 @@ cables, doors and everything placed on it.
   to move, drag to select (snapped to frames or free, pixel by pixel),
   double-click a frame to select it, then copy or download the selection or the
   whole image (`Ctrl+C` copies the selection, or everything if nothing is selected).
-- **Download .yml** of the open map (top bar or *Map* tab).
+- **Download .yml** of the open map (bottom of the *Map* tab).
 - **Draw on top**: lines in any colour, an eraser that cuts lines, and text.
   Drawings are kept per map in your browser and can be exported, imported or
   saved into this repo.
 - **Layers, each shown or hidden on its own** (*View* tab, with an "only"
   button per row): floor tiles · decals · pipes and cables (atmos; electric
   HV / MV / LV; disposal) · objects (walls incl. windows and grilles; airlocks
-  and doors; furniture; everything else) · markers and spawners. Options: hide
+  and doors; wall-mounted; machines and computers; storage; furniture; items;
+  everything else) · markers and spawners. Groups fold open with ▸. Options: hide
   pipes and cables under floor tiles as in game (only while floors are shown),
   every sprite layer, tile grid.
 

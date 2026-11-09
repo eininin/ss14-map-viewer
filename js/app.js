@@ -157,7 +157,6 @@ async function openText(text, source) {
   S.selection = null;
   S.highlight = null;
   $('#empty').hidden = true;
-  $('#btnDownloadYml').hidden = false;
   $('#mapName').textContent = (model.name || source.name || 'map') + '  ·  ' + (source.label || source.name || '');
   document.title = (model.name || source.name) + ' – SS14 Map Viewer';
   loadAnnotsLocal();
@@ -1028,20 +1027,24 @@ function renderPacks() {
 const LAYER_TREE = [
   { k: 'tiles', label: 'Floor tiles' },
   { k: 'decals', label: 'Decals', sub: 'floor markings, dirt, flora' },
-  { label: 'Pipes and cables', children: [
+  { id: 'pipes', label: 'Pipes and cables', children: [
     { k: 'atmos', label: 'Atmos', sub: 'pipes, vents, scrubbers, pumps' },
-    { label: 'Electric', children: [
+    { id: 'electric', label: 'Electric', children: [
       { k: 'hv', label: 'HV cables' },
       { k: 'mv', label: 'MV cables' },
       { k: 'lv', label: 'LV cables' },
     ] },
     { k: 'disposal', label: 'Disposal pipes' },
   ] },
-  { label: 'Objects', children: [
+  { id: 'objects', label: 'Objects', children: [
     { k: 'walls', label: 'Walls', sub: 'walls, windows, grilles' },
     { k: 'doors', label: 'Airlocks and doors', sub: 'airlocks, firelocks, shutters, blast doors' },
-    { k: 'furniture', label: 'Furniture', sub: 'tables, chairs, beds, sofas, plants' },
-    { k: 'other', label: 'Everything else' },
+    { k: 'wallmount', label: 'Wall-mounted', sub: 'lights, APCs, air and fire alarms, cameras, signs' },
+    { k: 'machines', label: 'Machines and computers', sub: 'consoles, lathes, vending, power, thrusters' },
+    { k: 'storage', label: 'Storage', sub: 'lockers, closets, crates, racks, tanks, canisters' },
+    { k: 'furniture', label: 'Furniture', sub: 'tables, chairs, beds, sofas, carpets, plants' },
+    { k: 'items', label: 'Items', sub: 'loose things lying around' },
+    { k: 'other', label: 'Everything else', sub: 'catwalks, disposal units, conveyors, flora…' },
   ] },
   { k: 'markers', label: 'Markers and spawners', sub: 'only visible to mappers in game' },
 ];
@@ -1071,22 +1074,27 @@ function renderToggles() {
   box.innerHTML = '';
   const o = S.renderer.opts;
   const counts = layerCounts();
+  const open = LS.get('openGroups', {});
   const row = (node, depth) => {
     const keys = leaves(node);
     const on = keys.filter(k => o[k]).length;
     const n = keys.reduce((a, k) => a + (counts[k] || 0), 0);
     const l = document.createElement('div');
+    const isOpen = !!open[node.id];
     l.className = 'tg' + (node.children ? ' grp' : '');
-    l.style.paddingLeft = (4 + depth * 20) + 'px';
-    l.innerHTML = `<label><input type="checkbox"><span>${esc(node.label)}${node.sub ? `<small>${esc(node.sub)}</small>` : ''}</span></label>
+    l.style.paddingLeft = (depth * 18) + 'px';
+    l.innerHTML = `${node.children ? `<button class="fold${isOpen ? ' open' : ''}" title="${isOpen ? 'Fold' : 'Unfold'}">▸</button>` : '<span class="foldsp"></span>'}
+      <label><input type="checkbox"><span>${esc(node.label)}${node.sub ? `<small>${esc(node.sub)}</small>` : ''}</span></label>
       ${S.scene ? `<span class="cnt">${n}</span>` : ''}<button class="only" title="Show only this">only</button>`;
     const cb = l.querySelector('input');
     cb.checked = on === keys.length;
     cb.indeterminate = on > 0 && on < keys.length;
     cb.onchange = () => { for (const k of keys) o[k] = cb.checked; applyOpts(); };
     l.querySelector('.only').onclick = () => { for (const k of LAYER_KEYS) o[k] = keys.includes(k); applyOpts(); };
+    const fold = l.querySelector('.fold');
+    if (fold) fold.onclick = () => { open[node.id] = !isOpen; LS.set('openGroups', open); renderToggles(); };
     box.appendChild(l);
-    if (node.children) for (const c of node.children) row(c, depth + 1);
+    if (node.children && isOpen) for (const c of node.children) row(c, depth + 1);
   };
   for (const n of LAYER_TREE) row(n, 0);
 
@@ -1309,7 +1317,6 @@ function setupUI() {
   $('#fileInput').onchange = (e) => { const f = e.target.files[0]; if (f) openFile(f); e.target.value = ''; };
   $('#btnBrowse').onclick = browseMaps;
   $('#btnDownloadYml').onclick = downloadYml;
-  $('#btnDownloadYml2').onclick = downloadYml;
   $('#modalClose').onclick = closeModal;
   $('#modal').onclick = (e) => { if (e.target.id === 'modal') closeModal(); };
   $$('.tab[data-tab]').forEach(t => t.onclick = () => showTab(t.dataset.tab));

@@ -126,6 +126,10 @@ body.dragover #stage::after { content: "Drop to open"; position: absolute; inset
 .tg .only { visibility: hidden; background: none; border: 1px solid var(--line); border-radius: 5px; color: var(--dim); font-size: 11px; padding: 1px 6px; cursor: pointer; }
 .tg:hover .only { visibility: visible; }
 .tg .only:hover { color: var(--acc); border-color: var(--acc); }
+.tg .fold { background: none; border: 0; color: var(--dim); width: 20px; height: 24px; cursor: pointer; padding: 0; font-size: 12px; flex: none; transition: transform .12s; }
+.tg .fold.open { transform: rotate(90deg); }
+.tg .fold:hover { color: var(--text); }
+.tg .foldsp { width: 20px; flex: none; }
 .tgsep { height: 1px; background: var(--line); margin: 8px 0; }
 
 /* inspect */
