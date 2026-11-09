@@ -28,8 +28,12 @@ cables, doors and everything placed on it.
 - **Draw on top**: lines in any colour, an eraser that cuts lines, and text.
   Drawings are kept per map in your browser and can be exported, imported or
   saved into this repo.
-- **View options**: floors, decals, objects, pipes and cables under floors,
-  markers/spawners, layers the game hides at runtime, tile grid.
+- **Layers, each shown or hidden on its own** (*View* tab, with an "only"
+  button per row): floor tiles · decals · pipes and cables (atmos; electric
+  HV / MV / LV; disposal) · objects (walls incl. windows and grilles; airlocks
+  and doors; furniture; everything else) · markers and spawners. Options: hide
+  pipes and cables under floor tiles as in game (only while floors are shown),
+  every sprite layer, tile grid.
 
 Keys: drag to pan · scroll / double-click to zoom · `WASD` / arrows to move ·
 `F` fit · `H` pan · `V` pick · `B` pen · `E` eraser · `T` text · `G` grid ·

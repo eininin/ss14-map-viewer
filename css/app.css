@@ -115,11 +115,18 @@ body.dragover #stage::after { content: "Drop to open"; position: absolute; inset
 .addgrid .btn { margin-bottom: 4px; }
 
 /* toggles */
-.toggles { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; }
-.tg { display: flex !important; align-items: center; gap: 10px; padding: 7px 4px; color: var(--text) !important; cursor: pointer; border-radius: 6px; margin: 0 !important; }
+.toggles { display: flex; flex-direction: column; gap: 1px; margin-bottom: 12px; }
+.tg { display: flex; align-items: center; gap: 6px; border-radius: 6px; padding-right: 4px; }
 .tg:hover { background: var(--panel2); }
-.tg input { accent-color: var(--acc); width: 16px; height: 16px; }
-.tg small { color: var(--dim); display: block; font-size: 11.5px; }
+.tg label { display: flex !important; align-items: center; gap: 10px; padding: 6px 4px; color: var(--text) !important; cursor: pointer; margin: 0 !important; flex: 1; min-width: 0; }
+.tg.grp label span { font-weight: 600; }
+.tg input { accent-color: var(--acc); width: 16px; height: 16px; flex: none; }
+.tg small { color: var(--dim); display: block; font-size: 11.5px; font-weight: 400; }
+.tg .cnt { font: 11px var(--mono); color: var(--dim); }
+.tg .only { visibility: hidden; background: none; border: 1px solid var(--line); border-radius: 5px; color: var(--dim); font-size: 11px; padding: 1px 6px; cursor: pointer; }
+.tg:hover .only { visibility: visible; }
+.tg .only:hover { color: var(--acc); border-color: var(--acc); }
+.tgsep { height: 1px; background: var(--line); margin: 8px 0; }
 
 /* inspect */
 .ihead { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 10px; }

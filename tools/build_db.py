@@ -59,7 +59,11 @@ def load_all(root):
                 print("skip", p, e, file=sys.stderr)
                 continue
             if isinstance(d, list):
-                docs.extend(x for x in d if isinstance(x, dict))
+                rel = os.path.relpath(p, root).replace(os.sep, "/")
+                for x in d:
+                    if isinstance(x, dict):
+                        x["__file"] = rel
+                        docs.append(x)
     return docs
 
 def vec(v):
@@ -119,6 +123,40 @@ def clean_layer(ly):
     if ly.get("shader"): out["sh"] = str(ly["shader"])
     return out
 
+def categorize(pid, d, comps, e):
+    """Layer group for the viewer: atmos, hv, mv, lv, disposal, walls, doors, furniture (None = other)."""
+    names = set(comps)
+    tags = set()
+    t = comps.get("Tag", {}).get("tags")
+    if isinstance(t, list):
+        tags = {str(x) for x in t}
+    sprite = str(e.get("s", "")).lstrip("/").replace("Textures/", "", 1)
+    f = str(d.get("__file", ""))
+    if any(n.startswith("Disposal") for n in names if n not in ("DisposalUnit",)) and "MailingUnit" not in names:
+        return "disposal"
+    if "Cable" in names or e.get("cab"):
+        pre = (e.get("cab") or [""])[0].lower() or pid.lower()
+        for k in ("hv", "mv", "lv"):
+            if pre.startswith(k) or ("cable" + k) in pid.lower():
+                return k
+        return "lv"
+    if names & {"AtmosPipeLayers", "AtmosPipeColor", "PipeAppearance", "GasVentPump", "GasVentScrubber",
+                "GasPassiveVent", "GasPressurePump", "GasVolumePump", "GasFilter", "GasMixer", "GasValve",
+                "GasOutletInjector", "GasThermoMachine", "PipeRestrictOverlap"} and "GasPortable" not in names:
+        return "atmos"
+    if names & {"Door", "Airlock", "Firelock"}:
+        return "doors"
+    sm = e.get("sm")
+    if tags & {"Wall", "Window"} or (sm and sm[0] in ("walls", "windows")) or \
+            sprite.startswith(("Structures/Walls/", "Structures/Windows/")) or \
+            "/Structures/Walls/" in f or "/Structures/Windows/" in f:
+        return "walls"
+    if "/Furniture/" in f or sprite.startswith("Structures/Furniture/") or "Strap" in names or \
+            "Table" in tags or (sm and "table" in sm[0].lower()):
+        return "furniture"
+    return None
+
+
 def build(res):
     docs = load_all(os.path.join(res, "Prototypes"))
     ents, tiles, decals = {}, {}, {}
@@ -152,7 +190,7 @@ def build(res):
             continue
         base = tgt[pid]
         for k, v in pd.items():
-            if k in ("type", "id"):
+            if k in ("type", "id", "__file"):
                 continue
             if k == "components" and isinstance(v, list):
                 lst = list(base.get("components") or [])
@@ -244,6 +282,9 @@ def build(res):
             e["sub"] = 1
         if MARKER_COMPS & set(comps) or str(e.get("s", "")).startswith("Markers/"):
             e["mk"] = 1
+        cat = categorize(pid, d, comps, e)
+        if cat:
+            e["cat"] = cat
         if not e:
             continue
         if r["name"]: e["n"] = str(r["name"])

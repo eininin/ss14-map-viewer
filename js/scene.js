@@ -1,7 +1,17 @@
 // Turns a parsed map + sprite database into drawable items, and renders them.
 import { texRel } from './packs.js';
 
-export const PX = 32;          // pixels per tile in RSIs
+export const PX = 32;
+
+// every layer can be shown on its own
+export const LAYER_KEYS = ['tiles', 'decals', 'atmos', 'hv', 'mv', 'lv', 'disposal', 'walls', 'doors', 'furniture', 'other', 'markers'];
+export const DEFAULT_OPTS = {
+  tiles: true, decals: true,
+  atmos: true, hv: true, mv: true, lv: true, disposal: true,
+  walls: true, doors: true, furniture: true, other: true,
+  markers: false, allLayers: false,
+  coverHide: true,   // pipes and cables under floor tiles are hidden, as in game
+};          // pixels per tile in RSIs
 export const CHUNK = 16;       // tiles per render chunk
 
 // layers that the game hides at runtime (visualizers), shown only when "all layers" is on
@@ -98,6 +108,7 @@ export function buildScene(model, db, opts) {
       continue;
     }
     it.info = info;
+    if (info.cat) it.cat = info.cat;
     it.depth = info.d != null ? info.d : 0;
     if (info.mk) it.marker = true;
     if (info.sub) it.sub = true;
@@ -231,7 +242,7 @@ export class SceneRenderer {
   constructor(store) {
     this.store = store;
     this.tintCache = new Map();
-    this.opts = { tiles: true, decals: true, entities: true, subfloor: false, markers: false, allLayers: false };
+    this.opts = { ...DEFAULT_OPTS };
   }
 
   setScene(model, scene) {
@@ -309,12 +320,13 @@ export class SceneRenderer {
   visible(it) {
     const o = this.opts;
     if (it.kind === 'decal') return o.decals;
-    if (!o.entities) return false;
-    if (it.marker && !o.markers) return false;
+    if (it.marker) return o.markers;
+    if (!o[it.cat || 'other']) return false;
     if (it.hiddenSprite && !o.allLayers) return false;
-    if (it.sub && !o.subfloor) {
+    // things under the floor are only hidden while the floor itself is shown
+    if (it.sub && o.coverHide && o.tiles) {
       const sf = this.scene.subfloor.get(it.grid + ':' + it.tx + ',' + it.ty);
-      if (sf === false) return false;   // covered by a floor tile
+      if (sf === false) return false;
     }
     return true;
   }

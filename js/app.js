@@ -1,5 +1,5 @@
 import { Pack, SpriteStore, localPackFromFiles, texRel, DEV } from './packs.js';
-import { buildScene, SceneRenderer, PX, CHUNK } from './scene.js';
+import { buildScene, SceneRenderer, PX, CHUNK, LAYER_KEYS, DEFAULT_OPTS } from './scene.js';
 import { Annotations } from './annot.js';
 import { GitHub } from './github.js';
 import { openImageViewer } from './imageviewer.js';
@@ -224,6 +224,7 @@ async function resolveAndRender(keepView, token = S.loadToken) {
   if (!keepView) fitView();
   renderPacks();
   renderMapPane();
+  renderToggles();
   draw();
   progress(null);
   backgroundFill(token);
@@ -1023,35 +1024,91 @@ function renderPacks() {
   ol.appendChild(dev);
 }
 
-const TOGGLES = [
-  ['tiles', 'Floor tiles', ''],
-  ['decals', 'Decals', 'floor markings, dirt, flora'],
-  ['entities', 'Objects', 'everything placed on the map'],
-  ['subfloor', 'Pipes and cables under floors', 'normally hidden by floor tiles'],
-  ['markers', 'Markers and spawners', 'only visible to mappers in game'],
-  ['allLayers', 'Every sprite layer', 'also layers the game turns off (welded, bolted, panels…)'],
+// layer tree for the View tab. Leaves are keys in renderer.opts.
+const LAYER_TREE = [
+  { k: 'tiles', label: 'Floor tiles' },
+  { k: 'decals', label: 'Decals', sub: 'floor markings, dirt, flora' },
+  { label: 'Pipes and cables', children: [
+    { k: 'atmos', label: 'Atmos', sub: 'pipes, vents, scrubbers, pumps' },
+    { label: 'Electric', children: [
+      { k: 'hv', label: 'HV cables' },
+      { k: 'mv', label: 'MV cables' },
+      { k: 'lv', label: 'LV cables' },
+    ] },
+    { k: 'disposal', label: 'Disposal pipes' },
+  ] },
+  { label: 'Objects', children: [
+    { k: 'walls', label: 'Walls', sub: 'walls, windows, grilles' },
+    { k: 'doors', label: 'Airlocks and doors', sub: 'airlocks, firelocks, shutters, blast doors' },
+    { k: 'furniture', label: 'Furniture', sub: 'tables, chairs, beds, sofas, plants' },
+    { k: 'other', label: 'Everything else' },
+  ] },
+  { k: 'markers', label: 'Markers and spawners', sub: 'only visible to mappers in game' },
 ];
+const leaves = (n) => n.children ? n.children.flatMap(leaves) : [n.k];
+
+function layerCounts() {
+  const c = {};
+  if (!S.scene) return c;
+  for (const it of S.scene.items) {
+    const k = it.kind === 'decal' ? 'decals' : it.marker ? 'markers' : (it.cat || 'other');
+    c[k] = (c[k] || 0) + 1;
+  }
+  c.tiles = [...S.scene.tiles.values()].reduce((a, l) => a + l.length, 0);
+  return c;
+}
+
+function applyOpts() {
+  LS.set('opts', S.renderer.opts);
+  S.renderer.invalidate();
+  backgroundFill(S.loadToken);
+  draw();
+  renderToggles();
+}
+
 function renderToggles() {
   const box = $('#toggles');
   box.innerHTML = '';
-  for (const [k, label, sub] of TOGGLES) {
-    const l = document.createElement('label');
-    l.className = 'tg';
-    l.innerHTML = `<input type="checkbox" ${S.renderer.opts[k] ? 'checked' : ''}><span>${esc(label)}${sub ? `<small>${esc(sub)}</small>` : ''}</span>`;
-    l.querySelector('input').onchange = (e) => {
-      S.renderer.opts[k] = e.target.checked;
-      LS.set('opts', S.renderer.opts);
-      S.renderer.invalidate();
-      backgroundFill(S.loadToken);
-      draw();
-    };
+  const o = S.renderer.opts;
+  const counts = layerCounts();
+  const row = (node, depth) => {
+    const keys = leaves(node);
+    const on = keys.filter(k => o[k]).length;
+    const n = keys.reduce((a, k) => a + (counts[k] || 0), 0);
+    const l = document.createElement('div');
+    l.className = 'tg' + (node.children ? ' grp' : '');
+    l.style.paddingLeft = (4 + depth * 20) + 'px';
+    l.innerHTML = `<label><input type="checkbox"><span>${esc(node.label)}${node.sub ? `<small>${esc(node.sub)}</small>` : ''}</span></label>
+      ${S.scene ? `<span class="cnt">${n}</span>` : ''}<button class="only" title="Show only this">only</button>`;
+    const cb = l.querySelector('input');
+    cb.checked = on === keys.length;
+    cb.indeterminate = on > 0 && on < keys.length;
+    cb.onchange = () => { for (const k of keys) o[k] = cb.checked; applyOpts(); };
+    l.querySelector('.only').onclick = () => { for (const k of LAYER_KEYS) o[k] = keys.includes(k); applyOpts(); };
     box.appendChild(l);
-  }
-  const g = document.createElement('label');
-  g.className = 'tg';
-  g.innerHTML = `<input type="checkbox" ${S.showGrid ? 'checked' : ''}><span>Tile grid <small>key G</small></span>`;
-  g.querySelector('input').onchange = (e) => { S.showGrid = e.target.checked; drawOverlay(); };
-  box.appendChild(g);
+    if (node.children) for (const c of node.children) row(c, depth + 1);
+  };
+  for (const n of LAYER_TREE) row(n, 0);
+
+  const opt = (key, label, sub, get, set) => {
+    const l = document.createElement('div');
+    l.className = 'tg opt';
+    l.innerHTML = `<label><input type="checkbox" ${get() ? 'checked' : ''}><span>${esc(label)}${sub ? `<small>${esc(sub)}</small>` : ''}</span></label>`;
+    l.querySelector('input').onchange = (e) => set(e.target.checked);
+    box.appendChild(l);
+  };
+  box.insertAdjacentHTML('beforeend', '<div class="tgsep"></div>');
+  opt('coverHide', 'Hide pipes and cables under floor tiles', 'as in game; only while floor tiles are shown',
+    () => o.coverHide, (v) => { o.coverHide = v; applyOpts(); });
+  opt('allLayers', 'Every sprite layer', 'also layers the game turns off (welded, bolted, panels…)',
+    () => o.allLayers, (v) => { o.allLayers = v; applyOpts(); });
+  opt('grid', 'Tile grid', 'key G', () => S.showGrid, (v) => { S.showGrid = v; drawOverlay(); });
+  const all = document.createElement('div');
+  all.className = 'row gap';
+  all.innerHTML = '<button class="btn small" data-a="all">Show all</button><button class="btn small" data-a="def">Defaults</button>';
+  all.querySelector('[data-a=all]').onclick = () => { for (const k of LAYER_KEYS) o[k] = true; applyOpts(); };
+  all.querySelector('[data-a=def]').onclick = () => { Object.assign(o, DEFAULT_OPTS); applyOpts(); };
+  box.appendChild(all);
 }
 
 function renderMapPane() {
@@ -1246,7 +1303,7 @@ function downloadYml() {
 
 function setupUI() {
   const savedOpts = LS.get('opts', null);
-  if (savedOpts) Object.assign(S.renderer.opts, savedOpts);
+  if (savedOpts) for (const k of Object.keys(DEFAULT_OPTS)) if (typeof savedOpts[k] === 'boolean') S.renderer.opts[k] = savedOpts[k];
   $('#stage').dataset.tool = S.tool;
   $('#btnOpenFile').onclick = () => $('#fileInput').click();
   $('#fileInput').onchange = (e) => { const f = e.target.files[0]; if (f) openFile(f); e.target.value = ''; };
