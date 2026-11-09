@@ -122,4 +122,9 @@ jobs:
           git add -A db packs maps
           if git diff --cached --quiet; then echo "nothing changed"; exit 0; fi
           git commit -q -m "Update sprite database"
-          git push
+          # someone may have pushed while this ran: rebase onto it and retry
+          for i in 1 2 3 4 5; do
+            git pull -q --rebase -X theirs origin main && git push && exit 0
+            sleep $((i * 5))
+          done
+          exit 1
