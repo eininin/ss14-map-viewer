@@ -2,6 +2,7 @@ import { Pack, SpriteStore, localPackFromFiles, texRel, DEV } from './packs.js';
 import { buildScene, SceneRenderer, PX, CHUNK } from './scene.js';
 import { Annotations } from './annot.js';
 import { GitHub } from './github.js';
+import { openImageViewer } from './imageviewer.js';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
@@ -156,6 +157,7 @@ async function openText(text, source) {
   S.selection = null;
   S.highlight = null;
   $('#empty').hidden = true;
+  $('#btnDownloadYml').hidden = false;
   $('#mapName').textContent = (model.name || source.name || 'map') + '  ·  ' + (source.label || source.name || '');
   document.title = (model.name || source.name) + ' – SS14 Map Viewer';
   loadAnnotsLocal();
@@ -780,6 +782,17 @@ function itemPreview(it, size) {
   return c;
 }
 
+function viewSheet(res, title, path, fileName, select) {
+  if (!res || !res.img) return;
+  const states = res.state != null && !res.tex ? [{ name: res.state, dirs: res.dirs, frames: res.frames }] : null;
+  openImageViewer({
+    img: res.img, blob: res.blob, title, path, fileName,
+    frameW: res.tex ? (res.img.width % PX === 0 && res.img.height === PX ? PX : res.img.width) : res.w,
+    frameH: res.tex ? res.img.height : res.h,
+    states, select, onToast: toast,
+  });
+}
+
 function layerKey(l) { return l.tex ? 't:' + l.tex : (l.rsi + '|' + l.state + '|' + (l.fixedDir != null ? l.fixedDir : '')); }
 
 function renderInspect() {
@@ -851,7 +864,16 @@ function renderInspect() {
     lt.insertAdjacentHTML('beforeend', `<div><div class="path">${esc(t.name)}</div><div class="path">${esc(path || '(not in database)')}</div>
       <div class="src">${res && !res.dev ? 'from <b>' + esc(res.pack.name) + '</b>' : '<b class="bad">missing → dev texture</b>'} · variant ${t.v}</div></div>`);
     card.appendChild(lt);
-    if (res && !res.dev) card.appendChild(fileButtons(res.pack, path, res.blob, baseName(path), path.split('/').slice(0, -1).join('/')));
+    if (res && !res.dev) {
+      const fb = fileButtons(res.pack, path, res.blob, baseName(path), path.split('/').slice(0, -1).join('/'));
+      const vb = document.createElement('button');
+      vb.className = 'btn small primary'; vb.textContent = 'View sheet';
+      const vsel = { x: Math.min(t.v, Math.floor(res.img.width / PX) - 1) * PX, y: 0, w: PX, h: Math.min(PX, res.img.height) };
+      vb.onclick = () => openImageViewer({ img: res.img, blob: res.blob, title: t.name, path, fileName: baseName(path),
+        frameW: PX, frameH: Math.min(PX, res.img.height), select: vsel, onToast: toast });
+      fb.prepend(vb);
+      card.appendChild(fb);
+    }
     pane.appendChild(card);
   }
 }
@@ -895,6 +917,12 @@ function layerCard(it, l) {
     const c = frameCanvas(res, 0, 1, p.rect);
     const sc = Math.max(1, Math.floor(48 / Math.max(c.width, c.height)));
     c.style.width = c.width * sc + 'px'; c.style.height = c.height * sc + 'px';
+    if (!res.dev) {
+      c.style.cursor = 'zoom-in';
+      c.title = 'Open the whole sprite sheet';
+      c.onclick = () => viewSheet(res, l.tex ? baseName(l.tex) : `${l.state}`, l.tex ? texRel(l.tex) : texRel(l.rsi) + '/' + l.state + '.png',
+        l.tex ? baseName(l.tex) : l.state + '.png', { x: p.rect.sx, y: p.rect.sy, w: p.rect.sw, h: p.rect.sh });
+    }
     lt.appendChild(c);
   }
   const path = l.tex ? texRel(l.tex) : texRel(l.rsi);
@@ -906,8 +934,14 @@ function layerCard(it, l) {
   if (res && !res.dev) {
     const relDir = l.tex ? path.split('/').slice(0, -1).join('/') : path;
     const file = l.tex ? path : path + '/' + l.state + '.png';
-    card.appendChild(fileButtons(res.pack, file, res.blob, l.tex ? baseName(path) : l.state + '.png', relDir,
-      l.tex ? null : async () => new Blob([JSON.stringify(res.metaRaw, null, 2)], { type: 'application/json' })));
+    const fb = fileButtons(res.pack, file, res.blob, l.tex ? baseName(path) : l.state + '.png', relDir,
+      l.tex ? null : async () => new Blob([JSON.stringify(res.metaRaw, null, 2)], { type: 'application/json' }));
+    const vb = document.createElement('button');
+    vb.className = 'btn small primary'; vb.textContent = 'View sheet';
+    vb.title = 'Open the whole PNG: zoom, select frames, copy';
+    vb.onclick = () => lt.querySelector('canvas').onclick();
+    fb.prepend(vb);
+    card.appendChild(fb);
     if (!l.tex && res.metaRaw) {
       const more = document.createElement('details');
       more.innerHTML = `<summary class="hint" style="cursor:pointer;margin:8px 0 0">All ${res.metaRaw.states.length} states in this RSI</summary>`;
@@ -920,13 +954,13 @@ function layerCard(it, l) {
         for (const st of res.metaRaw.states) {
           const fig = document.createElement('figure');
           if (st.name === l.state) fig.className = 'cur';
-          fig.title = 'Click to copy this PNG';
+          fig.title = 'Open this sheet';
           grid.appendChild(fig);
           S.store.state(l.rsi, st.name).then(r2 => {
             const c = frameCanvas(r2, 0, 1);
             fig.prepend(c);
             fig.insertAdjacentHTML('beforeend', `<figcaption>${esc(st.name)}${st.directions > 1 ? ' ·' + st.directions + 'd' : ''}${r2.dev ? ' ✕' : ''}</figcaption>`);
-            fig.onclick = () => r2.blob ? copyImage(r2.blob) : toast('Not in any pack', true);
+            fig.onclick = () => r2.dev ? toast('Not in any pack', true) : viewSheet(r2, st.name, texRel(l.rsi) + '/' + st.name + '.png', st.name + '.png');
           });
         }
       };
@@ -1204,6 +1238,12 @@ async function exportViewPng() {
 }
 
 // ---------------------------------------------------------------- UI wiring
+function downloadYml() {
+  if (!S.mapSource) { toast('Open a map first', true); return; }
+  const name = /\.ya?ml$/i.test(S.mapSource.name) ? S.mapSource.name : (S.mapSource.name || 'map') + '.yml';
+  download(new Blob([S.mapSource.text], { type: 'text/yaml' }), name);
+}
+
 function setupUI() {
   const savedOpts = LS.get('opts', null);
   if (savedOpts) Object.assign(S.renderer.opts, savedOpts);
@@ -1211,6 +1251,8 @@ function setupUI() {
   $('#btnOpenFile').onclick = () => $('#fileInput').click();
   $('#fileInput').onchange = (e) => { const f = e.target.files[0]; if (f) openFile(f); e.target.value = ''; };
   $('#btnBrowse').onclick = browseMaps;
+  $('#btnDownloadYml').onclick = downloadYml;
+  $('#btnDownloadYml2').onclick = downloadYml;
   $('#modalClose').onclick = closeModal;
   $('#modal').onclick = (e) => { if (e.target.id === 'modal') closeModal(); };
   $$('.tab[data-tab]').forEach(t => t.onclick = () => showTab(t.dataset.tab));

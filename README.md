@@ -19,6 +19,12 @@ cables, doors and everything placed on it.
 - **Pick a sprite** (pick tool, `V`): shows the object, every sprite layer, which
   pack it came from, and buttons to open its folder on GitHub, copy the path,
   copy the PNG, download the PNG or `meta.json`, and browse all states of the RSI.
+- **View sheet**: opens the whole PNG of a picked sprite (every frame and
+  direction) full-screen. Scroll to zoom, right-drag / middle-drag / Space+drag
+  to move, drag to select (snapped to frames or free, pixel by pixel),
+  double-click a frame to select it, then copy or download the selection or the
+  whole image (`Ctrl+C` copies the selection, or everything if nothing is selected).
+- **Download .yml** of the open map (top bar or *Map* tab).
 - **Draw on top**: lines in any colour, an eraser that cuts lines, and text.
   Drawings are kept per map in your browser and can be exported, imported or
   saved into this repo.

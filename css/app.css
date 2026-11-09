@@ -177,7 +177,7 @@ body.dragover #stage::after { content: "Drop to open"; position: absolute; inset
 .maplist .mp { font: 10.5px var(--mono); color: var(--dim); word-break: break-all; }
 .group h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); margin: 14px 0 6px; }
 
-.toast { position: fixed; left: 50%; top: 60px; transform: translateX(-50%); background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; z-index: 60; font-size: 13px; box-shadow: 0 8px 30px #0008; }
+.toast { position: fixed; left: 50%; top: 60px; transform: translateX(-50%); background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; z-index: 90; font-size: 13px; box-shadow: 0 8px 30px #0008; }
 .toast.bad { border-color: var(--bad); }
 
 @media (max-width: 760px) {
@@ -186,3 +186,18 @@ body.dragover #stage::after { content: "Drop to open"; position: absolute; inset
   .panel { top: auto; height: 45vh; border-left: 0; border-top: 1px solid var(--line); }
   .brand { display: none; }
 }
+
+/* sprite sheet viewer */
+.iv { position: fixed; inset: 0; z-index: 70; background: #06080dee; display: flex; flex-direction: column; }
+.ivbar { display: flex; align-items: center; gap: 14px; padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.ivtitle { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.ivtitle b { font-size: 14px; font-weight: 600; }
+.ivtitle span { font: 11.5px var(--mono); color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ivbtns { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ivinfo { font: 11.5px var(--mono); color: var(--dim); margin-right: 6px; }
+.ivchk { display: flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--text); cursor: pointer; margin-right: 4px; }
+.ivchk input { accent-color: var(--acc); }
+.ivstage { flex: 1; position: relative; overflow: hidden; }
+.ivstage canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair; touch-action: none; }
+.ivfoot { height: 28px; display: flex; align-items: center; gap: 16px; padding: 0 12px; background: #0b0f17; border-top: 1px solid var(--line); font: 11.5px var(--mono); color: var(--dim); }
+.ivhelp { margin-left: auto; font-family: var(--sans); }

@@ -15,7 +15,8 @@
   <div class="mapname" id="mapName">No map loaded</div>
   <div class="topbtns">
     <button id="btnOpenFile" class="btn primary" title="Open a .yml map file (or drop it on the page)">Open .yml</button>
-    <button id="btnBrowse" class="btn" title="Browse maps from Starlight and this repo">Browse maps</button>
+    <button id="btnBrowse" class="btn" title="Browse maps from Starlight, Hardlight and this repo">Browse maps</button>
+    <button id="btnDownloadYml" class="btn" title="Download the open map's .yml file" hidden>Download .yml</button>
     <input type="file" id="fileInput" accept=".yml,.yaml" hidden>
   </div>
 </header>
@@ -108,6 +109,7 @@
         <div class="row gap">
           <button class="btn" id="btnCopyMissing">Copy list</button>
           <button class="btn" id="btnExportPng">Save view as PNG</button>
+          <button class="btn" id="btnDownloadYml2">Download .yml</button>
         </div>
       </section>
 
@@ -157,6 +159,6 @@
 </div>
 <div id="toast" class="toast" hidden></div>
 
-<script type="module" src="js/app.js"></script>
+<script type="module" src="js/app.js?v=2"></script>
 </body>
 </html>
