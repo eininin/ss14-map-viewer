@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "size": {
+    "x": 64,
+    "y": 32
+  },
+  "license": "CC-BY-SA-3.0",
+  "copyright": "Va11-HallA by Sukeban games, sign taken from https://github.com/vgstation-coders/vgstation13",
+  "states": [
+    {
+      "name": "empty",
+      "delays": [
+        [
+          1
+        ]
+      ]
+    },
+    {
+      "name": "va11halla",
+      "delays": [
+        [
+          1,
+          1
+        ]
+      ]
+    }
+  ]
+}

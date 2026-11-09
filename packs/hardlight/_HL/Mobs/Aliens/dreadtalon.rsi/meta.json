@@ -1,0 +1,93 @@
+{
+  "version": 1,
+  "size": {
+    "x": 64,
+    "y": 64
+  },
+  "license": "CC-BY-SA-3.0",
+  "copyright": "Made by Fenndragon discord: 190763499276861440",
+  "states": [
+    {
+      "name": "bananatalon",
+      "directions": 4
+    },
+    {
+      "name": "crit"
+    },
+    {
+      "name": "dead"
+    },
+    {
+      "name": "bananatalonglow",
+      "directions": 4
+    },
+    {
+      "name": "Bluetalon",
+      "directions": 4
+    },
+    {
+      "name": "bluetalonglow",
+      "directions": 4
+    },
+    {
+      "name": "dreadtalonralight",
+      "directions": 4
+    },
+    {
+      "name": "dreadtalonra",
+      "directions": 4
+    },
+    {
+      "name": "dreadtalonlight",
+      "directions": 4
+    },
+    {
+      "name": "dreadtalon",
+      "directions": 4
+    },
+    {
+      "name": "dreadtalonglow",
+      "directions": 4
+    },
+    {
+      "name": "lavatalon",
+      "directions": 4
+    },
+    {
+      "name": "lavatalonglow",
+      "directions": 4
+    },
+    {
+      "name": "plastalon",
+      "directions": 4
+    },
+    {
+      "name": "plastalonglow",
+      "directions": 4
+    },
+    {
+      "name": "singutalon",
+      "directions": 4
+    },
+    {
+      "name": "singutalonglow",
+      "directions": 4
+    },
+    {
+      "name": "supertalon",
+      "directions": 4
+    },
+    {
+      "name": "supertalonglow",
+      "directions": 4
+    },
+    {
+      "name": "tritalon",
+      "directions": 4
+    },
+    {
+      "name": "tritalonglow",
+      "directions": 4
+    }
+  ]
+}

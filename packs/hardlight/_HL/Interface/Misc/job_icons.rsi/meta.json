@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "license": "CC-BY-SA-3.0",
+  "copyright": "Created by Sera for Hardlight, HarborMaster by Livyathan",
+  "size": {
+    "x": 8,
+    "y": 8
+  },
+  "states": [
+    {
+      "name": "Arcadia"
+    },
+    {
+      "name": "Cartel"
+    },
+    {
+      "name": "CartelLieutenant"
+    },
+    {
+      "name": "EngineeringBorg"
+    },
+    {
+      "name": "HarborMaster"
+    },
+    {
+      "name": "interdyne-doctor-icon"
+    },
+    {
+      "name": "interdyne-head-icon"
+    },
+    {
+      "name": "Nanotrasen"
+    },
+    {
+      "name": "SalvageBorg"
+    },
+    {
+      "name": "SecurityBorg"
+    },
+    {
+      "name": "ServiceBorg"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "license": "CC-BY-SA-3.0",
+  "copyright": "orb, orb-inhand-left and orb-inhand-right created by Pancake, desaturated by UskSys",
+  "size": {
+    "x": 32,
+    "y": 32
+  },
+  "states": [
+    {
+      "name": "orb",
+      "delays": [
+        [
+          0.2,
+          0.2,
+          0.2,
+          0.2
+        ]
+      ]
+    },
+    {
+      "name": "orb-inhand-left",
+      "directions": 4
+    },
+    {
+      "name": "orb-inhand-right",
+      "directions": 4
+    }
+  ]
+}

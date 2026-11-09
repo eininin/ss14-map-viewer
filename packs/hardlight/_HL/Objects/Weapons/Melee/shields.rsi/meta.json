@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "license": "CC-BY-SA-3.0",
+  "copyright": "Made by iisazel and Firemoos20",
+  "size": {
+    "x": 32,
+    "y": 32
+  },
+  "states": [
+    {
+      "name": "argolight-icon"
+    },
+    {
+      "name": "argolight-inhand-right",
+      "directions": 4
+    },
+    {
+      "name": "argolight-inhand-left",
+      "directions": 4
+    },
+    {
+      "name": "argoheavy-icon"
+    },
+    {
+      "name": "argoheavy-inhand-right",
+      "directions": 4
+    },
+    {
+      "name": "argoheavy-inhand-left",
+      "directions": 4
+    }
+  ]
+}

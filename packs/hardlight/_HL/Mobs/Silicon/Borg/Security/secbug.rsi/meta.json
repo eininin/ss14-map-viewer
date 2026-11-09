@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "license": "CC-BY-SA-4.0",
+  "copyright": "made by @BoiWab",
+  "size": {
+    "x": 32,
+    "y": 32
+  },
+  "states": [
+    {
+      "name": "secbug",
+      "directions": 4
+    },
+    {
+      "name": "secbug_e_r",
+      "directions": 4
+    },
+    {
+      "name": "secbug_e",
+      "directions": 4
+    },
+    {
+      "name": "secbug_l",
+      "directions": 4
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "license": "CC-BY-SA-3.0",
+  "copyright": "by GitHub ItsDzordz / Discord dzordz (310775535984836609)",
+  "size": {
+    "x": 32,
+    "y": 32
+  },
+  "states": [
+    {
+      "name": "synth_audio_pack"
+    },
+    {
+      "name": "synth_camera_gimbal"
+    },
+    {
+      "name": "synth_ccu"
+    },
+    {
+      "name": "synth_energy_coil"
+    },
+    {
+      "name": "synth_heart"
+    },
+    {
+      "name": "synth_liver"
+    },
+    {
+      "name": "synth_lungs"
+    },
+    {
+      "name": "synth_red_brick"
+    },
+    {
+      "name": "synth_stomach"
+    },
+    {
+      "name": "synth_tongue"
+    }
+  ]
+}

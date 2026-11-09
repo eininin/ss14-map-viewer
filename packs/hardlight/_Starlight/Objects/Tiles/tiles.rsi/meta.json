@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "license": "CC-BY-SA-3.0",
+  "copyright": "Taken from tgstation, additional attributions available in the Resources/Textures/Tiles/attributions.yml file. Ice tile and Snow tile modifications. Glass tiles by @MageofMicrosoftPaints",
+  "size": {
+    "x": 32,
+    "y": 32
+  },
+  "states": [
+    {
+      "name": "tile_darkwood_broken"
+    },
+    {
+      "name": "tile_abyss_one"
+    },
+    {
+      "name": "tile_abyss_two"
+    },
+    {
+      "name": "tile_abductor"
+    },
+    {
+      "name": "tile_cut_plasma"
+    },
+    {
+      "name": "tile_gem_plasma"
+    },
+    {
+      "name": "tile_cut_uranium"
+    },
+    {
+      "name": "tile_gem_uranium"
+    },
+    {
+      "name": "tile_cut_brass"
+    }
+  ]
+}

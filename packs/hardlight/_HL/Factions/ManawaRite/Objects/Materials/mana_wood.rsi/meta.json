@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "license": "CC-BY-SA-3.0",
+  "copyright": "Sprites copied from tgstation/ss14 materials.rsi (wood sprites by MisterMecky) for HardLight _HL mana wood recolor",
+  "size": {
+    "x": 32,
+    "y": 32
+  },
+  "states": [
+    {
+      "name": "wood"
+    },
+    {
+      "name": "wood_2"
+    },
+    {
+      "name": "wood_3"
+    },
+    {
+      "name": "wood-inhand-left",
+      "directions": 4
+    },
+    {
+      "name": "wood-inhand-right",
+      "directions": 4
+    }
+  ]
+}

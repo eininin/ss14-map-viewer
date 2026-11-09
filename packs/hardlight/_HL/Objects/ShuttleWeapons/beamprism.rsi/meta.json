@@ -1,0 +1,113 @@
+{
+  "version": 1,
+  "license": "CC-BY-SA-3.0",
+  "copyright": "sprites by Fenndragon",
+  "size": {
+    "x": 32,
+    "y": 32
+  },
+  "states": [
+    {
+      "name": "artillerygem"
+    },
+    {
+      "name": "artillerygemfiring",
+      "delays": [
+        [
+          0.1,
+          0.2,
+          0.3,
+          0.1
+        ]
+      ]
+    },
+    {
+      "name": "artillerygemfiringabyss",
+      "delays": [
+        [
+          0.1,
+          0.2,
+          0.3,
+          0.1
+        ]
+      ]
+    },
+    {
+      "name": "artillerygemfiringgreen",
+      "delays": [
+        [
+          0.1,
+          0.2,
+          0.3,
+          0.1
+        ]
+      ]
+    },
+    {
+      "name": "artillerygemfiringomni",
+      "delays": [
+        [
+          0.1,
+          0.2,
+          0.3,
+          0.1
+        ]
+      ]
+    },
+    {
+      "name": "artillerygemfiringproton",
+      "delays": [
+        [
+          0.1,
+          0.2,
+          0.3,
+          0.1
+        ]
+      ]
+    },
+    {
+      "name": "artillerygemfiringpulse",
+      "delays": [
+        [
+          0.1,
+          0.2,
+          0.3,
+          0.1
+        ]
+      ]
+    },
+    {
+      "name": "artillerygemfiringred",
+      "delays": [
+        [
+          0.1,
+          0.2,
+          0.3,
+          0.1
+        ]
+      ]
+    },
+    {
+      "name": "artillerygemfiringsotek",
+      "delays": [
+        [
+          0.1,
+          0.2,
+          0.3,
+          0.1
+        ]
+      ]
+    },
+    {
+      "name": "artillerygemfiringyellow",
+      "delays": [
+        [
+          0.1,
+          0.2,
+          0.3,
+          0.1
+        ]
+      ]
+    }
+  ]
+}

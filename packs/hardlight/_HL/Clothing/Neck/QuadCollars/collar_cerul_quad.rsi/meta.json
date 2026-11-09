@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "license": "CC-BY-SA-3.0",
+  "copyright": "By GitHub Orhu / Discord orhu (244620894125817857)",
+  "size": {
+    "x": 64,
+    "y": 64
+  },
+  "states": [
+    {
+      "name": "equipped-NECK-quadborg",
+      "directions": 4
+    }
+  ]
+}

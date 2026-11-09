@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "license": "CC-BY-SA-3.0",
+  "copyright": "Made by PuroSlavKing (github) for SS14, harpy by VMSolidus. Avali state by DocMoth (Github), recolor for Hardlight by Vonte",
+  "size": {
+    "x": 32,
+    "y": 32
+  },
+  "states": [
+    {
+      "name": "equipped-OUTERCLOTHING-harpy",
+      "directions": 4
+    }
+  ]
+}
