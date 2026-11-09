@@ -35,7 +35,7 @@ export function buildScene(model, db, opts) {
         const name = model.tilemap[id];
         if (!name || name === 'Space') continue;
         const x = ch.cx * n + (i % n), y = ch.cy * n + Math.floor(i / n);
-        const td = db.tile[name];
+        const td = db.tile[name] || (db.tileAlias && db.tile[db.tileAlias[name]]);
         list.push({ x, y, name, v: ch.vari[i], rm: ch.rm[i], td });
         subfloor.set(tkey(g.uid, x, y), !!(td && td.sub));
         if (td && td.s) need({ tex: td.s });
@@ -44,10 +44,28 @@ export function buildScene(model, db, opts) {
     tiles.set(g.uid, list);
   }
 
+  // old prototype ids are renamed (or deleted) the way the game does it on load
+  const mig = db.migrate || {};
+  const lookup = (p) => {
+    if (db.ent[p]) return { proto: p, info: db.ent[p] };
+    if (Object.prototype.hasOwnProperty.call(mig, p)) {
+      const to = mig[p];
+      if (to == null) return { deleted: true };
+      if (db.ent[to]) return { proto: to, info: db.ent[to], from: p };
+    }
+    return { proto: p, info: null };
+  };
+  const ents = [];
+  for (const e of model.ents) {
+    const r = lookup(e.proto);
+    if (r.deleted) continue;
+    ents.push(r.from ? { ...e, proto: r.proto, renamedFrom: r.from } : e);
+  }
+
   // ---- neighbour index for smoothing / cables
   const smoothAt = new Map();  // tile key -> Set(keys)
   const cableAt = new Map();   // tile key -> Set(prefix)
-  for (const e of model.ents) {
+  for (const e of ents) {
     const info = db.ent[e.proto];
     if (!info) continue;
     const k = tkey(e.grid, Math.floor(e.x), Math.floor(e.y));
@@ -63,13 +81,14 @@ export function buildScene(model, db, opts) {
   };
 
   // ---- entities
-  for (const e of model.ents) {
+  for (const e of ents) {
     const info = db.ent[e.proto];
     const tx = Math.floor(e.x), ty = Math.floor(e.y);
     const it = {
       kind: 'ent', uid: e.uid, proto: e.proto, grid: e.grid, x: e.x, y: e.y, rot: e.rot,
       name: e.name || (info && info.n) || e.proto, depth: 0, layers: [], tx, ty,
     };
+    if (e.renamedFrom) it.renamedFrom = e.renamedFrom;
     if (!info) {
       unknownProtos.set(e.proto, (unknownProtos.get(e.proto) || 0) + 1);
       it.unknown = true;

@@ -14,7 +14,10 @@
         packtool.py diff hardlight/Resources/Textures packs/hardlight \\
             --base starlight/Resources/Textures
 """
-import argparse, json, os, shutil, sys
+import argparse, json, os, re, shutil, sys
+
+# folders that never appear on a map (lobby art, parallax backgrounds)
+SKIP_DIRS = re.compile(r"(^|/)(Lobby|LobbyScreens|Parallaxes|Parallax|Logo|Credits)(/|$)", re.I)
 
 
 def read_meta(path):
@@ -26,20 +29,27 @@ def read_meta(path):
 
 
 def index(pack):
-    files = []
+    """index.json lists the .rsi folders (whose meta.json says which states exist)
+    and every other file, so the viewer never asks for files that aren't there."""
+    rsis, files = [], []
     for dp, dns, fs in os.walk(pack):
         dns.sort()
+        rel_dir = os.path.relpath(dp, pack).replace(os.sep, "/")
+        if rel_dir.endswith(".rsi"):
+            rsis.append(rel_dir)
+            dns[:] = []
+            continue
         for f in sorted(fs):
-            rel = os.path.relpath(os.path.join(dp, f), pack).replace(os.sep, "/")
+            rel = f if rel_dir == "." else rel_dir + "/" + f
             if rel in ("index.json", "README.md"):
                 continue
             files.append(rel)
     name = os.path.basename(os.path.normpath(pack))
     old = read_meta(os.path.join(pack, "index.json")) or {}
     with open(os.path.join(pack, "index.json"), "w") as fh:
-        json.dump({"name": old.get("name", name), "files": files}, fh, separators=(",", ":"))
+        json.dump({"name": old.get("name", name), "rsis": rsis, "files": files}, fh, separators=(",", ":"))
         fh.write("\n")
-    print(f"{pack}: {len(files)} files")
+    print(f"{pack}: {len(rsis)} RSIs, {len(files)} other files")
 
 
 def diff(src, out, bases):
@@ -56,6 +66,9 @@ def diff(src, out, bases):
     n_rsi = n_states = n_tex = 0
     for dp, dns, fs in os.walk(src):
         rel_dir = os.path.relpath(dp, src).replace(os.sep, "/")
+        if SKIP_DIRS.search(rel_dir):
+            dns[:] = []
+            continue
         if rel_dir.endswith(".rsi"):
             dns[:] = []
             meta = read_meta(os.path.join(dp, "meta.json"))

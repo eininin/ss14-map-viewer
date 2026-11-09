@@ -14,7 +14,7 @@ const LS = {
 
 // ---------------------------------------------------------------- state
 const S = {
-  config: { repo: '', branch: 'main', db: 'db/starlight.json' },
+  config: { repo: '', branch: 'main', db: 'db/sprites.json' },
   db: null,
   packCfgs: [],          // ordered configs (local packs keep their file maps here)
   defaultPacks: [],
@@ -110,7 +110,7 @@ async function boot() {
   resize();
   renderRepoInfo();
   const q = new URLSearchParams(location.search);
-  if (q.get('map')) openFromParam(q.get('map'), q);
+  if (q.get('map')) { await loadMapLists(); openFromParam(q.get('map'), q); }
 }
 
 function packCtx() { return { siteRepo: S.config.repo, siteBranch: S.config.branch, dbCommit: S.db && S.db.commit }; }
@@ -263,11 +263,12 @@ async function fetchText(url) {
 async function openFromParam(v, q) {
   try {
     let url, name = baseName(v), src;
-    if (v.startsWith('starlight:')) {
-      const p = v.slice(10);
-      const repo = S.db.repo || 'ss14Starlight/space-station-14';
-      url = `https://raw.githubusercontent.com/${repo}/${S.db.commit || 'master'}/Resources/${p}`;
-      src = { kind: 'starlight', name, label: repo + ' · ' + p, key: v, param: v };
+    const src0 = v.split(':')[0];
+    const list = S.mapLists && S.mapLists.find(l => l.id === src0);
+    if (list) {
+      const p = v.slice(src0.length + 1);
+      url = `https://raw.githubusercontent.com/${list.repo}/${list.commit || 'master'}/Resources/${p}`;
+      src = { kind: 'fork', name, label: list.repo + ' · ' + p, key: v, param: v };
     } else if (v.startsWith('repo:')) {
       const p = v.slice(5);
       url = p;
@@ -307,18 +308,17 @@ async function browseMaps() {
     const repoList = await (await fetch('maps/index.json', { cache: 'no-cache' })).json();
     if (repoList.maps && repoList.maps.length) groups.push({ title: 'This repo', items: repoList.maps.map(p => ({ p: 'repo:maps/' + p, name: baseName(p), path: 'maps/' + p })) });
   } catch (e) { /* none */ }
-  try {
-    const sl = await (await fetch('db/starlight-maps.json', { cache: 'no-cache' })).json();
+  for (const l of await loadMapLists()) {
     const by = new Map();
-    for (const p of sl.maps) {
+    for (const p of l.maps) {
       const parts = p.split('/');
       const grp = parts.slice(1, -1).join('/') || 'Maps';
       if (!by.has(grp)) by.set(grp, []);
-      by.get(grp).push({ p: 'starlight:' + p, name: baseName(p).replace(/\.yml$/, ''), path: p });
+      by.get(grp).push({ p: l.id + ':' + p, name: baseName(p).replace(/\.yml$/, ''), path: p });
     }
     const order = [...by.keys()].sort((a, b) => (b.includes('Stations') - a.includes('Stations')) || a.localeCompare(b));
-    for (const k of order) groups.push({ title: 'Starlight · ' + k, items: by.get(k) });
-  } catch (e) { /* none */ }
+    for (const k of order) groups.push({ title: l.name + ' · ' + k, items: by.get(k) });
+  }
   let html = '<input id="mapSearch" class="search" placeholder="Search maps…" style="width:100%;margin-bottom:6px">';
   html += groups.map(g => `<div class="group"><h3>${esc(g.title)}</h3><div class="maplist">${g.items.map(i =>
     `<button data-p="${esc(i.p)}" data-s="${esc((g.title + ' ' + i.path).toLowerCase())}"><div class="mn">${esc(i.name)}</div><div class="mp">${esc(i.path)}</div></button>`).join('')}</div></div>`).join('');
@@ -337,6 +337,20 @@ async function browseMaps() {
       });
     };
   }
+}
+async function loadMapLists() {
+  if (S.mapLists) return S.mapLists;
+  const out = [];
+  let sources = [];
+  try { sources = (await (await fetch('sources.json', { cache: 'no-cache' })).json()).sources || []; } catch (e) { /* none */ }
+  await Promise.all(sources.map(async (src, i) => {
+    try {
+      const j = await (await fetch(`db/maps-${src.id}.json`, { cache: 'no-cache' })).json();
+      out[i] = { id: src.id, name: src.name || src.id, repo: j.repo || src.repo, commit: j.commit, maps: j.maps || [] };
+    } catch (e) { /* none */ }
+  }));
+  S.mapLists = out.filter(Boolean);
+  return S.mapLists;
 }
 function openModal(title, html) { $('#modalTitle').textContent = title; $('#modalBody').innerHTML = html; $('#modal').hidden = false; }
 function closeModal() { $('#modal').hidden = true; }
@@ -791,6 +805,7 @@ function renderInspect() {
         <span class="k">depth</span><span class="v">${it.kind === 'decal' ? 'decal' : it.depth}</span>
       </dl></div>`);
     pane.appendChild(head);
+    if (it.renamedFrom) pane.insertAdjacentHTML('beforeend', `<p class="hint">Saved in the map as <code>${esc(it.renamedFrom)}</code>, which the game renames to this.</p>`);
     if (it.unknown) pane.insertAdjacentHTML('beforeend', `<p class="hint" style="color:var(--bad)">This ${it.kind === 'decal' ? 'decal' : 'prototype'} is not in the sprite database (${esc(S.db.repo || '')}), so it is drawn with the dev texture.</p>`);
     const btns = document.createElement('div');
     btns.className = 'row gap wrap';
@@ -1129,7 +1144,8 @@ async function uploadPack(cfg) {
     cur.packs = (cur.packs || []).filter(p => !(p.type === 'site' && p.path === 'packs/' + slug));
     cur.packs.unshift({ id: slug, name: cfg.name, type: 'site', path: 'packs/' + slug });
     const listed = files.map(f => f.path.slice(('packs/' + slug + '/').length));
-    files.push({ path: `packs/${slug}/index.json`, text: JSON.stringify({ name: cfg.name, files: listed }, null, 0) + '\n' });
+    const rsis = [...new Set(listed.filter(f => /\.rsi\//i.test(f)).map(f => f.slice(0, f.toLowerCase().indexOf('.rsi/') + 4)))];
+    files.push({ path: `packs/${slug}/index.json`, text: JSON.stringify({ name: cfg.name, rsis, files: listed.filter(f => !/\.rsi\//i.test(f)) }) + '\n' });
     files.push({ path: 'packs.json', text: JSON.stringify(cur, null, 2) + '\n' });
     progress(0, 'Uploading…');
     await gh.commit(files, `Add sprite pack ${slug}`, (d, t) => progress(d / t, `Uploading ${d} / ${t}`));

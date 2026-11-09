@@ -1,14 +1,7 @@
 {
   "sources": [
-    {
-      "id": "starlight",
-      "repo": "ss14Starlight/space-station-14",
-      "branch": "starlight-dev"
-    },
-    {
-      "id": "hardlight",
-      "repo": "Vontens/HardLight-new",
-      "branch": "master"
-    }
+    { "id": "starlight", "name": "Starlight", "repo": "ss14Starlight/space-station-14", "branch": "starlight-dev" },
+    { "id": "hardlight", "name": "Hardlight", "repo": "Vontens/HardLight-new", "branch": "master",
+      "pack": "packs/hardlight", "packBase": ["starlight"] }
   ]
 }

@@ -10,7 +10,8 @@ cables, doors and everything placed on it.
 
 - **Open maps** from your computer (button or drag and drop), from Starlight's
   own map list (*Browse maps*), or from the `maps/` folder of this repo.
-  Links keep the map and view: `?map=starlight:Maps/_Starlight/Stations/Manor.yml&x=0&y=0&z=1`.
+  Links keep the map and view: `?map=starlight:Maps/_Starlight/Stations/Manor.yml&x=0&y=0&z=1`
+  (or `hardlight:Maps/...`).
 - **Sprite packs, in order.** Every sprite is looked up in the packs from top to
   bottom; the first pack that has it wins. Whatever no pack has is drawn with the
   dev texture (#FF00DC / black checker). The *Map* tab lists everything that fell
@@ -33,9 +34,10 @@ Keys: drag to pan · scroll / double-click to zoom · `WASD` / arrows to move ·
 | Path | What |
 | --- | --- |
 | `index.html`, `css/`, `js/` | the site (plain HTML/JS, no build step) |
-| `db/starlight.json` | sprite database: prototype id → sprite, layers, draw depth, smoothing, tiles, decals |
-| `db/starlight-maps.json` | list of Starlight's maps for *Browse maps* |
+| `db/sprites.json` | sprite database: prototype id → sprite, layers, draw depth, smoothing, tiles, decals, renames. Starlight first, then what only Hardlight has |
+| `db/maps-<fork>.json` | each fork's map list for *Browse maps* |
 | `packs.json` | default pack order shown to new visitors |
+| `packs/hardlight/` | every Hardlight sprite that Starlight doesn't have (lobby art and parallax backgrounds left out) |
 | `packs/<name>/` | packs stored in this repo, laid out like `Resources/Textures` (`Structures/Walls/solid.rsi/…`) with an `index.json` |
 | `maps/` | maps saved into the repo (`maps/index.json` lists them) |
 | `annotations/` | drawings saved into the repo, one file per map |
@@ -62,7 +64,8 @@ python3 tools/packtool.py diff <other fork>/Resources/Textures packs/<name> \
 
 This keeps whole RSIs Starlight doesn't have, single states missing from RSIs
 it does have (with a trimmed `meta.json`), and plain textures. Add the folder
-to `packs.json` under Starlight.
+to `packs.json` under Starlight. For forks listed in `sources.json` with a
+`pack` entry (Hardlight), the weekly workflow does this for you.
 
 ### Writing to the repo from the site
 
@@ -75,9 +78,9 @@ The token is stored only in your browser.
 
 ```
 pip install pyyaml
-python3 tools/build_db.py <starlight>/Resources db/starlight.json \
+python3 tools/build_db.py <starlight>/Resources db/sprites.json \
     --repo ss14Starlight/space-station-14 --commit <sha> \
-    --maps-out db/starlight-maps.json
+    --extra <hardlight>/Resources Vontens/HardLight-new <sha>
 ```
 
 ## Licences

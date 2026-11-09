@@ -122,6 +122,17 @@ def clean_layer(ly):
 def build(res):
     docs = load_all(os.path.join(res, "Prototypes"))
     ents, tiles, decals = {}, {}, {}
+    talias = {str(d["id"]): str(d["target"]) for d in docs
+              if d.get("type") == "tileAlias" and d.get("id") and d.get("target")}
+    migrate = {}
+    mp = os.path.join(res, "migration.yml")
+    if os.path.exists(mp):
+        try:
+            with open(mp, encoding="utf-8-sig") as fh:
+                for k, v in (yaml.load(fh, Loader=L) or {}).items():
+                    migrate[str(k)] = None if v in (None, "", "null") else str(v)
+        except Exception as e:
+            print("migration.yml:", e, file=sys.stderr)
     partials = [d for d in docs if isinstance(d.get("type"), Partial)]
     docs = [d for d in docs if not isinstance(d.get("type"), Partial)]
     for d in docs:
@@ -277,7 +288,7 @@ def build(res):
             o["t"] = s
         if o: out_d[did] = o
 
-    return out_e, out_t, out_d
+    return out_e, out_t, out_d, talias, migrate
 
 def main():
     import argparse, datetime
@@ -290,11 +301,13 @@ def main():
     ap.add_argument("--maps-out", default="", help="also write a list of map .yml paths here")
     ap.add_argument("--maps-file", default="", help="text file with map paths (one per line) instead of walking Resources/Maps")
     a = ap.parse_args()
-    out_e, out_t, out_d = build(a.resources)
+    out_e, out_t, out_d, out_ta, out_mg = build(a.resources)
     sources = [{"repo": a.repo, "commit": a.commit}]
     for k, (res, repo, commit) in enumerate(a.extra, start=1):
-        e2, t2, d2 = build(res)
+        e2, t2, d2, ta2, mg2 = build(res)
         n = 0
+        for k2, v2 in ta2.items(): out_ta.setdefault(k2, v2)
+        for k2, v2 in mg2.items(): out_mg.setdefault(k2, v2)
         for src, dst in ((e2, out_e), (t2, out_t), (d2, out_d)):
             for key, v in src.items():
                 if key not in dst:
@@ -305,7 +318,7 @@ def main():
         print(f"{repo}: added {n} prototypes the main fork does not have")
     db = {"v": 1, "repo": a.repo, "commit": a.commit, "sources": sources,
           "built": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
-          "ent": out_e, "tile": out_t, "decal": out_d}
+          "ent": out_e, "tile": out_t, "decal": out_d, "tileAlias": out_ta, "migrate": out_mg}
     with open(a.out, "w") as fh:
         json.dump(db, fh, separators=(",", ":"))
     if a.maps_out:

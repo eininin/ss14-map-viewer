@@ -1,5 +1,5 @@
 {
   "repo": "eininin/ss14-map-viewer",
   "branch": "main",
-  "db": "db/starlight.json"
+  "db": "db/sprites.json"
 }

@@ -103,7 +103,10 @@ export class Pack {
           const r = await fetch(this.url('index.json'), { cache: 'no-cache' });
           if (!r.ok) return null;
           const j = await r.json();
-          return new Set((j.files || []).map(f => String(f).toLowerCase()));
+          return {
+            rsis: new Set((j.rsis || []).map(f => String(f).toLowerCase())),
+            files: new Set((j.files || []).map(f => String(f).toLowerCase())),
+          };
         } catch (e) { return null; }
       })();
     }
@@ -112,7 +115,11 @@ export class Pack {
   async get(rel) {
     if (this.type === 'site') {
       const idx = await this.index();
-      if (idx && !idx.has(rel.toLowerCase())) return null;
+      if (idx) {
+        const lr = rel.toLowerCase();
+        const i = lr.indexOf('.rsi/');
+        if (i >= 0 ? !idx.rsis.has(lr.slice(0, i + 4)) : !idx.files.has(lr)) return null;
+      }
     }
     if (this.type === 'local') {
       const f = this.files && this.files.get(rel.toLowerCase());
