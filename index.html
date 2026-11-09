@@ -97,7 +97,14 @@
 
       <section data-pane="layers" class="pane" id="paneLayers">
         <div class="toggles" id="toggles"></div>
-        <label class="row">Background <input type="color" id="bgColor" value="#06080d"></label>
+        <h3>Background</h3>
+        <label class="row">Style
+          <select id="bgMode" class="sel">
+            <option value="space">Space, as in game (stars, parallax)</option>
+            <option value="color">Solid colour</option>
+          </select>
+        </label>
+        <label class="row">Colour <input type="color" id="bgColor" value="#06080d"></label>
       </section>
 
       <section data-pane="map" class="pane" id="paneMap">
@@ -163,6 +170,6 @@
 </div>
 <div id="toast" class="toast" hidden></div>
 
-<script type="module" src="js/app.js?v=7"></script>
+<script type="module" src="js/app.js?v=8"></script>
 </body>
 </html>

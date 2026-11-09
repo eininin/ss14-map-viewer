@@ -39,7 +39,9 @@ cables, doors and everything placed on it.
   and doors; wall-mounted; machines and computers; storage; furniture; items;
   everything else) · markers and spawners. Groups fold open with ▸. Options: hide
   pipes and cables under floor tiles as in game (only while floors are shown),
-  every sprite layer, tile grid.
+  every sprite layer, tile grid. Background: space as in game (the Default
+  parallax: nebula image plus the four generated star layers, each drifting at
+  its own speed) or a solid colour.
 
 Keys: drag to pan · scroll / double-click to zoom · `WASD` / arrows to move ·
 `F` fit · `H` pan · `V` pick (drag: area) · `B` pen · `E` eraser · `T` text · `G` grid ·

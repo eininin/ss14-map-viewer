@@ -3,6 +3,7 @@ import { buildScene, SceneRenderer, PX, CHUNK, LAYER_KEYS, DEFAULT_OPTS } from '
 import { Annotations } from './annot.js';
 import { GitHub } from './github.js';
 import { openImageViewer } from './imageviewer.js';
+import { Parallax } from './parallax.js';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
@@ -32,9 +33,11 @@ const S = {
   highlight: null,       // {label, items:[it]}
   showGrid: false,
   bg: LS.get('bg', '#06080d'),
+  bgMode: LS.get('bgMode', 'space'),
   loadToken: 0,
 };
 S.renderer = new SceneRenderer(S.store);
+const parallax = new Parallax();
 const annots = new Annotations(() => { saveAnnotsLocal(); drawOverlay(); updateDrawStats(); });
 let gh = null;
 
@@ -121,6 +124,7 @@ function applyPacks(reload = true) {
   S.packObjs = packs;
   LS.set('packs', S.packCfgs.filter(c => c.type !== 'local').map(({ files, ...c }) => c));
   renderPacks();
+  if (S.bgMode === 'space' && parallax.ready) parallax.init(S.store).then(draw);
   if (reload && S.model) resolveAndRender(true);
 }
 
@@ -422,8 +426,12 @@ function draw() {
 function drawNow() {
   const g = mctx;
   g.setTransform(1, 0, 0, 1, 0, 0);
-  g.fillStyle = S.bg;
-  g.fillRect(0, 0, mapCanvas.width, mapCanvas.height);
+  if (S.bgMode === 'space' && parallax.ready) {
+    parallax.draw(g, W, H, S.cam.x, S.cam.y, DPR);
+  } else {
+    g.fillStyle = S.bg;
+    g.fillRect(0, 0, mapCanvas.width, mapCanvas.height);
+  }
   const r = S.renderer;
   let pending = false;
   if (r.grids) {
@@ -1563,6 +1571,14 @@ function downloadYml() {
   download(new Blob([S.mapSource.text], { type: 'text/yaml' }), name);
 }
 
+function setBgMode(m) {
+  S.bgMode = m;
+  LS.set('bgMode', m);
+  $('#bgMode').value = m;
+  $('#bgColor').parentElement.classList.toggle('dimmed', m !== 'color');
+  if (m === 'space') parallax.init(S.store).then(draw); else draw();
+}
+
 function setupUI() {
   const savedOpts = LS.get('opts', null);
   if (savedOpts) for (const k of Object.keys(DEFAULT_OPTS)) if (typeof savedOpts[k] === 'boolean') S.renderer.opts[k] = savedOpts[k];
@@ -1622,7 +1638,10 @@ function setupUI() {
 
   renderToggles();
   $('#bgColor').value = S.bg;
-  $('#bgColor').oninput = (e) => { S.bg = e.target.value; LS.set('bg', S.bg); draw(); };
+  $('#bgColor').oninput = (e) => { S.bg = e.target.value; LS.set('bg', S.bg); setBgMode('color'); };
+  $('#bgMode').value = S.bgMode;
+  $('#bgMode').onchange = (e) => setBgMode(e.target.value);
+  setBgMode(S.bgMode);
   $('#protoFilter').oninput = renderProtoList;
   $('#btnCopyMissing').onclick = () => {
     const miss = [...(S.missing || new Map()).values()].sort((a, b) => b.count - a.count);
