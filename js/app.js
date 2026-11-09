@@ -214,6 +214,11 @@ async function resolveAndRender(keepView, token = S.loadToken) {
           l.tex ? { tex: texRel(l.tex) } : { rsi: texRel(l.rsi), state: l.state }, it);
       }
     }
+    if (it.alt) for (const l of it.alt.layers) {
+      if (l.tex) l.res = resolved.get('t|' + texRel(l.tex));
+      else if (l.rsi && l.state != null) l.res = resolved.get('s|' + texRel(l.rsi) + '|' + l.state);
+      else l.res = null;
+    }
     if (it.unknown && it.kind === 'ent') noteMissing('proto|' + it.proto, { protoUnknown: it.proto }, it);
     S.renderer.computeRadius(it);
   }
@@ -839,14 +844,38 @@ function renderInspect() {
     btns.querySelector('[data-a=copyid]').onclick = () => copyText(it.proto);
     pane.appendChild(btns);
 
-    pane.insertAdjacentHTML('beforeend', '<h3>Sprite layers</h3>');
     const seen = new Set();
-    for (const l of it.layers) {
-      if (l.dev) continue;
-      const k = layerKey(l);
-      if (seen.has(k)) continue;
-      seen.add(k);
-      pane.appendChild(layerCard(it, l));
+    const cards = (layers, target) => {
+      for (const l of layers) {
+        if (l.dev) continue;
+        const k = layerKey(l);
+        if (seen.has(k)) continue;
+        seen.add(k);
+        target.appendChild(layerCard(it, l));
+      }
+    };
+    if (it.alt) {
+      // both looks side by side, then the layers of each
+      const both = document.createElement('div');
+      both.className = 'looks';
+      for (const [label, layers] of [[it.placedLabel, it.layers], [it.alt.label, it.alt.layers]]) {
+        const f = document.createElement('figure');
+        f.appendChild(itemPreview({ ...it, layers }, 72));
+        f.insertAdjacentHTML('beforeend', `<figcaption>${esc(label)}</figcaption>`);
+        both.appendChild(f);
+      }
+      pane.insertAdjacentHTML('beforeend', '<h3>Placed and loose</h3>');
+      pane.appendChild(both);
+      pane.insertAdjacentHTML('beforeend', `<h3>Sprite layers · ${esc(it.placedLabel.toLowerCase())}</h3>`);
+      cards(it.layers, pane);
+      pane.insertAdjacentHTML('beforeend', `<h3>Sprite layers · ${esc(it.alt.label.toLowerCase())}</h3>`);
+      const box = document.createElement('div');
+      cards(it.alt.layers, box);
+      if (!box.children.length) box.innerHTML = '<p class="hint">Same sprites as above.</p>';
+      pane.appendChild(box);
+    } else {
+      pane.insertAdjacentHTML('beforeend', '<h3>Sprite layers</h3>');
+      cards(it.layers, pane);
     }
     if (sel.hits.length > 1) {
       pane.insertAdjacentHTML('beforeend', `<h3>Also here <span class="badge">${sel.hits.length}</span></h3>`);
@@ -939,7 +968,7 @@ function layerCard(it, l) {
   const path = l.tex ? texRel(l.tex) : texRel(l.rsi);
   const vis = S.renderer.layerVisible(l);
   lt.insertAdjacentHTML('beforeend', `<div style="min-width:0"><div class="path">${esc(path)}</div>
-    ${l.tex ? '' : `<div class="path">state <b>${esc(l.state)}</b>${l.fixedDir != null ? ' · corner' : ''}</div>`}
+    ${l.tex ? '' : `<div class="path">state <b>${esc(l.state)}</b>${l.connector ? ' · pipe connector' : l.fixedDir != null ? ' · corner' : ''}</div>`}
     <div class="src">${res && !res.dev ? 'from <b>' + esc(res.pack.name) + '</b>' : '<b class="bad">missing → dev texture</b>'}${!vis ? ' · hidden in game' : ''}${l.color ? ' · tint ' + esc(l.color) : ''}</div></div>`);
   card.appendChild(lt);
   if (res && !res.dev) {

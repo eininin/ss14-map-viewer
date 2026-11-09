@@ -24,6 +24,29 @@ const TAU = Math.PI * 2;
 
 const tkey = (g, x, y) => g + ':' + x + ',' + y;
 
+// atmos pipe directions are a 4-bit mask: North 1, South 2, West 4, East 8
+const PIPE_STEPS = [[1, 0, 1, 2], [2, 0, -1, 1], [4, -1, 0, 8], [8, 1, 0, 4]];   // bit, dx, dy, opposite bit
+const CONNECTOR_FRAME = { 1: 1, 2: 0, 4: 3, 8: 2 };                               // bit -> RSI dir (S0 N1 E2 W3)
+function rotateMask(m, rot) {
+  const q = ((Math.round(rot / (Math.PI / 2)) % 4) + 4) % 4;   // quarter turns counter-clockwise
+  for (let i = 0; i < q; i++) {
+    let n = 0;
+    if (m & 1) n |= 4;   // N -> W
+    if (m & 4) n |= 2;   // W -> S
+    if (m & 2) n |= 8;   // S -> E
+    if (m & 8) n |= 1;   // E -> N
+    m = n;
+  }
+  return m;
+}
+const PIPE_LAYER_NAMES = { primary: 0, secondary: 1, tertiary: 2, quaternary: 3, quinary: 4 };
+function pipeLayerIndex(v) {
+  if (v == null) return null;
+  const s = String(v).trim().toLowerCase();
+  if (/^\d+$/.test(s)) return +s;
+  return PIPE_LAYER_NAMES[s] != null ? PIPE_LAYER_NAMES[s] : null;
+}
+
 export function buildScene(model, db, opts) {
   const items = [];          // entities + decals
   const tiles = new Map();   // gridUid -> [{x,y,name,v,rm}]
@@ -83,6 +106,22 @@ export function buildScene(model, db, opts) {
     if (info.sm) { if (!smoothAt.has(k)) smoothAt.set(k, new Set()); smoothAt.get(k).add(info.sm[0]); }
     if (info.cab) { if (!cableAt.has(k)) cableAt.set(k, new Set()); cableAt.get(k).add(info.cab[0]); }
   }
+  const sets = db.sets || [];
+  const pipeAt = new Map();   // tile key + '|' + pipe layer -> [world masks]
+  const entPipe = new Map();  // entity -> {layer, world}
+  for (const e of ents) {
+    const info = db.ent[e.proto];
+    if (!info || !info.pd) continue;
+    let layer = info.pl || 0;
+    const ov = pipeLayerIndex(e.pl);
+    if (ov != null) layer = ov;
+    const world = rotateMask(info.pd, e.rot);
+    entPipe.set(e, { layer, world });
+    const k = tkey(e.grid, Math.floor(e.x), Math.floor(e.y)) + '|' + layer;
+    if (!pipeAt.has(k)) pipeAt.set(k, []);
+    pipeAt.get(k).push(world);
+  }
+
   const smoothMatch = (sm, g, x, y) => {
     const s = smoothAt.get(tkey(g, x, y));
     if (!s) return false;
@@ -145,11 +184,72 @@ export function buildScene(model, db, opts) {
       for (const l of layers) if (l.map && l.map.some(m => /DoorVisualLayers\.Base$/.test(m))) l.state = 'open';
     }
 
-    // pipe colour from the map file
-    if (e.pipe) {
+    // atmos pipe layer: each layer has its own RSI (the pipe is drawn off-centre)
+    const pinfo = entPipe.get(e);
+    if (pinfo && pinfo.layer) {
+      const pl = pinfo.layer;
+      if (info.prs != null && sets[info.prs] && sets[info.prs][pl]) {
+        const r = sets[info.prs][pl];
+        layers = layers.map((l, i) => (src[i] && !src[i].s) ? { ...l, rsi: r } : l);
+      }
+      if (info.plr) for (const l of layers) {
+        if (!l.map) continue;
+        for (const mk of l.map) if (info.plr[mk] != null && sets[info.plr[mk]] && sets[info.plr[mk]][pl]) l.rsi = sets[info.plr[mk]][pl];
+      }
+    }
+
+    // pipe colour from the map file (or the prototype's default)
+    const pipeColor = e.pipe || info.pc || null;
+    if (pipeColor) {
       let any = false;
-      for (const l of layers) if (l.map && l.map.some(m => /Pipe/i.test(m))) { l.color = e.pipe; any = true; }
-      if (!any && layers.length) layers[0].color = e.pipe;
+      for (const l of layers) if (l.map && l.map.some(m => /Pipe/i.test(m))) { l.color = pipeColor; any = true; }
+      if (!any && e.pipe && layers.length) layers[0].color = pipeColor;
+    }
+
+    // placed (anchored) and loose looks
+    const anchored = e.anch != null ? e.anch : (info.anc ? true : !!(info.anv || info.pa != null));
+    const applyAnchor = (ls, which) => {
+      const m = info.anv && info.anv[which];
+      if (!m) return ls;
+      return ls.map(l => {
+        if (!l.map) return l;
+        for (const mk of l.map) if (m[mk]) {
+          const d = m[mk];
+          l = { ...l };
+          if (d.st != null) l.state = d.st;
+          if (d.v != null) { l.hidden = d.v === 0; if (d.v === 1) l.runtimeHidden = false; }
+        }
+        return l;
+      });
+    };
+    const loose = applyAnchor(layers.map(l => ({ ...l })), '0');
+    let placed = applyAnchor(layers.map(l => ({ ...l })), '1');
+    // atmos pipes show a connector toward every neighbour they join on the same pipe layer
+    if (pinfo && info.pa != null && sets[info.pa]) {
+      const conn = sets[info.pa][Math.min(pinfo.layer, sets[info.pa].length - 1)] || sets[info.pa][0];
+      const add = [];
+      for (const [bit, dx, dy, opp] of PIPE_STEPS) {
+        if (!(pinfo.world & bit)) continue;
+        const list = pipeAt.get(tkey(e.grid, tx + dx, ty + dy) + '|' + pinfo.layer);
+        if (!list || !list.some(m => m & opp)) continue;
+        add.push({ rsi: conn[0], state: conn[1], fixedDir: CONNECTOR_FRAME[bit], color: pipeColor,
+          offset: info.o ? [-info.o[0], -info.o[1]] : null, connector: true });
+      }
+      if (add.length) {
+        let at = placed.findIndex(l => l.map && l.map.some(m => /PipeVisualLayers\.Pipe$/.test(m)));
+        at = at < 0 ? placed.length : at + 1;
+        placed = [...placed.slice(0, at), ...add, ...placed.slice(at)];
+      }
+    }
+    const differs = JSON.stringify(placed.map(l => [l.rsi, l.state, l.hidden])) !== JSON.stringify(loose.map(l => [l.rsi, l.state, l.hidden]));
+    layers = anchored ? placed : loose;
+    if (differs) {
+      it.alt = { label: anchored ? 'Not placed (loose)' : 'Placed (anchored)', layers: anchored ? loose : placed };
+      it.placedLabel = anchored ? 'Placed (as on the map)' : 'Loose (as on the map)';
+      for (const l of it.alt.layers) {
+        if (l.tex) need({ tex: l.tex });
+        else if (l.rsi && l.state != null) need({ rsi: l.rsi, state: l.state });
+      }
     }
 
     // icon smoothing

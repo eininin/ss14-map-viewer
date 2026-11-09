@@ -123,6 +123,30 @@ def clean_layer(ly):
     if ly.get("shader"): out["sh"] = str(ly["shader"])
     return out
 
+PIPE_DIRS = {"North": 1, "South": 2, "West": 4, "East": 8}
+PIPE_NAMED = {"Longitudinal": 3, "Lateral": 12, "NWBend": 5, "NEBend": 9, "SWBend": 6, "SEBend": 10,
+              "TNorth": 13, "TSouth": 14, "TWest": 7, "TEast": 11, "Fourway": 15, "All": 15}
+PIPE_LAYERS = {"primary": 0, "secondary": 1, "tertiary": 2, "quaternary": 3, "quinary": 4}
+DEFAULT_CONNECTORS = [[f"_Carpmosia/Structures/Piping/Atmospherics/{n}.rsi", "pipeConnector"]
+                      for n in ("pipe", "pipe_alt1", "pipe_alt2", "pipe_alt3", "pipe_alt4")]
+
+
+def pipe_mask(s):
+    m = 0
+    for part in s.replace(",", " ").split():
+        m |= PIPE_DIRS.get(part, 0) | PIPE_NAMED.get(part, 0)
+    return m
+
+
+def pipe_layer(v):
+    if v is None:
+        return None
+    sv = str(v).strip()
+    if sv.isdigit():
+        return int(sv)
+    return PIPE_LAYERS.get(sv.lower())
+
+
 def categorize(pid, d, comps, e):
     """Layer group for the viewer: atmos, hv, mv, lv, disposal, doors, walls, wallmount, storage,
     machines, furniture, items (None = other). The first rule that matches wins."""
@@ -295,6 +319,70 @@ def build(res):
                 e["dod"] = DRAW.get(str(od), 0)
         if "SubFloorHide" in comps:
             e["sub"] = 1
+        # placed (anchored) vs loose looks
+        xf = comps.get("Transform", {})
+        if str(xf.get("anchored", "")).lower() == "true":
+            e["anc"] = 1
+        gv = comps.get("GenericVisualizer", {}).get("visuals")
+        if isinstance(gv, dict):
+            av = gv.get("enum.AnchorVisuals.Anchored")
+            if isinstance(av, dict):
+                out = {}
+                for mapkey, states in av.items():
+                    if not isinstance(states, dict):
+                        continue
+                    for k, ld in states.items():
+                        kk = "1" if str(k).lower() == "true" else "0"
+                        if isinstance(ld, dict):
+                            d2 = {}
+                            if ld.get("state") is not None: d2["st"] = str(ld["state"])
+                            if ld.get("visible") is not None: d2["v"] = 0 if str(ld["visible"]).lower() == "false" else 1
+                            out.setdefault(kk, {})[str(mapkey)] = d2
+                if out:
+                    e["anv"] = out
+        # atmos pipes: node directions, pipe layer and the connector sprites drawn when placed
+        nodes = comps.get("NodeContainer", {}).get("nodes")
+        mask = 0
+        if isinstance(nodes, dict):
+            for nd in nodes.values():
+                if isinstance(nd, dict) and nd.get("pipeDirection"):
+                    mask |= pipe_mask(str(nd["pipeDirection"]))
+        if mask:
+            e["pd"] = mask
+        if "PipeAppearance" in comps:
+            spr = comps["PipeAppearance"].get("sprite")
+            conns = []
+            if isinstance(spr, list):
+                for x in spr:
+                    if isinstance(x, dict) and x.get("sprite"):
+                        conns.append([str(x["sprite"]), str(x.get("state", "pipeConnector"))])
+            e["pa"] = conns or DEFAULT_CONNECTORS
+        apl = comps.get("AtmosPipeLayers")
+        if apl is not None:
+            li = pipe_layer(apl.get("pipeLayer"))
+            if li:
+                e["pl"] = li
+            slr = apl.get("spriteLayersRsiPaths")
+            if isinstance(slr, dict):
+                plr = {}
+                for mk, by in slr.items():
+                    if isinstance(by, dict):
+                        arr = [None] * 5
+                        for ln, rp in by.items():
+                            i = pipe_layer(ln)
+                            if i is not None and i < 5: arr[i] = str(rp)
+                        plr[str(mk)] = arr
+                if plr: e["plr"] = plr
+            srp = apl.get("spriteRsiPaths")
+            if isinstance(srp, dict):
+                arr = [None] * 5
+                for ln, rp in srp.items():
+                    i = pipe_layer(ln)
+                    if i is not None and i < 5: arr[i] = str(rp)
+                e["prs"] = arr
+        apc = comps.get("AtmosPipeColor")
+        if apc and apc.get("color"):
+            e["pc"] = str(apc["color"])
         if MARKER_COMPS & set(comps) or str(e.get("s", "")).startswith("Markers/"):
             e["mk"] = 1
         cat = categorize(pid, d, comps, e)
@@ -372,7 +460,22 @@ def main():
                     n += 1
         sources.append({"repo": repo, "commit": commit, "added": n})
         print(f"{repo}: added {n} prototypes the main fork does not have")
-    db = {"v": 1, "repo": a.repo, "commit": a.commit, "sources": sources,
+    # pipe-layer RSI lists repeat a lot: store each once in "sets" and refer to it by index
+    sets, set_idx = [], {}
+    def ref(arr):
+        k = json.dumps(arr)
+        if k not in set_idx:
+            set_idx[k] = len(sets)
+            sets.append(arr)
+        return set_idx[k]
+    for e in out_e.values():
+        if "plr" in e:
+            e["plr"] = {mk: ref(arr) for mk, arr in e["plr"].items()}
+        if "prs" in e:
+            e["prs"] = ref(e["prs"])
+        if "pa" in e:
+            e["pa"] = ref(e["pa"])
+    db = {"v": 1, "repo": a.repo, "commit": a.commit, "sources": sources, "sets": sets,
           "built": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
           "ent": out_e, "tile": out_t, "decal": out_d, "tileAlias": out_ta, "migrate": out_mg}
     with open(a.out, "w") as fh:

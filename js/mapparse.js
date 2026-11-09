@@ -123,6 +123,9 @@ function parseMap(text, yaml) {
     const o = { uid: e.uid, proto: e.proto, grid, x: e.pos[0], y: e.pos[1], rot: e.rot };
     if (e.c.AtmosPipeColor && e.c.AtmosPipeColor.color) o.pipe = String(e.c.AtmosPipeColor.color);
     if (e.c.MetaData && e.c.MetaData.name) o.name = String(e.c.MetaData.name);
+    const xf = e.c.Transform || {};
+    if (xf.anchored != null) o.anch = String(xf.anchored).toLowerCase() === 'true';
+    if (e.c.AtmosPipeLayers && e.c.AtmosPipeLayers.pipeLayer != null) o.pl = String(e.c.AtmosPipeLayers.pipeLayer);
     if (e.c.Door && e.c.Door.state) o.door = /^open/i.test(String(e.c.Door.state)) ? 'open' : 'closed';
     ents.push(o);
   }
