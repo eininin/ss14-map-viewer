@@ -217,3 +217,5 @@ body.dragover #stage::after { content: "Drop to open"; position: absolute; inset
 .looks figure { margin: 0; flex: 1; text-align: center; border: 1px solid var(--line); border-radius: 8px; padding: 8px 6px 6px; background: var(--panel2); }
 .looks canvas { background: repeating-conic-gradient(#1b2230 0 25%, #121722 0 50%) 0 0/12px 12px; border-radius: 6px; image-rendering: pixelated; }
 .looks figcaption { font-size: 12px; color: var(--dim); margin-top: 4px; }
+.plist.tall { max-height: 420px; }
+.tab { padding: 10px 6px 9px; }

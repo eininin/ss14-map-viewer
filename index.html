@@ -35,7 +35,7 @@
 
   <nav id="tools" class="tools">
     <button data-tool="pan" class="tool active" title="Pan (H)"><svg viewBox="0 0 24 24"><path d="M12 2v20M2 12h20M12 2l-3 3M12 2l3 3M12 22l-3-3M12 22l3-3M2 12l3-3M2 12l3 3M22 12l-3-3M22 12l-3 3"/></svg></button>
-    <button data-tool="pick" class="tool" title="Pick a sprite (V)"><svg viewBox="0 0 24 24"><path d="M5 3l14 8-6 2-2 6z"/></svg></button>
+    <button data-tool="pick" class="tool" title="Pick (V): click to inspect, drag to select an area (Shift adds, Alt/Ctrl removes)"><svg viewBox="0 0 24 24"><path d="M5 3l14 8-6 2-2 6z"/></svg></button>
     <div class="sep"></div>
     <button data-tool="pen" class="tool" title="Draw lines (B)"><svg viewBox="0 0 24 24"><path d="M4 20l4-1L19 8l-3-3L5 16zM14 7l3 3"/></svg></button>
     <button data-tool="eraser" class="tool" title="Erase drawings (E)"><svg viewBox="0 0 24 24"><path d="M8 20h12M5 15l8-8 6 6-6 6H9z"/></svg></button>
@@ -55,6 +55,7 @@
   <aside id="panel" class="panel">
     <div class="tabs">
       <button data-tab="inspect" class="tab active">Inspect</button>
+      <button data-tab="area" class="tab">Area</button>
       <button data-tab="packs" class="tab">Packs</button>
       <button data-tab="layers" class="tab">View</button>
       <button data-tab="map" class="tab">Map</button>
@@ -66,6 +67,8 @@
       <section data-pane="inspect" class="pane active" id="paneInspect">
         <p class="hint">Choose the <b>pick</b> tool (V) and click anything on the map to see its sprite, where it came from, and open its folder.</p>
       </section>
+
+      <section data-pane="area" class="pane" id="paneArea"></section>
 
       <section data-pane="packs" class="pane" id="panePacks">
         <p class="hint">Packs are searched top to bottom for every sprite. The first one that has it is used; the dev texture catches the rest.</p>
@@ -160,6 +163,6 @@
 </div>
 <div id="toast" class="toast" hidden></div>
 
-<script type="module" src="js/app.js?v=6"></script>
+<script type="module" src="js/app.js?v=7"></script>
 </body>
 </html>

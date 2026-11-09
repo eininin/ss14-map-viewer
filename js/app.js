@@ -156,6 +156,7 @@ async function openText(text, source) {
   S.mapSource = { ...source, text };
   S.selection = null;
   S.highlight = null;
+  S.area = null;
   $('#empty').hidden = true;
   $('#mapName').textContent = (model.name || source.name || 'map') + '  ·  ' + (source.label || source.name || '');
   document.title = (model.name || source.name) + ' – SS14 Map Viewer';
@@ -229,6 +230,7 @@ async function resolveAndRender(keepView, token = S.loadToken) {
   renderPacks();
   renderMapPane();
   renderToggles();
+  renderArea();
   draw();
   progress(null);
   backgroundFill(token);
@@ -520,6 +522,44 @@ function drawOverlay(cursor) {
     }
     g.restore();
   }
+  // area selection
+  if (S.area && S.area.tiles.size && r.grids) {
+    const gr = r.grids.get(S.area.grid);
+    if (gr) {
+      g.save();
+      setGridXf(g, gr);
+      g.fillStyle = 'rgba(79,195,217,.16)';
+      g.fill(S.area.fill);
+      g.strokeStyle = '#4fc3d9';
+      g.lineWidth = 2 / S.cam.s;
+      g.stroke(S.area.edges);
+      g.restore();
+    }
+  }
+  if (S.areaDrag && r.grids) {
+    const gr = r.grids.get(areaGrid());
+    if (gr) {
+      const [x0, y0, x1, y1] = areaRect(gr, S.areaDrag.a, S.areaDrag.b);
+      g.save();
+      setGridXf(g, gr);
+      const col = S.areaDrag.mode === 'sub' ? '#ff5c8a' : S.areaDrag.mode === 'add' ? '#7bd88f' : '#f2b84b';
+      g.fillStyle = col + '22';
+      g.fillRect(x0, y0, x1 - x0, y1 - y0);
+      g.strokeStyle = col;
+      g.lineWidth = 2 / S.cam.s;
+      g.setLineDash([5 / S.cam.s, 4 / S.cam.s]);
+      g.strokeRect(x0, y0, x1 - x0, y1 - y0);
+      g.restore();
+      g.save();
+      g.setTransform(DPR, 0, 0, DPR, 0, 0);
+      const [sx, sy] = cam.toScreen(...gridWorld(gr, x1, y0));
+      g.font = '600 12px "IBM Plex Mono", monospace';
+      g.fillStyle = col;
+      const sign = S.areaDrag.mode === 'sub' ? '− ' : S.areaDrag.mode === 'add' ? '+ ' : '';
+      g.fillText(`${sign}${x1 - x0} × ${y1 - y0}`, sx + 6, sy + 14);
+      g.restore();
+    }
+  }
   // selection
   const sel = S.selection;
   if (sel && r.grids) {
@@ -589,7 +629,11 @@ function setupInput() {
       return;
     }
     const [wx, wy] = cam.toWorld(e.offsetX, e.offsetY);
-    if (S.tool === 'pick') { drag = { kind: 'pick', x: e.offsetX, y: e.offsetY, cx: S.cam.x, cy: S.cam.y, moved: false }; }
+    if (S.tool === 'pick') {
+      const mode = e.shiftKey ? 'add' : (e.altKey || e.ctrlKey || e.metaKey) ? 'sub' : 'new';
+      drag = { kind: 'pick', x: e.offsetX, y: e.offsetY, w0: [wx, wy], mode, moved: false };
+      e.preventDefault();
+    }
     else if (S.tool === 'pen') { annots.beginLine(wx, wy, S.color, penWidth()); drag = { kind: 'pen' }; drawOverlay(); }
     else if (S.tool === 'eraser') { annots.beginErase(); annots.erase(wx, wy, eraserRadiusPx() / S.cam.s); drag = { kind: 'erase' }; }
     else if (S.tool === 'text') { e.preventDefault(); startText(e.offsetX, e.offsetY, wx, wy); }
@@ -606,10 +650,13 @@ function setupInput() {
     }
     drawOverlay.lastCursor = [e.offsetX, e.offsetY];
     if (!drag) { if (S.tool === 'eraser' || S.tool === 'pen') drawOverlay(); return; }
-    if (drag.kind === 'pan' || drag.kind === 'pick') {
+    if (drag.kind === 'pick') {
+      if (Math.abs(e.offsetX - drag.x) + Math.abs(e.offsetY - drag.y) > 4) drag.moved = true;
+      if (drag.moved) { S.areaDrag = { a: drag.w0, b: [wx, wy], mode: drag.mode }; drawOverlay(); }
+    } else if (drag.kind === 'pan') {
       const dx = e.offsetX - drag.x, dy = e.offsetY - drag.y;
       if (Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true;
-      if (drag.kind === 'pan' || drag.moved) {
+      {
         S.cam.x = drag.cx - dx / S.cam.s;
         S.cam.y = drag.cy + dy / S.cam.s;
         draw();
@@ -626,7 +673,11 @@ function setupInput() {
     pointers.delete(e.pointerId);
     if (pointers.size < 2) pinch = null;
     if (!drag) return;
-    if (drag.kind === 'pick' && !drag.moved) pickAt(e.offsetX, e.offsetY);
+    if (drag.kind === 'pick') {
+      S.areaDrag = null;
+      if (!drag.moved) pickAt(e.offsetX, e.offsetY);
+      else { const [wx, wy] = cam.toWorld(e.offsetX, e.offsetY); applyArea(drag.w0, [wx, wy], drag.mode); }
+    }
     if (drag.kind === 'pen') annots.endLine();
     if (drag.kind === 'erase') annots.endErase();
     drag = null;
@@ -661,7 +712,11 @@ function setupInput() {
     else if (k === 'g') { S.showGrid = !S.showGrid; renderToggles(); drawOverlay(); }
     else if (k === '+' || k === '=') zoomAt(W / 2, H / 2, 1.25);
     else if (k === '-') zoomAt(W / 2, H / 2, 0.8);
-    else if (k === 'escape') { S.selection = null; S.highlight = null; renderInspect(); drawOverlay(); }
+    else if (k === 'escape') {
+      if (S.selection || S.highlight) { S.selection = null; S.highlight = null; renderInspect(); }
+      else clearArea();
+      drawOverlay();
+    }
     else if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) { keys.add(k); e.preventDefault(); startKeyPan(); }
   });
   window.addEventListener('keyup', (e) => {
@@ -1017,6 +1072,164 @@ function highlightProto(proto, kind) {
   toast(`${items.length} × ${proto} highlighted (Esc to clear)`);
 }
 
+// ---------------------------------------------------------------- area selection
+// The selection is a set of whole tiles on the map's main grid. Plain drag replaces it,
+// Shift+drag adds, Alt/Ctrl+drag removes. Counts only cover layers that are shown.
+function areaGrid() {
+  if (S.area && S.area.grid != null) return S.area.grid;
+  let best = null, n = -1;
+  for (const g of (S.model ? S.model.grids : [])) if (g.chunks.length > n) { n = g.chunks.length; best = g.uid; }
+  return best != null ? best : 0;
+}
+function areaRect(gr, a, b) {
+  const [ax, ay] = gridLocal(gr, a[0], a[1]), [bx, by] = gridLocal(gr, b[0], b[1]);
+  const x0 = Math.floor(Math.min(ax, bx)), y0 = Math.floor(Math.min(ay, by));
+  const x1 = Math.max(x0 + 1, Math.ceil(Math.max(ax, bx))), y1 = Math.max(y0 + 1, Math.ceil(Math.max(ay, by)));
+  return [x0, y0, x1, y1];
+}
+function applyArea(a, b, mode) {
+  const r = S.renderer;
+  if (!r.grids) return;
+  const grid = areaGrid();
+  const gr = r.grids.get(grid);
+  if (!gr) return;
+  if (!S.area || mode === 'new') S.area = { grid, tiles: new Set() };
+  const [x0, y0, x1, y1] = areaRect(gr, a, b);
+  if ((x1 - x0) * (y1 - y0) > 4e6) { toast('That area is too large', true); return; }
+  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+    const k = x + ',' + y;
+    if (mode === 'sub') S.area.tiles.delete(k); else S.area.tiles.add(k);
+  }
+  buildAreaPaths();
+  renderArea();
+  showTab('area');
+  drawOverlay();
+}
+function clearArea() { S.area = null; renderArea(); drawOverlay(); }
+function buildAreaPaths() {
+  const fill = new Path2D(), edges = new Path2D();
+  const t = S.area.tiles;
+  const rows = new Map();
+  for (const k of t) {
+    const i = k.indexOf(',');
+    const x = +k.slice(0, i), y = +k.slice(i + 1);
+    if (!rows.has(y)) rows.set(y, []);
+    rows.get(y).push(x);
+    if (!t.has(x + ',' + (y + 1))) { edges.moveTo(x, y + 1); edges.lineTo(x + 1, y + 1); }
+    if (!t.has(x + ',' + (y - 1))) { edges.moveTo(x, y); edges.lineTo(x + 1, y); }
+    if (!t.has((x - 1) + ',' + y)) { edges.moveTo(x, y); edges.lineTo(x, y + 1); }
+    if (!t.has((x + 1) + ',' + y)) { edges.moveTo(x + 1, y); edges.lineTo(x + 1, y + 1); }
+  }
+  for (const [y, xs] of rows) {           // one rectangle per run of tiles in a row
+    xs.sort((p, q) => p - q);
+    let st = xs[0], pr = xs[0];
+    for (let i = 1; i <= xs.length; i++) {
+      if (i < xs.length && xs[i] === pr + 1) { pr = xs[i]; continue; }
+      fill.rect(st, y, pr - st + 1, 1);
+      if (i < xs.length) { st = pr = xs[i]; }
+    }
+  }
+  S.area.fill = fill; S.area.edges = edges;
+}
+function inArea(gridUid, lx, ly) {
+  const r = S.renderer, a = S.area;
+  let x = lx, y = ly;
+  if (gridUid !== a.grid) {
+    const from = r.grids.get(gridUid) || r.grids.get(0), to = r.grids.get(a.grid);
+    if (!from || !to) return false;
+    [x, y] = gridLocal(to, ...gridWorld(from, lx, ly));
+  }
+  return a.tiles.has(Math.floor(x) + ',' + Math.floor(y));
+}
+function areaContents() {
+  const r = S.renderer, o = r.opts;
+  const ents = new Map(), tiles = new Map(), decals = new Map();
+  let total = 0;
+  for (const it of S.scene.items) {
+    if (!r.visible(it)) continue;
+    if (!inArea(it.grid, it.x, it.y)) continue;
+    const m = it.kind === 'decal' ? decals : ents;
+    const key = it.proto;
+    if (!m.has(key)) m.set(key, { id: key, name: it.kind === 'decal' ? '' : it.name, cat: it.kind === 'decal' ? 'decal' : it.marker ? 'markers' : (it.cat || 'other'), n: 0, items: [] });
+    const e = m.get(key);
+    e.n++; e.items.push(it);
+    if (it.kind !== 'decal') total++;
+  }
+  if (o.tiles) for (const [g, list] of S.scene.tiles) for (const t of list) {
+    if (!inArea(g, t.x + 0.5, t.y + 0.5)) continue;
+    if (!tiles.has(t.name)) tiles.set(t.name, { id: t.name, name: (t.td && t.td.n) || '', n: 0 });
+    tiles.get(t.name).n++;
+  }
+  return { ents, tiles, decals, total };
+}
+const CAT_LABEL = { atmos: 'atmos', hv: 'HV', mv: 'MV', lv: 'LV', disposal: 'disposal', walls: 'walls', doors: 'doors',
+  wallmount: 'wall-mounted', machines: 'machines', storage: 'storage', furniture: 'furniture', items: 'items', other: 'other', markers: 'marker' };
+function renderArea() {
+  const pane = $('#paneArea');
+  if (!pane) return;
+  if (!S.area || !S.area.tiles.size || !S.scene) {
+    S.areaResult = null;
+    pane.innerHTML = `<p class="hint">With the <b>pick</b> tool (V), <b>drag</b> on the map to select an area.
+      <b>Shift+drag</b> adds to it, <b>Alt+drag</b> or <b>Ctrl+drag</b> removes from it. <b>Esc</b> clears it.</p>
+      <p class="hint">Everything inside that is on a shown layer (View tab) is listed here with counts.</p>`;
+    return;
+  }
+  const res = areaContents();
+  S.areaResult = res;
+  const sorted = (m) => [...m.values()].sort((a, b) => b.n - a.n || a.id.localeCompare(b.id));
+  const ents = sorted(res.ents), tiles = sorted(res.tiles), decals = sorted(res.decals);
+  const nDec = decals.reduce((a, d) => a + d.n, 0), nTil = tiles.reduce((a, d) => a + d.n, 0);
+  pane.innerHTML = `
+    <div class="kv">
+      <span class="k">area</span><span class="v">${S.area.tiles.size} tiles</span>
+      <span class="k">objects</span><span class="v">${res.total} (${ents.length} kinds)</span>
+      <span class="k">floor tiles</span><span class="v">${nTil}</span>
+      <span class="k">decals</span><span class="v">${nDec}</span>
+    </div>
+    <div class="row gap wrap">
+      <button class="btn small" data-a="copy">Copy list</button>
+      <button class="btn small" data-a="csv">Download .csv</button>
+      <button class="btn small" data-a="clear">Clear selection</button>
+    </div>
+    <p class="hint" style="margin-top:8px">Only layers shown in the View tab are counted. Click a row to highlight those objects.</p>
+    <input class="search" id="areaFilter" placeholder="Filter…">
+    <div id="areaLists"></div>`;
+  const lists = pane.querySelector('#areaLists');
+  const section = (title, rows, withCat) => {
+    if (!rows.length) return;
+    lists.insertAdjacentHTML('beforeend', `<h3>${esc(title)} <span class="badge">${rows.reduce((a, r) => a + r.n, 0)}</span></h3>`);
+    const box = document.createElement('div');
+    box.className = 'plist tall';
+    for (const r of rows) {
+      const b = document.createElement('button');
+      b.dataset.s = (r.id + ' ' + r.name).toLowerCase();
+      b.innerHTML = `<span><div class="n">${esc(r.id)}</div><div class="s">${esc(r.name)}${withCat && r.cat ? ' · ' + esc(CAT_LABEL[r.cat] || r.cat) : ''}</div></span><span class="c">${r.n}</span>`;
+      if (r.items) b.onclick = () => { S.highlight = { label: r.id, items: r.items }; drawOverlay(); };
+      box.appendChild(b);
+    }
+    lists.appendChild(box);
+  };
+  section('Objects', ents, true);
+  section('Floor tiles', tiles, false);
+  section('Decals', decals, false);
+  pane.querySelector('#areaFilter').oninput = (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    lists.querySelectorAll('.plist button').forEach(b => { b.hidden = q && !b.dataset.s.includes(q); });
+  };
+  const rowsOut = () => [
+    ...ents.map(r => ['object', r.id, r.name, CAT_LABEL[r.cat] || r.cat, r.n]),
+    ...tiles.map(r => ['tile', r.id, r.name, '', r.n]),
+    ...decals.map(r => ['decal', r.id, '', '', r.n]),
+  ];
+  pane.querySelector('[data-a=copy]').onclick = () => copyText(rowsOut().map(r => `${r[1]}\t${r[4]}`).join('\n'));
+  pane.querySelector('[data-a=csv]').onclick = () => {
+    const q = (v) => /[",\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v);
+    const csv = [['type', 'id', 'name', 'group', 'count'], ...rowsOut()].map(r => r.map(q).join(',')).join('\n') + '\n';
+    download(new Blob([csv], { type: 'text/csv' }), safeName((S.model && S.model.name) || 'map') + '-area.csv');
+  };
+  pane.querySelector('[data-a=clear]').onclick = clearArea;
+}
+
 // ---------------------------------------------------------------- panes
 function showTab(name) {
   $$('.tab[data-tab]').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
@@ -1103,6 +1316,7 @@ function layerCounts() {
 
 function applyOpts() {
   LS.set('opts', S.renderer.opts);
+  renderArea();
   S.renderer.invalidate();
   backgroundFill(S.loadToken);
   draw();
@@ -1434,6 +1648,7 @@ function setupUI() {
   $('#btnSaveMap').onclick = saveMapToRepo;
 
   updateDrawStats();
+  renderArea();
   setupInput();
   renderPacks();
 }

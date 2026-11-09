@@ -19,6 +19,11 @@ cables, doors and everything placed on it.
 - **Pick a sprite** (pick tool, `V`): shows the object, every sprite layer, which
   pack it came from, and buttons to open its folder on GitHub, copy the path,
   copy the PNG, download the PNG or `meta.json`, and browse all states of the RSI.
+- **Area selection** (pick tool): drag to select whole tiles, **Shift+drag**
+  adds, **Alt+drag** or **Ctrl+drag** removes, **Esc** clears. The *Area* tab
+  lists every object, floor tile and decal inside, with counts, counting only
+  layers shown in the *View* tab. Copy the list or download it as `.csv`;
+  click a row to highlight those objects.
 - **View sheet**: opens the whole PNG of a picked sprite (every frame and
   direction) full-screen. Scroll to zoom, right-drag / middle-drag / Space+drag
   to move, drag to select (snapped to frames or free, pixel by pixel),
@@ -37,7 +42,7 @@ cables, doors and everything placed on it.
   every sprite layer, tile grid.
 
 Keys: drag to pan · scroll / double-click to zoom · `WASD` / arrows to move ·
-`F` fit · `H` pan · `V` pick · `B` pen · `E` eraser · `T` text · `G` grid ·
+`F` fit · `H` pan · `V` pick (drag: area) · `B` pen · `E` eraser · `T` text · `G` grid ·
 `Ctrl+Z` / `Ctrl+Shift+Z` undo / redo · `Esc` clear selection.
 
 ## How it works
