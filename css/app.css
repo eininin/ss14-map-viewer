@@ -230,3 +230,5 @@ label.dimmed { opacity: .45; }
 .listdet { margin-top: 10px; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
 .listdet summary { cursor: pointer; font-size: 13px; }
 .tg.col input[type=radio] { accent-color: var(--acc); width: 16px; height: 16px; flex: none; }
+.plist .rm { color: var(--dim); padding: 0 2px 0 8px; cursor: pointer; }
+.plist .rm:hover { color: var(--bad); }

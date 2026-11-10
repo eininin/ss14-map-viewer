@@ -167,7 +167,6 @@ async function openText(text, source) {
   $('#mapName').textContent = (model.name || source.name || 'map') + '  ·  ' + (source.label || source.name || '');
   document.title = (model.name || source.name) + ' – SS14 Map Viewer';
   loadAnnotsLocal();
-  loadList();
   await resolveAndRender(false, token);
   renderInspect();
 }
@@ -905,9 +904,10 @@ function renderInspect() {
     const btns = document.createElement('div');
     btns.className = 'row gap wrap';
     const count = S.scene.items.filter(x => x.proto === it.proto && x.kind === it.kind).length;
-    btns.innerHTML = `<button class="btn small" data-a="hl">Highlight all ${count}</button><button class="btn small" data-a="copyid">Copy id</button>`;
+    btns.innerHTML = `<button class="btn small" data-a="hl">Highlight all ${count}</button><button class="btn small" data-a="copyid">Copy id</button><button class="btn small" data-a="addk">Add to list</button>`;
     btns.querySelector('[data-a=hl]').onclick = () => highlightProto(it.proto, it.kind);
     btns.querySelector('[data-a=copyid]').onclick = () => copyText(it.proto);
+    btns.querySelector('[data-a=addk]').onclick = () => addKind(it.kind === 'decal' ? 'decal' : 'ent', it.proto);
     pane.appendChild(btns);
 
     const seen = new Set();
@@ -970,6 +970,10 @@ function renderInspect() {
     lt.insertAdjacentHTML('beforeend', `<div><div class="path">${esc(t.name)}</div><div class="path">${esc(path || '(not in database)')}</div>
       <div class="src">${res && !res.dev ? 'from <b>' + esc(res.pack.name) + '</b>' : '<b class="bad">missing → dev texture</b>'} · variant ${t.v}</div></div>`);
     card.appendChild(lt);
+    const tb = document.createElement('div');
+    tb.className = 'row gap';
+    tb.innerHTML = '<button class="btn small">Add this floor tile to the list</button>';
+    tb.querySelector('button').onclick = () => addKind('tile', t.name);
     if (res && !res.dev) {
       const fb = fileButtons(res.pack, path, res.blob, baseName(path), path.split('/').slice(0, -1).join('/'));
       const vb = document.createElement('button');
@@ -980,6 +984,7 @@ function renderInspect() {
       fb.prepend(vb);
       card.appendChild(fb);
     }
+    card.appendChild(tb);
     pane.appendChild(card);
   }
 }
@@ -1118,7 +1123,7 @@ function applyArea(a, b, mode) {
 }
 function clearArea() {
   S.area = null;
-  if (S.onlyMode === 'area') setOnly(null); else renderArea();
+  renderArea();
   drawOverlay();
 }
 function buildAreaPaths() {
@@ -1184,18 +1189,30 @@ const CAT_LABEL = { atmos: 'atmos pipes', atmosdev: 'atmos devices', hv: 'HV', m
   disposal: 'disposal pipes', disposaldev: 'disposal units', walls: 'walls', doors: 'doors', wallmount: 'wall-mounted',
   computers: 'computers', fabrication: 'fabrication', vending: 'vending', machines: 'other machines', storage: 'storage',
   furniture: 'furniture', items: 'items', other: 'other', markers: 'marker' };
-// ---- "show only": the selection or the saved list, everything else hidden
+// ---- "show only": every object of the kinds in the selection or in the saved list
+// A "kinds" set holds prototype ids (objects), decal ids and floor tile names.
+const emptyKinds = () => ({ ents: new Set(), decals: new Set(), tiles: new Set() });
+function kindsOfArea() {
+  const r = S.renderer, keep = r.only;
+  r.only = null;                       // count what's in the area regardless of the current filter
+  const res = areaContents();
+  r.only = keep;
+  return { ents: new Set(res.ents.keys()), decals: new Set(res.decals.keys()), tiles: new Set(res.tiles.keys()) };
+}
+function kindFilter(K) {
+  return {
+    test: (it) => it.kind === 'decal' ? K.decals.has(it.proto) : K.ents.has(it.proto),
+    tile: (g, t) => K.tiles.has(t.name),
+  };
+}
 function setOnly(mode) {
-  S.onlyMode = mode;
   const r = S.renderer;
-  if (mode === 'area' && S.area) {
-    r.only = { test: (it) => inArea(it.grid, it.x, it.y), tile: (g, t) => inArea(g, t.x + 0.5, t.y + 0.5) };
+  S.onlyMode = mode;
+  if (mode === 'area' && S.area && S.area.tiles.size) {
+    S.onlyKinds = kindsOfArea();
+    r.only = kindFilter(S.onlyKinds);
   } else if (mode === 'list') {
-    const L = S.list;
-    r.only = {
-      test: (it) => it.kind === 'decal' ? L.decals.has(it.grid + ':' + it.decalIndex) : L.ents.has(String(it.uid)),
-      tile: (g, t) => L.tiles.has(g + ':' + t.x + ',' + t.y),
-    };
+    r.only = kindFilter(S.kinds);
   } else { r.only = null; S.onlyMode = null; }
   r.invalidate();
   backgroundFill(S.loadToken);
@@ -1203,67 +1220,71 @@ function setOnly(mode) {
   renderArea();
 }
 
-// ---- saved list: things added from selections, kept per map in this browser
-const emptyList = () => ({ ents: new Set(), decals: new Set(), tiles: new Set() });
-function listKey() { return 'list.' + mapKey(); }
-function saveList() {
-  LS.set(listKey(), { ents: [...S.list.ents], decals: [...S.list.decals], tiles: [...S.list.tiles] });
+// ---- saved list of kinds: shared by every map, kept in this browser
+function saveKinds() {
+  LS.set('kinds', { ents: [...S.kinds.ents], decals: [...S.kinds.decals], tiles: [...S.kinds.tiles] });
 }
-function loadList() {
-  const d = LS.get(listKey(), null);
-  S.list = emptyList();
-  if (d) { (d.ents || []).forEach(x => S.list.ents.add(String(x))); (d.decals || []).forEach(x => S.list.decals.add(x)); (d.tiles || []).forEach(x => S.list.tiles.add(x)); }
+function loadKinds() {
+  const d = LS.get('kinds', null);
+  S.kinds = emptyKinds();
+  if (d) { (d.ents || []).forEach(x => S.kinds.ents.add(x)); (d.decals || []).forEach(x => S.kinds.decals.add(x)); (d.tiles || []).forEach(x => S.kinds.tiles.add(x)); }
+}
+function kindsChanged() {
+  saveKinds();
+  if (S.onlyMode === 'list') setOnly('list'); else renderArea();
 }
 function listFromArea(add) {
   if (!S.area || !S.area.tiles.size) { toast('Select an area first', true); return; }
-  const res = areaContents();
-  const L = S.list;
+  const k = kindsOfArea(), L = S.kinds;
   let n = 0;
-  const op = (set, k) => { if (add ? !set.has(k) : set.has(k)) n++; add ? set.add(k) : set.delete(k); };
-  for (const e of res.ents.values()) for (const it of e.items) op(L.ents, String(it.uid));
-  for (const e of res.decals.values()) for (const it of e.items) op(L.decals, it.grid + ':' + it.decalIndex);
-  for (const [g, t] of res.tileList) op(L.tiles, g + ':' + t.x + ',' + t.y);
-  saveList();
-  toast(`${add ? 'Added' : 'Removed'} ${n} thing${n === 1 ? '' : 's'}`);
-  if (S.onlyMode === 'list') setOnly('list'); else renderArea();
+  for (const key of ['ents', 'decals', 'tiles']) for (const v of k[key]) {
+    if (add ? !L[key].has(v) : L[key].has(v)) n++;
+    add ? L[key].add(v) : L[key].delete(v);
+  }
+  toast(`${add ? 'Added' : 'Removed'} ${n} kind${n === 1 ? '' : 's'}`);
+  kindsChanged();
 }
-function listContents() {
-  const L = S.list, ents = new Map(), decals = new Map(), tiles = new Map();
-  for (const it of S.scene.items) {
-    const inL = it.kind === 'decal' ? L.decals.has(it.grid + ':' + it.decalIndex) : L.ents.has(String(it.uid));
-    if (!inL) continue;
-    const m = it.kind === 'decal' ? decals : ents;
-    if (!m.has(it.proto)) m.set(it.proto, { id: it.proto, name: it.kind === 'decal' ? '' : it.name, cat: it.kind === 'decal' ? 'decal' : it.marker ? 'markers' : (it.cat || 'other'), n: 0, items: [] });
-    const e = m.get(it.proto); e.n++; e.items.push(it);
+function addKind(kind, id) {
+  const key = kind === 'decal' ? 'decals' : kind === 'tile' ? 'tiles' : 'ents';
+  if (S.kinds[key].has(id)) { toast('Already in the list'); return; }
+  S.kinds[key].add(id);
+  toast(`${id} added to the list`);
+  kindsChanged();
+}
+// how many of each listed kind this map has
+function kindsOnMap(K) {
+  const ents = new Map(), decals = new Map(), tiles = new Map();
+  for (const id of K.ents) ents.set(id, { id, name: (S.db.ent[id] && S.db.ent[id].n) || '', cat: (S.db.ent[id] && S.db.ent[id].cat) || 'other', n: 0, items: [], key: 'ents' });
+  for (const id of K.decals) decals.set(id, { id, name: '', cat: 'decal', n: 0, items: [], key: 'decals' });
+  for (const id of K.tiles) tiles.set(id, { id, name: (S.db.tile[id] && S.db.tile[id].n) || '', n: 0, key: 'tiles' });
+  if (S.scene) {
+    for (const it of S.scene.items) {
+      const m = it.kind === 'decal' ? decals : ents;
+      const e = m.get(it.proto);
+      if (e) { e.n++; e.items.push(it); if (it.kind !== 'decal' && it.name) e.name = it.name; }
+    }
+    for (const [, list] of S.scene.tiles) for (const t of list) { const e = tiles.get(t.name); if (e) e.n++; }
   }
-  for (const [g, list] of S.scene.tiles) for (const t of list) {
-    if (!L.tiles.has(g + ':' + t.x + ',' + t.y)) continue;
-    if (!tiles.has(t.name)) tiles.set(t.name, { id: t.name, name: (t.td && t.td.n) || '', n: 0 });
-    tiles.get(t.name).n++;
-  }
-  return { ents, tiles, decals };
+  return { ents, decals, tiles };
 }
 function exportList() {
-  const data = { kind: 'ss14-map-viewer list', v: 1, map: mapKey(), mapName: S.model && S.model.name,
-    ents: [...S.list.ents], decals: [...S.list.decals], tiles: [...S.list.tiles] };
-  download(new Blob([JSON.stringify(data)], { type: 'application/json' }), safeName((S.model && S.model.name) || 'map') + '.list.json');
+  const data = { kind: 'ss14-map-viewer kinds', v: 2, ents: [...S.kinds.ents], decals: [...S.kinds.decals], tiles: [...S.kinds.tiles] };
+  download(new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' }), 'ss14-kinds.json');
 }
 async function importList(file) {
   try {
     const d = JSON.parse(await file.text());
     if (!d.ents && !d.tiles && !d.decals) throw new Error('not a list file');
-    if (d.map && d.map !== mapKey()) toast(`This list was made for ${d.mapName || d.map}; added anyway`, true);
-    (d.ents || []).forEach(x => S.list.ents.add(String(x)));
-    (d.decals || []).forEach(x => S.list.decals.add(x));
-    (d.tiles || []).forEach(x => S.list.tiles.add(x));
-    saveList();
-    if (S.onlyMode === 'list') setOnly('list'); else renderArea();
+    (d.ents || []).forEach(x => S.kinds.ents.add(String(x)));
+    (d.decals || []).forEach(x => S.kinds.decals.add(String(x)));
+    (d.tiles || []).forEach(x => S.kinds.tiles.add(String(x)));
+    kindsChanged();
     toast('List imported');
   } catch (e) { toast('Could not import: ' + e.message, true); }
 }
 
 // a block of grouped rows (objects / floor tiles / decals) with a filter, copy and csv
-function contentsBlock(target, res, fileTag) {
+function contentsBlock(target, res, fileTag, removable) {
   const sorted = (m) => [...m.values()].sort((a, b) => b.n - a.n || a.id.localeCompare(b.id));
   const ents = sorted(res.ents), tiles = sorted(res.tiles), decals = sorted(res.decals);
   const wrap = document.createElement('div');
@@ -1279,8 +1300,12 @@ function contentsBlock(target, res, fileTag) {
     for (const r of rows) {
       const b = document.createElement('button');
       b.dataset.s = (r.id + ' ' + r.name).toLowerCase();
-      b.innerHTML = `<span><div class="n">${esc(r.id)}</div><div class="s">${esc(r.name)}${withCat && r.cat ? ' · ' + esc(CAT_LABEL[r.cat] || r.cat) : ''}</div></span><span class="c">${r.n}</span>`;
-      if (r.items) b.onclick = () => { S.highlight = { label: r.id, items: r.items }; drawOverlay(); };
+      b.innerHTML = `<span><div class="n">${esc(r.id)}</div><div class="s">${esc(r.name)}${withCat && r.cat ? ' · ' + esc(CAT_LABEL[r.cat] || r.cat) : ''}</div></span><span class="c">${r.n}</span>${removable ? '<span class="rm" title="Remove from the list">✕</span>' : ''}`;
+      if (r.items) b.onclick = (ev) => {
+        if (ev.target.classList.contains('rm')) return;
+        S.highlight = { label: r.id, items: r.items }; drawOverlay();
+      };
+      if (removable) b.querySelector('.rm').onclick = (ev) => { ev.stopPropagation(); S.kinds[r.key].delete(r.id); kindsChanged(); };
       box.appendChild(b);
     }
     lists.appendChild(box);
@@ -1314,9 +1339,7 @@ function renderArea() {
   const hasArea = !!(S.area && S.area.tiles.size && S.scene);
   // ---- selection
   pane.insertAdjacentHTML('beforeend', '<h3 style="margin-top:0">Selection</h3>');
-  if (!S.scene) {
-    pane.insertAdjacentHTML('beforeend', '<p class="hint">Open a map first.</p>');
-  }
+  if (!S.scene) pane.insertAdjacentHTML('beforeend', '<p class="hint">Open a map first.</p>');
   if (S.scene && !hasArea) {
     pane.insertAdjacentHTML('beforeend', `<p class="hint">With the <b>pick</b> tool (V), <b>drag</b> on the map to select an area.
       <b>Shift+drag</b> adds to it, <b>Alt+drag</b> or <b>Ctrl+drag</b> removes from it. <b>Esc</b> clears it.
@@ -1330,27 +1353,35 @@ function renderArea() {
     pane.insertAdjacentHTML('beforeend', `<div class="kv">
       <span class="k">area</span><span class="v">${S.area.tiles.size} tiles</span>
       <span class="k">objects</span><span class="v">${res.total} (${res.ents.size} kinds)</span>
-      <span class="k">floor tiles</span><span class="v">${nTil}</span>
-      <span class="k">decals</span><span class="v">${nDec}</span></div>`);
+      <span class="k">floor tiles</span><span class="v">${nTil} (${res.tiles.size} kinds)</span>
+      <span class="k">decals</span><span class="v">${nDec} (${res.decals.size} kinds)</span></div>`);
     const row = document.createElement('div');
     row.className = 'row gap wrap';
-    row.innerHTML = `<label class="tglbtn"><input type="checkbox" ${S.onlyMode === 'area' ? 'checked' : ''}> Show only the selection</label>
+    row.innerHTML = `<label class="tglbtn" title="Every object, floor tile and decal of the kinds in the selection, anywhere on the map"><input type="checkbox" ${S.onlyMode === 'area' ? 'checked' : ''}> Show only these kinds, map-wide</label>
       <button class="btn small" data-a="clear">Clear selection</button>`;
     row.querySelector('input').onchange = (e) => setOnly(e.target.checked ? 'area' : null);
     row.querySelector('[data-a=clear]').onclick = clearArea;
     pane.appendChild(row);
+  } else if (S.onlyMode === 'area' && S.onlyKinds) {
+    // filter stays on after the selection is cleared
+    const row = document.createElement('div');
+    row.className = 'row gap wrap';
+    row.innerHTML = `<label class="tglbtn"><input type="checkbox" checked> Show only the kinds from the last selection</label>`;
+    row.querySelector('input').onchange = () => setOnly(null);
+    pane.appendChild(row);
   }
-  // ---- saved list
-  if (S.scene && S.list) {
-    const L = S.list;
-    const total = L.ents.size + L.decals.size + L.tiles.size;
-    pane.insertAdjacentHTML('beforeend', `<h3>Saved list <span class="badge">${total}</span></h3>
-      <p class="hint">Add or remove what's in the selection (shown layers only). Kept in this browser for this map; export it to share.</p>`);
+  // ---- saved list of kinds
+  if (S.kinds) {
+    const K = S.kinds;
+    const total = K.ents.size + K.decals.size + K.tiles.size;
+    pane.insertAdjacentHTML('beforeend', `<h3>Saved list <span class="badge">${total} kinds</span></h3>
+      <p class="hint">A list of kinds (object ids, floor tiles, decals). Add or remove the kinds in the selection, or use
+      <b>Add to list</b> in Inspect. Shared by all maps, kept in this browser; export it to share.</p>`);
     const row = document.createElement('div');
     row.className = 'row gap wrap';
     row.innerHTML = `<button class="btn small primary" data-a="add" ${hasArea ? '' : 'disabled'}>+ Add selection</button>
       <button class="btn small" data-a="sub" ${hasArea ? '' : 'disabled'}>− Remove selection</button>
-      <label class="tglbtn"><input type="checkbox" ${S.onlyMode === 'list' ? 'checked' : ''} ${total ? '' : 'disabled'}> Show only the list</label>`;
+      <label class="tglbtn" title="Every object, floor tile and decal of the listed kinds, anywhere on the map"><input type="checkbox" ${S.onlyMode === 'list' ? 'checked' : ''} ${total && S.scene ? '' : 'disabled'}> Show only the list</label>`;
     row.querySelector('[data-a=add]').onclick = () => listFromArea(true);
     row.querySelector('[data-a=sub]').onclick = () => listFromArea(false);
     row.querySelector('input').onchange = (e) => setOnly(e.target.checked ? 'list' : null);
@@ -1363,18 +1394,20 @@ function renderArea() {
     row2.querySelector('[data-a=exp]').onclick = exportList;
     row2.querySelector('input').onchange = (e) => { const f = e.target.files[0]; if (f) importList(f); e.target.value = ''; };
     row2.querySelector('[data-a=clr]').onclick = () => {
-      if (!confirmBox('Empty the saved list for this map?')) return;
-      S.list = emptyList(); saveList();
+      if (!confirmBox('Empty the saved list?')) return;
+      S.kinds = emptyKinds();
+      saveKinds();
       if (S.onlyMode === 'list') setOnly(null); else renderArea();
     };
     pane.appendChild(row2);
     if (total) {
       const det = document.createElement('details');
       det.className = 'listdet';
-      det.open = !!S.listOpen;
-      det.innerHTML = '<summary>What\'s in the list</summary>';
-      det.ontoggle = () => { S.listOpen = det.open; if (det.open && !det.dataset.done) { det.dataset.done = 1; contentsBlock(det, listContents(), 'list'); } };
-      if (det.open) { det.dataset.done = 1; contentsBlock(det, listContents(), 'list'); }
+      det.open = S.listOpen !== false;
+      det.innerHTML = `<summary>What's in the list${S.scene ? ' (counts on this map)' : ''}</summary>`;
+      const fill = () => { det.dataset.done = 1; contentsBlock(det, kindsOnMap(K), 'list', true); };
+      det.ontoggle = () => { S.listOpen = det.open; if (det.open && !det.dataset.done) fill(); };
+      if (det.open) fill();
       pane.appendChild(det);
     }
   }
@@ -1834,6 +1867,7 @@ function setupUI() {
   $('#btnSaveMap').onclick = saveMapToRepo;
 
   updateDrawStats();
+  loadKinds();
   renderArea();
   setupInput();
   renderPacks();

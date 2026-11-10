@@ -23,11 +23,13 @@ cables, doors and everything placed on it.
   adds, **Alt+drag** or **Ctrl+drag** removes, **Esc** clears. The *Area* tab
   lists every object, floor tile and decal inside, with counts, counting only
   layers shown in the *View* tab. Copy the list or download it as `.csv`;
-  click a row to highlight those objects. **Show only the selection** hides
-  everything else.
-- **Saved list** (*Area* tab): add or remove whatever is in the selection,
-  show only the list, see what's in it. It is kept per map in your browser
-  and can be exported as `.json` and imported elsewhere to share.
+  click a row to highlight those objects. **Show only these kinds, map-wide**
+  hides everything except objects, floor tiles and decals of the kinds found in
+  the selection, anywhere on the map.
+- **Saved list of kinds** (*Area* tab): add or remove the kinds in the
+  selection (or use *Add to list* in Inspect), then **show only the list** to
+  see every object of those kinds on any map. It is kept in your browser,
+  shared by all maps, and can be exported as `.json` and imported to share.
 - **View sheet**: opens the whole PNG of a picked sprite (every frame and
   direction) full-screen. Scroll to zoom, right-drag / middle-drag / Space+drag
   to move, drag to select (snapped to frames or free, pixel by pixel),
@@ -56,11 +58,13 @@ cables, doors and everything placed on it.
   adds, **Alt+drag** or **Ctrl+drag** removes, **Esc** clears. The *Area* tab
   lists every object, floor tile and decal inside, with counts, counting only
   layers shown in the *View* tab. Copy the list or download it as `.csv`;
-  click a row to highlight those objects. **Show only the selection** hides
-  everything else.
-- **Saved list** (*Area* tab): add or remove whatever is in the selection,
-  show only the list, see what's in it. It is kept per map in your browser
-  and can be exported as `.json` and imported elsewhere to share.
+  click a row to highlight those objects. **Show only these kinds, map-wide**
+  hides everything except objects, floor tiles and decals of the kinds found in
+  the selection, anywhere on the map.
+- **Saved list of kinds** (*Area* tab): add or remove the kinds in the
+  selection (or use *Add to list* in Inspect), then **show only the list** to
+  see every object of those kinds on any map. It is kept in your browser,
+  shared by all maps, and can be exported as `.json` and imported to share.
 - **View sheet**: opens the whole PNG of a picked sprite (every frame and
   direction) full-screen. Scroll to zoom, right-drag / middle-drag / Space+drag
   to move, drag to select (snapped to frames or free, pixel by pixel),
