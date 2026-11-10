@@ -23,7 +23,44 @@ cables, doors and everything placed on it.
   adds, **Alt+drag** or **Ctrl+drag** removes, **Esc** clears. The *Area* tab
   lists every object, floor tile and decal inside, with counts, counting only
   layers shown in the *View* tab. Copy the list or download it as `.csv`;
-  click a row to highlight those objects.
+  click a row to highlight those objects. **Show only the selection** hides
+  everything else.
+- **Saved list** (*Area* tab): add or remove whatever is in the selection,
+  show only the list, see what's in it. It is kept per map in your browser
+  and can be exported as `.json` and imported elsewhere to share.
+- **View sheet**: opens the whole PNG of a picked sprite (every frame and
+  direction) full-screen. Scroll to zoom, right-drag / middle-drag / Space+drag
+  to move, drag to select (snapped to frames or free, pixel by pixel),
+  double-click a frame to select it, then copy or download the selection or the
+  whole image (`Ctrl+C` copies the selection, or everything if nothing is selected).
+- **Download .yml** of the open map (bottom of the *Map* tab).
+- **Draw on top**: lines in any colour, an eraser that cuts lines, and text.
+  Drawings are kept per map in your browser and can be exported, imported or
+  saved into this repo.
+- **Layers, each shown or hidden on its own** (*View* tab, foldable groups,
+  an "only" button per row):
+  - floor tiles · decals
+  - pipes, cables and their machines: atmos (pipes; atmos devices), electric
+    (HV, MV, LV cables; electric machines), disposal (pipes; units)
+  - objects: walls · airlocks and doors · wall-mounted · machines and
+    computers (computers and consoles; fabrication and production; vending;
+    other machines) · storage · furniture · items · everything else
+  - markers and spawners
+  
+  Pipes and cables are shown **as in game** (hidden under floor tiles; vents,
+  scrubbers and other devices keep only their floor part, also on catwalks) or
+  **on top of everything**. Also: every sprite layer, tile grid. Background:
+  space as in game (nebula plus four generated star layers with parallax) or a
+  solid colour.
+- **Area selection** (pick tool): drag to select whole tiles, **Shift+drag**
+  adds, **Alt+drag** or **Ctrl+drag** removes, **Esc** clears. The *Area* tab
+  lists every object, floor tile and decal inside, with counts, counting only
+  layers shown in the *View* tab. Copy the list or download it as `.csv`;
+  click a row to highlight those objects. **Show only the selection** hides
+  everything else.
+- **Saved list** (*Area* tab): add or remove whatever is in the selection,
+  show only the list, see what's in it. It is kept per map in your browser
+  and can be exported as `.json` and imported elsewhere to share.
 - **View sheet**: opens the whole PNG of a picked sprite (every frame and
   direction) full-screen. Scroll to zoom, right-drag / middle-drag / Space+drag
   to move, drag to select (snapped to frames or free, pixel by pixel),

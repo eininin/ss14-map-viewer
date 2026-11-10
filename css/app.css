@@ -86,7 +86,7 @@ body.dragover #stage::after { content: "Drop to open"; position: absolute; inset
 .pane h4 { margin: 14px 0 6px; font-size: 13px; font-weight: 600; }
 .hint { color: var(--dim); font-size: 12.5px; margin: 0 0 10px; }
 .pane label { display: block; font-size: 12.5px; color: var(--dim); margin-bottom: 8px; }
-.pane label input:not([type=checkbox]):not([type=color]), .search { display: block; width: 100%; margin-top: 3px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; color: var(--text); font-family: var(--mono); font-size: 12.5px; }
+.pane label input:not([type=checkbox]):not([type=color]):not([type=radio]), .search { display: block; width: 100%; margin-top: 3px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; color: var(--text); font-family: var(--mono); font-size: 12.5px; }
 .pane label.row { display: flex; align-items: center; justify-content: space-between; color: var(--text); }
 .row { display: flex; align-items: center; }
 .gap { gap: 8px; margin-top: 10px; }
@@ -221,3 +221,12 @@ body.dragover #stage::after { content: "Drop to open"; position: absolute; inset
 .tab { padding: 10px 6px 9px; }
 .sel { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; color: var(--text); font-size: 12.5px; max-width: 220px; }
 label.dimmed { opacity: .45; }
+.tg.col { flex-direction: column; align-items: stretch; padding: 4px 0; }
+.tg.col:hover { background: none; }
+.tg .optlabel { font-size: 12.5px; color: var(--dim); padding: 2px 4px; }
+.tg.col label:hover { background: var(--panel2); border-radius: 6px; }
+.tglbtn { display: inline-flex !important; align-items: center; gap: 6px; color: var(--text) !important; font-size: 12.5px; margin: 0 !important; cursor: pointer; border: 1px solid var(--line); border-radius: 6px; padding: 3px 8px; background: var(--panel2); }
+.tglbtn input { accent-color: var(--acc); }
+.listdet { margin-top: 10px; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+.listdet summary { cursor: pointer; font-size: 13px; }
+.tg.col input[type=radio] { accent-color: var(--acc); width: 16px; height: 16px; flex: none; }

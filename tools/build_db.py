@@ -45,6 +45,14 @@ for ch in "tTfF":
     L.yaml_implicit_resolvers.setdefault(ch, []).insert(0, ("tag:yaml.org,2002:bool",
         _re.compile(r"^(?:true|True|TRUE|false|False|FALSE)$")))
 
+def deep_merge(a, b):
+    """partial prototypes only change the fields they name, also inside nested mappings"""
+    out = dict(a)
+    for k, v in b.items():
+        out[k] = deep_merge(out[k], v) if isinstance(v, dict) and isinstance(out.get(k), dict) else v
+    return out
+
+
 def load_all(root):
     docs = []
     for dp, _, fs in os.walk(root):
@@ -147,9 +155,31 @@ def pipe_layer(v):
     return PIPE_LAYERS.get(sv.lower())
 
 
+POWER = {"PowerSupplier", "PowerNetworkBattery", "Apc", "SolarPanel", "SolarControlConsole", "Emitter",
+         "RadiationCollector", "ContainmentFieldGenerator", "SingularityGenerator", "TeslaCoil", "TeslaGroundingRod",
+         "AmeController", "AmeShielding", "AmeFuelContainer", "ParticleAcceleratorControlBox", "ParticleAcceleratorPart",
+         "TegGenerator", "TegCirculator", "PortableGenerator", "FuelGenerator", "GeneratorExhaustGas", "CableTerminal",
+         "SupermatterCrystal", "Supermatter"}
+FABRICATION = {"Lathe", "MaterialReclaimer", "MaterialStorage", "ReagentDispenser", "ChemMaster", "Microwave",
+               "ReagentGrinder", "BiomassReclaimer", "FatExtractor", "SeedExtractor", "OreProcessor", "Sheetifier",
+               "Recycler", "Smelter", "Refinery", "Anvil", "Forge", "BluespaceLocker_", "Kitchen", "Oven", "Grill",
+               "Fryer", "DeepFryer", "ElectricGrill", "BoozeDispenser", "SodaDispenser", "SolutionContainerMixer",
+               "ChemistryReagentDispenser", "Centrifuge", "Electrolysis", "Distiller", "FoodProcessor"}
+MACHINE_HINT = {"Machine", "MachineBoard_", "UpgradePowerDraw", "WiresPanel", "ActivatableUIRequiresPower",
+                "MedicalScanner", "CloningPod", "CryoPod", "DiseaseDiagnoser", "ResearchServer", "ResearchClient",
+                "TelecomServer", "GravityGenerator", "Thruster", "Gyroscope_", "ArtifactAnalyzer", "AnomalyVessel",
+                "AnomalyGenerator", "Anomaly", "StationAiCore", "SurveillanceCameraMonitor", "Holopad", "Fax",
+                "Paper_", "PhotocopierComponent_", "Photocopier", "Crusher", "MaterialEater", "Teleporter",
+                "Cryostorage", "CargoTelepad", "CargoBounty_", "CommunicationsConsole", "Arcade", "SpaceVillainArcade",
+                "BlockGameArcade", "Jukebox", "Charger", "PowerCellSlot_"}
+
+
 def categorize(pid, d, comps, e):
-    """Layer group for the viewer: atmos, hv, mv, lv, disposal, doors, walls, wallmount, storage,
-    machines, furniture, items (None = other). The first rule that matches wins."""
+    """Layer group for the viewer. The first rule that matches wins.
+    Networks: atmos (pipes), atmosdev (vents, scrubbers, pumps, canisters…), hv / mv / lv (cables),
+    power (generators, SMES, substations, APCs, solars…), disposal (pipes), disposaldev (units).
+    Objects: doors, walls, wallmount, computers, fabrication, vending, machines, storage, furniture,
+    items, None (= other)."""
     names = set(comps)
     tags = set()
     t = comps.get("Tag", {}).get("tags")
@@ -157,17 +187,32 @@ def categorize(pid, d, comps, e):
         tags = {str(x) for x in t}
     sprite = str(e.get("s", "")).lstrip("/").replace("Textures/", "", 1)
     f = str(d.get("__file", ""))
-    if any(n.startswith("Disposal") for n in names if n not in ("DisposalUnit",)) and "MailingUnit" not in names:
+    lid = pid.lower()
+    is_item = "Item" in names
+    if names & {"DisposalUnit", "MailingUnit"}:
+        return "disposaldev"
+    if any(n.startswith("Disposal") for n in names):
         return "disposal"
     if "Cable" in names or e.get("cab"):
-        pre = (e.get("cab") or [""])[0].lower() or pid.lower()
+        pre = (e.get("cab") or [""])[0].lower() or lid
         for k in ("hv", "mv", "lv"):
-            if pre.startswith(k) or ("cable" + k) in pid.lower():
+            if pre.startswith(k) or ("cable" + k) in lid:
                 return k
         return "lv"
-    if names & {"AtmosPipeLayers", "AtmosPipeColor", "PipeAppearance", "GasVentPump", "GasVentScrubber",
-                "GasPassiveVent", "GasPressurePump", "GasVolumePump", "GasFilter", "GasMixer", "GasValve",
-                "GasOutletInjector", "GasThermoMachine", "PipeRestrictOverlap"} and "GasPortable" not in names:
+    if names & POWER or sprite.startswith(("Structures/Power/Generation/", "Structures/Power/smes",
+                                           "Structures/Power/substation", "Structures/Power/apc",
+                                           "Structures/Power/Generation")) \
+            or "/Structures/Power/" in f and not is_item:
+        return "power"
+    atmos_net = names & {"AtmosPipeLayers", "AtmosPipeColor", "PipeAppearance", "PipeRestrictOverlap"}
+    atmos_dev = names & {"AtmosDevice", "GasVentPump", "GasVentScrubber", "GasPassiveVent", "GasPressurePump",
+                         "GasVolumePump", "GasFilter", "GasMixer", "GasValve", "GasOutletInjector", "GasThermoMachine",
+                         "GasPortable", "GasCanister", "GasPort", "GasPortableConnector", "GasMinerComponent_", "GasMiner"}
+    if atmos_net and lid.startswith("gaspipe"):          # plain pipes, bends, junctions, manifolds
+        return "atmos"
+    if atmos_dev and (not is_item or atmos_net) and "WallMount" not in names and not names & {"AirAlarm", "FireAlarm"}:
+        return "atmosdev"
+    if atmos_net:
         return "atmos"
     if names & {"Door", "Airlock", "Firelock"}:
         return "doors"
@@ -177,21 +222,34 @@ def categorize(pid, d, comps, e):
             "/Structures/Walls/" in f or "/Structures/Windows/" in f:
         return "walls"
     if "WallMount" in names or e.get("d") == 2 or "/Wallmounts/" in f or sprite.startswith("Structures/Wallmounts/") \
-            or names & {"Apc", "AirAlarm", "FireAlarm", "Intercom", "PoweredLight", "Sign", "ExtinguisherCabinet"}:
+            or names & {"AirAlarm", "FireAlarm", "Intercom", "PoweredLight", "Sign", "ExtinguisherCabinet"}:
         return "wallmount"
     if names & {"EntityStorage"} or "/Structures/Storage/" in f or sprite.startswith("Structures/Storage/"):
         return "storage"
-    if names & {"Machine", "VendingMachine", "Lathe", "Computer", "ComputerBoard", "MaterialStorage",
-                "PowerNetworkBattery", "PowerSupplier", "Battery", "GravityGenerator", "ParticleAcceleratorControlBox",
-                "SingularityGenerator", "ContainmentFieldGenerator", "Thruster", "ShuttleConsole", "RadarConsole",
-                "MedicalScanner", "CloningPod", "Microwave", "ReagentDispenser", "ChemMaster", "Anomaly"} or \
-            sprite.startswith(("Structures/Machines/", "Structures/Power/", "Structures/Shuttles/")) or \
-            "/Structures/Machines/" in f or "/Structures/Power/" in f or "/Structures/Shuttles/" in f:
-        return "machines"
+    if not is_item:
+        if "VendingMachine" in names:
+            return "vending"
+        if "Computer" in names or "ComputerBoard" in names or lid.startswith("computer") or \
+                sprite.startswith("Structures/Machines/computers") or "/Machines/Computers/" in f or \
+                any(n.endswith("Console") for n in names):
+            return "computers"
+        if names & FABRICATION or any(k in lid for k in ("lathe", "fabricator", "reclaimer", "recycler", "reagentgrinder",
+                                                         "chemmaster", "microwave", "techfab", "printer")):
+            return "fabrication"
+        if names & MACHINE_HINT or "/Structures/Machines/" in f or "/Structures/Shuttles/" in f or \
+                sprite.startswith(("Structures/Machines/", "Structures/Shuttles/")) or \
+                ("ApcPowerReceiver" in names and "Anchorable" in names):
+            return "machines"
+    if names & {"EntityStorage"} or "/Structures/Storage/" in f or sprite.startswith("Structures/Storage/"):
+        return "storage"
     if "/Furniture/" in f or sprite.startswith("Structures/Furniture/") or "Strap" in names or \
             "Table" in tags or (sm and "table" in sm[0].lower()):
         return "furniture"
-    if "Item" in names:
+    if is_item and "ApcPowerReceiver" in names:      # powered machines you can pick up (microwaves, rechargers)
+        if names & FABRICATION:
+            return "fabrication"
+        return "machines"
+    if is_item:
         return "items"
     return None
 
@@ -237,7 +295,7 @@ def build(res):
                     if not isinstance(c, dict): continue
                     for i, bc in enumerate(lst):
                         if isinstance(bc, dict) and bc.get("type") == c.get("type"):
-                            lst[i] = {**bc, **c}; break
+                            lst[i] = deep_merge(bc, c); break
                     else:
                         lst.append(c)
                 base["components"] = lst
@@ -319,6 +377,12 @@ def build(res):
                 e["dod"] = DRAW.get(str(od), 0)
         if "SubFloorHide" in comps:
             e["sub"] = 1
+            vl = comps["SubFloorHide"].get("visibleLayers")
+            if isinstance(vl, list) and vl:
+                e["sfv"] = [str(x) for x in vl]   # layers that stay visible over a floor
+        tg = comps.get("Tag", {}).get("tags")
+        if isinstance(tg, list) and "Catwalk" in tg:
+            e["cw"] = 1
         # placed (anchored) vs loose looks
         xf = comps.get("Transform", {})
         if str(xf.get("anchored", "")).lower() == "true":
@@ -343,12 +407,18 @@ def build(res):
         # atmos pipes: node directions, pipe layer and the connector sprites drawn when placed
         nodes = comps.get("NodeContainer", {}).get("nodes")
         mask = 0
+        pn = []
         if isinstance(nodes, dict):
             for nd in nodes.values():
                 if isinstance(nd, dict) and nd.get("pipeDirection"):
-                    mask |= pipe_mask(str(nd["pipeDirection"]))
+                    m = pipe_mask(str(nd["pipeDirection"]))
+                    mask |= m
+                    li = pipe_layer(nd.get("pipeLayer"))
+                    pn.append([m, li] if li is not None else [m])
         if mask:
             e["pd"] = mask
+            if any(len(x) > 1 for x in pn):
+                e["pn"] = pn      # nodes on fixed pipe layers (manifolds)
         if "PipeAppearance" in comps:
             spr = comps["PipeAppearance"].get("sprite")
             conns = []

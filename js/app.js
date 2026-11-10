@@ -161,10 +161,13 @@ async function openText(text, source) {
   S.selection = null;
   S.highlight = null;
   S.area = null;
+  S.onlyMode = null;
+  S.renderer.only = null;
   $('#empty').hidden = true;
   $('#mapName').textContent = (model.name || source.name || 'map') + '  ·  ' + (source.label || source.name || '');
   document.title = (model.name || source.name) + ' – SS14 Map Viewer';
   loadAnnotsLocal();
+  loadList();
   await resolveAndRender(false, token);
   renderInspect();
 }
@@ -1029,7 +1032,7 @@ function layerCard(it, l) {
     lt.appendChild(c);
   }
   const path = l.tex ? texRel(l.tex) : texRel(l.rsi);
-  const vis = S.renderer.layerVisible(l);
+  const vis = S.renderer.layerVisible(l, it);
   lt.insertAdjacentHTML('beforeend', `<div style="min-width:0"><div class="path">${esc(path)}</div>
     ${l.tex ? '' : `<div class="path">state <b>${esc(l.state)}</b>${l.connector ? ' · pipe connector' : l.fixedDir != null ? ' · corner' : ''}</div>`}
     <div class="src">${res && !res.dev ? 'from <b>' + esc(res.pack.name) + '</b>' : '<b class="bad">missing → dev texture</b>'}${!vis ? ' · hidden in game' : ''}${l.color ? ' · tint ' + esc(l.color) : ''}</div></div>`);
@@ -1109,11 +1112,15 @@ function applyArea(a, b, mode) {
     if (mode === 'sub') S.area.tiles.delete(k); else S.area.tiles.add(k);
   }
   buildAreaPaths();
-  renderArea();
+  if (S.onlyMode === 'area') setOnly('area'); else renderArea();
   showTab('area');
   drawOverlay();
 }
-function clearArea() { S.area = null; renderArea(); drawOverlay(); }
+function clearArea() {
+  S.area = null;
+  if (S.onlyMode === 'area') setOnly(null); else renderArea();
+  drawOverlay();
+}
 function buildAreaPaths() {
   const fill = new Path2D(), edges = new Path2D();
   const t = S.area.tiles;
@@ -1163,46 +1170,107 @@ function areaContents() {
     e.n++; e.items.push(it);
     if (it.kind !== 'decal') total++;
   }
+  const tileList = [];
   if (o.tiles) for (const [g, list] of S.scene.tiles) for (const t of list) {
+    if (!r.tileVisible(g, t)) continue;
     if (!inArea(g, t.x + 0.5, t.y + 0.5)) continue;
     if (!tiles.has(t.name)) tiles.set(t.name, { id: t.name, name: (t.td && t.td.n) || '', n: 0 });
     tiles.get(t.name).n++;
+    tileList.push([g, t]);
   }
-  return { ents, tiles, decals, total };
+  return { ents, tiles, decals, total, tileList };
 }
-const CAT_LABEL = { atmos: 'atmos', hv: 'HV', mv: 'MV', lv: 'LV', disposal: 'disposal', walls: 'walls', doors: 'doors',
-  wallmount: 'wall-mounted', machines: 'machines', storage: 'storage', furniture: 'furniture', items: 'items', other: 'other', markers: 'marker' };
-function renderArea() {
-  const pane = $('#paneArea');
-  if (!pane) return;
-  if (!S.area || !S.area.tiles.size || !S.scene) {
-    S.areaResult = null;
-    pane.innerHTML = `<p class="hint">With the <b>pick</b> tool (V), <b>drag</b> on the map to select an area.
-      <b>Shift+drag</b> adds to it, <b>Alt+drag</b> or <b>Ctrl+drag</b> removes from it. <b>Esc</b> clears it.</p>
-      <p class="hint">Everything inside that is on a shown layer (View tab) is listed here with counts.</p>`;
-    return;
-  }
+const CAT_LABEL = { atmos: 'atmos pipes', atmosdev: 'atmos devices', hv: 'HV', mv: 'MV', lv: 'LV', power: 'electric machines',
+  disposal: 'disposal pipes', disposaldev: 'disposal units', walls: 'walls', doors: 'doors', wallmount: 'wall-mounted',
+  computers: 'computers', fabrication: 'fabrication', vending: 'vending', machines: 'other machines', storage: 'storage',
+  furniture: 'furniture', items: 'items', other: 'other', markers: 'marker' };
+// ---- "show only": the selection or the saved list, everything else hidden
+function setOnly(mode) {
+  S.onlyMode = mode;
+  const r = S.renderer;
+  if (mode === 'area' && S.area) {
+    r.only = { test: (it) => inArea(it.grid, it.x, it.y), tile: (g, t) => inArea(g, t.x + 0.5, t.y + 0.5) };
+  } else if (mode === 'list') {
+    const L = S.list;
+    r.only = {
+      test: (it) => it.kind === 'decal' ? L.decals.has(it.grid + ':' + it.decalIndex) : L.ents.has(String(it.uid)),
+      tile: (g, t) => L.tiles.has(g + ':' + t.x + ',' + t.y),
+    };
+  } else { r.only = null; S.onlyMode = null; }
+  r.invalidate();
+  backgroundFill(S.loadToken);
+  draw();
+  renderArea();
+}
+
+// ---- saved list: things added from selections, kept per map in this browser
+const emptyList = () => ({ ents: new Set(), decals: new Set(), tiles: new Set() });
+function listKey() { return 'list.' + mapKey(); }
+function saveList() {
+  LS.set(listKey(), { ents: [...S.list.ents], decals: [...S.list.decals], tiles: [...S.list.tiles] });
+}
+function loadList() {
+  const d = LS.get(listKey(), null);
+  S.list = emptyList();
+  if (d) { (d.ents || []).forEach(x => S.list.ents.add(String(x))); (d.decals || []).forEach(x => S.list.decals.add(x)); (d.tiles || []).forEach(x => S.list.tiles.add(x)); }
+}
+function listFromArea(add) {
+  if (!S.area || !S.area.tiles.size) { toast('Select an area first', true); return; }
   const res = areaContents();
-  S.areaResult = res;
+  const L = S.list;
+  let n = 0;
+  const op = (set, k) => { if (add ? !set.has(k) : set.has(k)) n++; add ? set.add(k) : set.delete(k); };
+  for (const e of res.ents.values()) for (const it of e.items) op(L.ents, String(it.uid));
+  for (const e of res.decals.values()) for (const it of e.items) op(L.decals, it.grid + ':' + it.decalIndex);
+  for (const [g, t] of res.tileList) op(L.tiles, g + ':' + t.x + ',' + t.y);
+  saveList();
+  toast(`${add ? 'Added' : 'Removed'} ${n} thing${n === 1 ? '' : 's'}`);
+  if (S.onlyMode === 'list') setOnly('list'); else renderArea();
+}
+function listContents() {
+  const L = S.list, ents = new Map(), decals = new Map(), tiles = new Map();
+  for (const it of S.scene.items) {
+    const inL = it.kind === 'decal' ? L.decals.has(it.grid + ':' + it.decalIndex) : L.ents.has(String(it.uid));
+    if (!inL) continue;
+    const m = it.kind === 'decal' ? decals : ents;
+    if (!m.has(it.proto)) m.set(it.proto, { id: it.proto, name: it.kind === 'decal' ? '' : it.name, cat: it.kind === 'decal' ? 'decal' : it.marker ? 'markers' : (it.cat || 'other'), n: 0, items: [] });
+    const e = m.get(it.proto); e.n++; e.items.push(it);
+  }
+  for (const [g, list] of S.scene.tiles) for (const t of list) {
+    if (!L.tiles.has(g + ':' + t.x + ',' + t.y)) continue;
+    if (!tiles.has(t.name)) tiles.set(t.name, { id: t.name, name: (t.td && t.td.n) || '', n: 0 });
+    tiles.get(t.name).n++;
+  }
+  return { ents, tiles, decals };
+}
+function exportList() {
+  const data = { kind: 'ss14-map-viewer list', v: 1, map: mapKey(), mapName: S.model && S.model.name,
+    ents: [...S.list.ents], decals: [...S.list.decals], tiles: [...S.list.tiles] };
+  download(new Blob([JSON.stringify(data)], { type: 'application/json' }), safeName((S.model && S.model.name) || 'map') + '.list.json');
+}
+async function importList(file) {
+  try {
+    const d = JSON.parse(await file.text());
+    if (!d.ents && !d.tiles && !d.decals) throw new Error('not a list file');
+    if (d.map && d.map !== mapKey()) toast(`This list was made for ${d.mapName || d.map}; added anyway`, true);
+    (d.ents || []).forEach(x => S.list.ents.add(String(x)));
+    (d.decals || []).forEach(x => S.list.decals.add(x));
+    (d.tiles || []).forEach(x => S.list.tiles.add(x));
+    saveList();
+    if (S.onlyMode === 'list') setOnly('list'); else renderArea();
+    toast('List imported');
+  } catch (e) { toast('Could not import: ' + e.message, true); }
+}
+
+// a block of grouped rows (objects / floor tiles / decals) with a filter, copy and csv
+function contentsBlock(target, res, fileTag) {
   const sorted = (m) => [...m.values()].sort((a, b) => b.n - a.n || a.id.localeCompare(b.id));
   const ents = sorted(res.ents), tiles = sorted(res.tiles), decals = sorted(res.decals);
-  const nDec = decals.reduce((a, d) => a + d.n, 0), nTil = tiles.reduce((a, d) => a + d.n, 0);
-  pane.innerHTML = `
-    <div class="kv">
-      <span class="k">area</span><span class="v">${S.area.tiles.size} tiles</span>
-      <span class="k">objects</span><span class="v">${res.total} (${ents.length} kinds)</span>
-      <span class="k">floor tiles</span><span class="v">${nTil}</span>
-      <span class="k">decals</span><span class="v">${nDec}</span>
-    </div>
-    <div class="row gap wrap">
-      <button class="btn small" data-a="copy">Copy list</button>
-      <button class="btn small" data-a="csv">Download .csv</button>
-      <button class="btn small" data-a="clear">Clear selection</button>
-    </div>
-    <p class="hint" style="margin-top:8px">Only layers shown in the View tab are counted. Click a row to highlight those objects.</p>
-    <input class="search" id="areaFilter" placeholder="Filter…">
-    <div id="areaLists"></div>`;
-  const lists = pane.querySelector('#areaLists');
+  const wrap = document.createElement('div');
+  wrap.innerHTML = `<div class="row gap wrap"><button class="btn small" data-a="copy">Copy list</button><button class="btn small" data-a="csv">Download .csv</button></div>
+    <input class="search" placeholder="Filter…" style="margin-top:8px !important">`;
+  const lists = document.createElement('div');
+  wrap.appendChild(lists);
   const section = (title, rows, withCat) => {
     if (!rows.length) return;
     lists.insertAdjacentHTML('beforeend', `<h3>${esc(title)} <span class="badge">${rows.reduce((a, r) => a + r.n, 0)}</span></h3>`);
@@ -1220,7 +1288,8 @@ function renderArea() {
   section('Objects', ents, true);
   section('Floor tiles', tiles, false);
   section('Decals', decals, false);
-  pane.querySelector('#areaFilter').oninput = (e) => {
+  if (!ents.length && !tiles.length && !decals.length) lists.innerHTML = '<p class="hint" style="margin-top:8px">Empty.</p>';
+  wrap.querySelector('input').oninput = (e) => {
     const q = e.target.value.trim().toLowerCase();
     lists.querySelectorAll('.plist button').forEach(b => { b.hidden = q && !b.dataset.s.includes(q); });
   };
@@ -1229,13 +1298,91 @@ function renderArea() {
     ...tiles.map(r => ['tile', r.id, r.name, '', r.n]),
     ...decals.map(r => ['decal', r.id, '', '', r.n]),
   ];
-  pane.querySelector('[data-a=copy]').onclick = () => copyText(rowsOut().map(r => `${r[1]}\t${r[4]}`).join('\n'));
-  pane.querySelector('[data-a=csv]').onclick = () => {
+  wrap.querySelector('[data-a=copy]').onclick = () => copyText(rowsOut().map(r => `${r[1]}\t${r[4]}`).join('\n'));
+  wrap.querySelector('[data-a=csv]').onclick = () => {
     const q = (v) => /[",\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v);
     const csv = [['type', 'id', 'name', 'group', 'count'], ...rowsOut()].map(r => r.map(q).join(',')).join('\n') + '\n';
-    download(new Blob([csv], { type: 'text/csv' }), safeName((S.model && S.model.name) || 'map') + '-area.csv');
+    download(new Blob([csv], { type: 'text/csv' }), safeName((S.model && S.model.name) || 'map') + '-' + fileTag + '.csv');
   };
-  pane.querySelector('[data-a=clear]').onclick = clearArea;
+  target.appendChild(wrap);
+}
+
+function renderArea() {
+  const pane = $('#paneArea');
+  if (!pane) return;
+  pane.innerHTML = '';
+  const hasArea = !!(S.area && S.area.tiles.size && S.scene);
+  // ---- selection
+  pane.insertAdjacentHTML('beforeend', '<h3 style="margin-top:0">Selection</h3>');
+  if (!S.scene) {
+    pane.insertAdjacentHTML('beforeend', '<p class="hint">Open a map first.</p>');
+  }
+  if (S.scene && !hasArea) {
+    pane.insertAdjacentHTML('beforeend', `<p class="hint">With the <b>pick</b> tool (V), <b>drag</b> on the map to select an area.
+      <b>Shift+drag</b> adds to it, <b>Alt+drag</b> or <b>Ctrl+drag</b> removes from it. <b>Esc</b> clears it.
+      Only layers shown in the View tab are counted.</p>`);
+  }
+  let res = null;
+  if (hasArea) {
+    res = areaContents();
+    S.areaResult = res;
+    const nDec = [...res.decals.values()].reduce((a, d) => a + d.n, 0), nTil = [...res.tiles.values()].reduce((a, d) => a + d.n, 0);
+    pane.insertAdjacentHTML('beforeend', `<div class="kv">
+      <span class="k">area</span><span class="v">${S.area.tiles.size} tiles</span>
+      <span class="k">objects</span><span class="v">${res.total} (${res.ents.size} kinds)</span>
+      <span class="k">floor tiles</span><span class="v">${nTil}</span>
+      <span class="k">decals</span><span class="v">${nDec}</span></div>`);
+    const row = document.createElement('div');
+    row.className = 'row gap wrap';
+    row.innerHTML = `<label class="tglbtn"><input type="checkbox" ${S.onlyMode === 'area' ? 'checked' : ''}> Show only the selection</label>
+      <button class="btn small" data-a="clear">Clear selection</button>`;
+    row.querySelector('input').onchange = (e) => setOnly(e.target.checked ? 'area' : null);
+    row.querySelector('[data-a=clear]').onclick = clearArea;
+    pane.appendChild(row);
+  }
+  // ---- saved list
+  if (S.scene && S.list) {
+    const L = S.list;
+    const total = L.ents.size + L.decals.size + L.tiles.size;
+    pane.insertAdjacentHTML('beforeend', `<h3>Saved list <span class="badge">${total}</span></h3>
+      <p class="hint">Add or remove what's in the selection (shown layers only). Kept in this browser for this map; export it to share.</p>`);
+    const row = document.createElement('div');
+    row.className = 'row gap wrap';
+    row.innerHTML = `<button class="btn small primary" data-a="add" ${hasArea ? '' : 'disabled'}>+ Add selection</button>
+      <button class="btn small" data-a="sub" ${hasArea ? '' : 'disabled'}>− Remove selection</button>
+      <label class="tglbtn"><input type="checkbox" ${S.onlyMode === 'list' ? 'checked' : ''} ${total ? '' : 'disabled'}> Show only the list</label>`;
+    row.querySelector('[data-a=add]').onclick = () => listFromArea(true);
+    row.querySelector('[data-a=sub]').onclick = () => listFromArea(false);
+    row.querySelector('input').onchange = (e) => setOnly(e.target.checked ? 'list' : null);
+    pane.appendChild(row);
+    const row2 = document.createElement('div');
+    row2.className = 'row gap wrap';
+    row2.innerHTML = `<button class="btn small" data-a="exp" ${total ? '' : 'disabled'}>Export .json</button>
+      <label class="btn small file">Import .json <input type="file" accept=".json" hidden></label>
+      <button class="btn small" data-a="clr" ${total ? '' : 'disabled'}>Empty the list</button>`;
+    row2.querySelector('[data-a=exp]').onclick = exportList;
+    row2.querySelector('input').onchange = (e) => { const f = e.target.files[0]; if (f) importList(f); e.target.value = ''; };
+    row2.querySelector('[data-a=clr]').onclick = () => {
+      if (!confirmBox('Empty the saved list for this map?')) return;
+      S.list = emptyList(); saveList();
+      if (S.onlyMode === 'list') setOnly(null); else renderArea();
+    };
+    pane.appendChild(row2);
+    if (total) {
+      const det = document.createElement('details');
+      det.className = 'listdet';
+      det.open = !!S.listOpen;
+      det.innerHTML = '<summary>What\'s in the list</summary>';
+      det.ontoggle = () => { S.listOpen = det.open; if (det.open && !det.dataset.done) { det.dataset.done = 1; contentsBlock(det, listContents(), 'list'); } };
+      if (det.open) { det.dataset.done = 1; contentsBlock(det, listContents(), 'list'); }
+      pane.appendChild(det);
+    }
+  }
+  // ---- selection contents last (long)
+  if (res) {
+    pane.insertAdjacentHTML('beforeend', '<h3>In the selection</h3><p class="hint">Click a row to highlight those objects.</p>');
+    contentsBlock(pane, res, 'area');
+  }
 }
 
 // ---------------------------------------------------------------- panes
@@ -1288,24 +1435,36 @@ function renderPacks() {
 const LAYER_TREE = [
   { k: 'tiles', label: 'Floor tiles' },
   { k: 'decals', label: 'Decals', sub: 'floor markings, dirt, flora' },
-  { id: 'pipes', label: 'Pipes and cables', children: [
-    { k: 'atmos', label: 'Atmos', sub: 'pipes, vents, scrubbers, pumps' },
+  { id: 'pipes', label: 'Pipes, cables and their machines', children: [
+    { id: 'atmosg', label: 'Atmos', children: [
+      { k: 'atmos', label: 'Pipes', sub: 'pipes, bends, junctions, manifolds' },
+      { k: 'atmosdev', label: 'Atmos devices', sub: 'vents, scrubbers, pumps, filters, ports, canisters, heaters' },
+    ] },
     { id: 'electric', label: 'Electric', children: [
       { k: 'hv', label: 'HV cables' },
       { k: 'mv', label: 'MV cables' },
       { k: 'lv', label: 'LV cables' },
+      { k: 'power', label: 'Electric machines', sub: 'generators, SMES, substations, APCs, solars, emitters' },
     ] },
-    { k: 'disposal', label: 'Disposal pipes' },
+    { id: 'disposalg', label: 'Disposal', children: [
+      { k: 'disposal', label: 'Disposal pipes' },
+      { k: 'disposaldev', label: 'Disposal units', sub: 'disposal and mailing units, toilets' },
+    ] },
   ] },
   { id: 'objects', label: 'Objects', children: [
     { k: 'walls', label: 'Walls', sub: 'walls, windows, grilles' },
     { k: 'doors', label: 'Airlocks and doors', sub: 'airlocks, firelocks, shutters, blast doors' },
-    { k: 'wallmount', label: 'Wall-mounted', sub: 'lights, APCs, air and fire alarms, cameras, signs' },
-    { k: 'machines', label: 'Machines and computers', sub: 'consoles, lathes, vending, power, thrusters' },
-    { k: 'storage', label: 'Storage', sub: 'lockers, closets, crates, racks, tanks, canisters' },
+    { k: 'wallmount', label: 'Wall-mounted', sub: 'lights, air and fire alarms, cameras, signs' },
+    { id: 'machinesg', label: 'Machines and computers', children: [
+      { k: 'computers', label: 'Computers and consoles', sub: 'consoles, arcades, record and monitoring computers' },
+      { k: 'fabrication', label: 'Fabrication and production', sub: 'lathes, fabricators, reclaimers, ore processors, kitchen' },
+      { k: 'vending', label: 'Vending machines' },
+      { k: 'machines', label: 'Other machines', sub: 'medical, science, telecoms, faxes, rechargers, hydroponics' },
+    ] },
+    { k: 'storage', label: 'Storage', sub: 'lockers, closets, crates, racks, tanks' },
     { k: 'furniture', label: 'Furniture', sub: 'tables, chairs, beds, sofas, carpets, plants' },
     { k: 'items', label: 'Items', sub: 'loose things lying around' },
-    { k: 'other', label: 'Everything else', sub: 'catwalks, disposal units, conveyors, flora…' },
+    { k: 'other', label: 'Everything else', sub: 'catwalks, stairs, conveyors, barricades…' },
   ] },
   { k: 'markers', label: 'Markers and spawners', sub: 'only visible to mappers in game' },
 ];
@@ -1368,8 +1527,16 @@ function renderToggles() {
     box.appendChild(l);
   };
   box.insertAdjacentHTML('beforeend', '<div class="tgsep"></div>');
-  opt('coverHide', 'Hide pipes and cables under floor tiles', 'as in game; only while floor tiles are shown',
-    () => o.coverHide, (v) => { o.coverHide = v; applyOpts(); });
+  const pm = document.createElement('div');
+  pm.className = 'tg opt col';
+  pm.innerHTML = `<div class="optlabel">Pipes and cables</div>
+    <label><input type="radio" name="pipeMode" value="game"><span>As in game<small>hidden under floor tiles; vents, scrubbers and other devices keep only the part on the floor</small></span></label>
+    <label><input type="radio" name="pipeMode" value="top"><span>On top of everything<small>pipes and cables drawn over walls, objects and floors</small></span></label>`;
+  pm.querySelectorAll('input').forEach(r => {
+    r.checked = r.value === o.pipeMode;
+    r.onchange = () => { if (r.checked) { o.pipeMode = r.value; applyOpts(); } };
+  });
+  box.appendChild(pm);
   opt('allLayers', 'Every sprite layer', 'also layers the game turns off (welded, bolted, panels…)',
     () => o.allLayers, (v) => { o.allLayers = v; applyOpts(); });
   opt('grid', 'Tile grid', 'key G', () => S.showGrid, (v) => { S.showGrid = v; drawOverlay(); });
@@ -1581,7 +1748,7 @@ function setBgMode(m) {
 
 function setupUI() {
   const savedOpts = LS.get('opts', null);
-  if (savedOpts) for (const k of Object.keys(DEFAULT_OPTS)) if (typeof savedOpts[k] === 'boolean') S.renderer.opts[k] = savedOpts[k];
+  if (savedOpts) for (const k of Object.keys(DEFAULT_OPTS)) if (typeof savedOpts[k] === typeof DEFAULT_OPTS[k]) S.renderer.opts[k] = savedOpts[k];
   $('#stage').dataset.tool = S.tool;
   $('#btnOpenFile').onclick = () => $('#fileInput').click();
   $('#fileInput').onchange = (e) => { const f = e.target.files[0]; if (f) openFile(f); e.target.value = ''; };

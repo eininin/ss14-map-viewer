@@ -1,19 +1,20 @@
 // Turns a parsed map + sprite database into drawable items, and renders them.
 import { texRel } from './packs.js';
 
-export const PX = 32;
+export const PX = 32;          // pixels per tile in RSIs
+export const CHUNK = 16;       // tiles per render chunk
 
 // every layer can be shown on its own
-export const LAYER_KEYS = ['tiles', 'decals', 'atmos', 'hv', 'mv', 'lv', 'disposal',
-  'walls', 'doors', 'wallmount', 'machines', 'storage', 'furniture', 'items', 'other', 'markers'];
-export const DEFAULT_OPTS = {
-  tiles: true, decals: true,
-  atmos: true, hv: true, mv: true, lv: true, disposal: true,
-  walls: true, doors: true, wallmount: true, machines: true, storage: true, furniture: true, items: true, other: true,
+export const LAYER_KEYS = ['tiles', 'decals',
+  'atmos', 'atmosdev', 'hv', 'mv', 'lv', 'power', 'disposal', 'disposaldev',
+  'walls', 'doors', 'wallmount', 'computers', 'fabrication', 'vending', 'machines',
+  'storage', 'furniture', 'items', 'other', 'markers'];
+// pipes and cables themselves (drawn on top in "on top" mode)
+export const NET_CATS = new Set(['atmos', 'hv', 'mv', 'lv', 'disposal']);
+export const DEFAULT_OPTS = Object.assign(Object.fromEntries(LAYER_KEYS.map(k => [k, true])), {
   markers: false, allLayers: false,
-  coverHide: true,   // pipes and cables under floor tiles are hidden, as in game
-};          // pixels per tile in RSIs
-export const CHUNK = 16;       // tiles per render chunk
+  pipeMode: 'game',   // 'game': hidden under floor tiles like in game · 'top': drawn over everything
+});
 
 // layers that the game hides at runtime (visualizers), shown only when "all layers" is on
 const HIDE_LAYER = /Welded|Bolted|Emergency|MaintenancePanel|Emag|Electrified|PanelLock|InterfaceLock|Deconstruction|Sparks|Unlit/i;
@@ -108,19 +109,26 @@ export function buildScene(model, db, opts) {
   }
   const sets = db.sets || [];
   const pipeAt = new Map();   // tile key + '|' + pipe layer -> [world masks]
-  const entPipe = new Map();  // entity -> {layer, world}
+  const entPipe = new Map();  // entity -> {layer, nodes: [{world, layer}]}
   for (const e of ents) {
     const info = db.ent[e.proto];
     if (!info || !info.pd) continue;
     let layer = info.pl || 0;
     const ov = pipeLayerIndex(e.pl);
     if (ov != null) layer = ov;
-    const world = rotateMask(info.pd, e.rot);
-    entPipe.set(e, { layer, world });
-    const k = tkey(e.grid, Math.floor(e.x), Math.floor(e.y)) + '|' + layer;
-    if (!pipeAt.has(k)) pipeAt.set(k, []);
-    pipeAt.get(k).push(world);
+    // most pipes have all their nodes on the entity's layer; manifolds have one per layer
+    const nodes = info.pn ? info.pn.map(([m, l]) => ({ world: rotateMask(m, e.rot), layer: l != null ? l : layer }))
+      : [{ world: rotateMask(info.pd, e.rot), layer }];
+    entPipe.set(e, { layer, nodes });
+    for (const n of nodes) {
+      const k = tkey(e.grid, Math.floor(e.x), Math.floor(e.y)) + '|' + n.layer;
+      if (!pipeAt.has(k)) pipeAt.set(k, []);
+      pipeAt.get(k).push(n.world);
+    }
   }
+  // catwalks: devices sitting on them keep only their visible part, like on a floor
+  const catwalkAt = new Set();
+  for (const e of ents) { const info = db.ent[e.proto]; if (info && info.cw) catwalkAt.add(tkey(e.grid, Math.floor(e.x), Math.floor(e.y))); }
 
   const smoothMatch = (sm, g, x, y) => {
     const s = smoothAt.get(tkey(g, x, y));
@@ -226,14 +234,20 @@ export function buildScene(model, db, opts) {
     let placed = applyAnchor(layers.map(l => ({ ...l })), '1');
     // atmos pipes show a connector toward every neighbour they join on the same pipe layer
     if (pinfo && info.pa != null && sets[info.pa]) {
-      const conn = sets[info.pa][Math.min(pinfo.layer, sets[info.pa].length - 1)] || sets[info.pa][0];
       const add = [];
-      for (const [bit, dx, dy, opp] of PIPE_STEPS) {
-        if (!(pinfo.world & bit)) continue;
-        const list = pipeAt.get(tkey(e.grid, tx + dx, ty + dy) + '|' + pinfo.layer);
-        if (!list || !list.some(m => m & opp)) continue;
-        add.push({ rsi: conn[0], state: conn[1], fixedDir: CONNECTOR_FRAME[bit], color: pipeColor,
-          offset: info.o ? [-info.o[0], -info.o[1]] : null, connector: true });
+      const done = new Set();
+      for (const node of pinfo.nodes) {
+        const conn = sets[info.pa][Math.min(node.layer, sets[info.pa].length - 1)] || sets[info.pa][0];
+        for (const [bit, dx, dy, opp] of PIPE_STEPS) {
+          if (!(node.world & bit)) continue;
+          const key = node.layer + ':' + bit;
+          if (done.has(key)) continue;
+          const list = pipeAt.get(tkey(e.grid, tx + dx, ty + dy) + '|' + node.layer);
+          if (!list || !list.some(m => m & opp)) continue;
+          done.add(key);
+          add.push({ rsi: conn[0], state: conn[1], fixedDir: CONNECTOR_FRAME[bit], color: pipeColor,
+            offset: info.o ? [-info.o[0], -info.o[1]] : null, connector: true });
+        }
       }
       if (add.length) {
         let at = placed.findIndex(l => l.map && l.map.some(m => /PipeVisualLayers\.Pipe$/.test(m)));
@@ -304,6 +318,12 @@ export function buildScene(model, db, opts) {
     for (const l of layers) {
       if (l.tex) need({ tex: l.tex });
       else if (l.rsi && l.state != null) need({ rsi: l.rsi, state: l.state });
+    }
+    if (info.sub) {
+      // layers listed in SubFloorHide.visibleLayers stay visible over a floor (the vent grille, not its pipe)
+      for (const l of layers) l.keepOnFloor = !!(info.sfv && l.map && l.map.some(m => info.sfv.includes(m)));
+      it.hasFloorPart = layers.some(l => l.keepOnFloor);
+      it.onCatwalk = catwalkAt.has(tkey(e.grid, tx, ty));
     }
     it.layers = layers;
     items.push(it);
@@ -418,25 +438,38 @@ export class SceneRenderer {
     }
   }
 
+  // is this item's spot under a floor (as the game sees it)?
+  covered(it) {
+    if (!it.sub || this.opts.pipeMode !== 'game' || !this.opts.tiles) return false;
+    const sf = this.scene.subfloor.get(it.grid + ':' + it.tx + ',' + it.ty);
+    return sf === false;
+  }
+
   visible(it) {
     const o = this.opts;
+    if (this.only && !this.only.test(it)) return false;
     if (it.kind === 'decal') return o.decals;
     if (it.marker) return o.markers;
     if (!o[it.cat || 'other']) return false;
     if (it.hiddenSprite && !o.allLayers) return false;
-    // things under the floor are only hidden while the floor itself is shown
-    if (it.sub && o.coverHide && o.tiles) {
-      const sf = this.scene.subfloor.get(it.grid + ':' + it.tx + ',' + it.ty);
-      if (sf === false) return false;
-    }
+    if (this.covered(it) && !it.hasFloorPart) return false;
     return true;
   }
 
-  layerVisible(l) {
+  layerVisible(l, it) {
     if (l.dev) return true;
     if (!l.res) return false;
+    if (it && it.sub && !l.keepOnFloor && this.opts.pipeMode === 'game') {
+      if (this.covered(it)) return false;
+      // on a catwalk only the device shows; its pipe stub would poke out above the grating
+      if (it.onCatwalk && it.hasFloorPart && it.depth > -12) return false;
+    }
     if (this.opts.allLayers) return true;
     return !l.hidden && !l.runtimeHidden;
+  }
+
+  tileVisible(gridUid, t) {
+    return !this.only || this.only.tile(gridUid, t);
   }
 
   tinted(res, rect, color) {
@@ -502,7 +535,7 @@ export class SceneRenderer {
 
   drawItem(g, it, toPx, P) {
     for (const l of it.layers) {
-      if (!this.layerVisible(l)) continue;
+      if (!this.layerVisible(l, it)) continue;
       const p = this.placement(it, l);
       const [px, py] = toPx(p.cx, p.cy);
       const w = p.rect.sw * P / PX * p.sx, h = p.rect.sh * P / PX * p.sy;
@@ -547,9 +580,15 @@ export class SceneRenderer {
     g.imageSmoothingEnabled = false;
     g.clearRect(0, 0, c.canvas.width, c.canvas.height);
     const x0 = c.cx * CHUNK, y1 = (c.cy + 1) * CHUNK;
-    if (this.opts.tiles) for (const t of c.tiles) this.drawTile(g, t, x0, y1, P);
+    if (this.opts.tiles) for (const t of c.tiles) if (this.tileVisible(gr.uid, t)) this.drawTile(g, t, x0, y1, P);
     const toPx = (x, y) => [(x - x0) * P, (y1 - y) * P];
-    for (const it of c.items) if (this.visible(it)) this.drawItem(g, it, toPx, P);
+    if (this.opts.pipeMode === 'top') {
+      // pipes and cables over everything else
+      for (const it of c.items) if (!NET_CATS.has(it.cat) && this.visible(it)) this.drawItem(g, it, toPx, P);
+      for (const it of c.items) if (NET_CATS.has(it.cat) && this.visible(it)) this.drawItem(g, it, toPx, P);
+    } else {
+      for (const it of c.items) if (this.visible(it)) this.drawItem(g, it, toPx, P);
+    }
     c.used = performance.now();
     // copy into the overview
     const ov = gr.ov;
@@ -581,7 +620,7 @@ export class SceneRenderer {
       if (Math.abs(it.x - lx) > (it.rad || 0.75) || Math.abs(it.y - ly) > (it.rad || 0.75)) continue;
       let hitLayer = null, solid = false;
       for (const l of it.layers) {
-        if (!this.layerVisible(l)) continue;
+        if (!this.layerVisible(l, it)) continue;
         const p = this.placement(it, l);
         const dx = lx - p.cx, dy = ly - p.cy;
         const cs = Math.cos(-p.rot), sn = Math.sin(-p.rot);
