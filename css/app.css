@@ -232,3 +232,13 @@ label.dimmed { opacity: .45; }
 .tg.col input[type=radio] { accent-color: var(--acc); width: 16px; height: 16px; flex: none; }
 .plist .rm { color: var(--dim); padding: 0 2px 0 8px; cursor: pointer; }
 .plist .rm:hover { color: var(--bad); }
+.zonemk { display: flex; gap: 6px; align-items: center; margin: 4px 0 6px; }
+.zonemk .zname { flex: 1; min-width: 0; margin: 0 !important; }
+.zonemk input[type=color], .zrow input[type=color] { width: 30px; height: 26px; border: 1px solid var(--line); border-radius: 5px; background: none; padding: 1px; cursor: pointer; flex: none; }
+.zlist { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.zrow { display: flex; gap: 6px; align-items: center; background: var(--panel2); border: 1px solid var(--line); border-radius: 7px; padding: 4px 6px; }
+.zrow .zn { flex: 1; min-width: 0; background: transparent; border: 1px solid transparent; border-radius: 5px; padding: 3px 5px; color: var(--text); font-size: 13px; }
+.zrow .zn:hover, .zrow .zn:focus { border-color: var(--line); background: var(--bg); outline: none; }
+.zrow .zc { font: 11px var(--mono); color: var(--dim); }
+.zrow button { background: none; border: 1px solid var(--line); border-radius: 5px; color: var(--dim); width: 24px; height: 24px; cursor: pointer; padding: 0; flex: none; }
+.zrow button:hover { color: var(--text); border-color: #3a475d; }

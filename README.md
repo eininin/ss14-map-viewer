@@ -26,6 +26,11 @@ cables, doors and everything placed on it.
   click a row to highlight those objects. **Show only these kinds, map-wide**
   hides everything except objects, floor tiles and decals of the kinds found in
   the selection, anywhere on the map.
+- **Zones** (*Area* tab): turn the selection into a named, coloured zone,
+  drawn tinted on the map with its name in the top-left corner. A new zone
+  touching a zone of the same name joins it and takes its colour. Rename,
+  recolour, select, zoom to or delete zones, remove the selection from zones,
+  change the fill strength; kept per map in your browser, export/import `.json`.
 - **Saved list of kinds** (*Area* tab): add or remove the kinds in the
   selection (or use *Add to list* in Inspect), then **show only the list** to
   see every object of those kinds on any map. It is kept in your browser,
@@ -61,6 +66,11 @@ cables, doors and everything placed on it.
   click a row to highlight those objects. **Show only these kinds, map-wide**
   hides everything except objects, floor tiles and decals of the kinds found in
   the selection, anywhere on the map.
+- **Zones** (*Area* tab): turn the selection into a named, coloured zone,
+  drawn tinted on the map with its name in the top-left corner. A new zone
+  touching a zone of the same name joins it and takes its colour. Rename,
+  recolour, select, zoom to or delete zones, remove the selection from zones,
+  change the fill strength; kept per map in your browser, export/import `.json`.
 - **Saved list of kinds** (*Area* tab): add or remove the kinds in the
   selection (or use *Add to list* in Inspect), then **show only the list** to
   see every object of those kinds on any map. It is kept in your browser,

@@ -167,6 +167,7 @@ async function openText(text, source) {
   $('#mapName').textContent = (model.name || source.name || 'map') + '  ·  ' + (source.label || source.name || '');
   document.title = (model.name || source.name) + ' – SS14 Map Viewer';
   loadAnnotsLocal();
+  loadZones();
   await resolveAndRender(false, token);
   renderInspect();
 }
@@ -532,6 +533,7 @@ function drawOverlay(cursor) {
     }
     g.restore();
   }
+  drawZones(g);
   // area selection
   if (S.area && S.area.tiles.size && r.grids) {
     const gr = r.grids.get(S.area.grid);
@@ -1093,6 +1095,7 @@ function highlightProto(proto, kind) {
 // Shift+drag adds, Alt/Ctrl+drag removes. Counts only cover layers that are shown.
 function areaGrid() {
   if (S.area && S.area.grid != null) return S.area.grid;
+  if (S.zones && S.zones.grid != null) return S.zones.grid;
   let best = null, n = -1;
   for (const g of (S.model ? S.model.grids : [])) if (g.chunks.length > n) { n = g.chunks.length; best = g.uid; }
   return best != null ? best : 0;
@@ -1126,15 +1129,16 @@ function clearArea() {
   renderArea();
   drawOverlay();
 }
-function buildAreaPaths() {
+function tilePaths(t) {
   const fill = new Path2D(), edges = new Path2D();
-  const t = S.area.tiles;
   const rows = new Map();
+  let top = null;                          // top-left tile, for labels
   for (const k of t) {
     const i = k.indexOf(',');
     const x = +k.slice(0, i), y = +k.slice(i + 1);
     if (!rows.has(y)) rows.set(y, []);
     rows.get(y).push(x);
+    if (!top || y > top[1] || (y === top[1] && x < top[0])) top = [x, y];
     if (!t.has(x + ',' + (y + 1))) { edges.moveTo(x, y + 1); edges.lineTo(x + 1, y + 1); }
     if (!t.has(x + ',' + (y - 1))) { edges.moveTo(x, y); edges.lineTo(x + 1, y); }
     if (!t.has((x - 1) + ',' + y)) { edges.moveTo(x, y); edges.lineTo(x, y + 1); }
@@ -1149,8 +1153,148 @@ function buildAreaPaths() {
       if (i < xs.length) { st = pr = xs[i]; }
     }
   }
-  S.area.fill = fill; S.area.edges = edges;
+  return { fill, edges, top };
 }
+function buildAreaPaths() {
+  const p = tilePaths(S.area.tiles);
+  S.area.fill = p.fill; S.area.edges = p.edges;
+}
+
+// ---------------------------------------------------------------- zones
+// Named, coloured areas made from selections. A new zone that touches a zone with the
+// same name joins it (and takes its colour). Kept per map in this browser.
+const ZONE_COLORS = ['#f2b84b', '#4fc3d9', '#7bd88f', '#ff5c8a', '#c792ea', '#ff9f43', '#5c8aff', '#e6e65c', '#4bd6b0', '#ff7a5c'];
+const zoneKey = () => 'zones.' + mapKey();
+const normName = (n) => String(n || '').trim().toLowerCase();
+function saveZones() {
+  LS.set(zoneKey(), { grid: S.zones.grid, show: S.zones.show, alpha: S.zones.alpha,
+    zones: S.zones.list.map(z => ({ id: z.id, name: z.name, color: z.color, tiles: [...z.tiles] })) });
+}
+function loadZones() {
+  const d = LS.get(zoneKey(), null);
+  S.zones = { grid: d && d.grid != null ? d.grid : null, show: d ? d.show !== false : true, alpha: d && d.alpha != null ? d.alpha : 0.3, list: [] };
+  if (d && d.zones) for (const z of d.zones) S.zones.list.push({ id: z.id || zid(), name: z.name, color: z.color, tiles: new Set(z.tiles) });
+  S.zones.list.forEach(z => { z.paths = tilePaths(z.tiles); });
+}
+const zid = () => Math.random().toString(36).slice(2, 9);
+function touches(a, b) {
+  for (const k of a) {
+    if (b.has(k)) return true;
+    const i = k.indexOf(','), x = +k.slice(0, i), y = +k.slice(i + 1);
+    if (b.has((x + 1) + ',' + y) || b.has((x - 1) + ',' + y) || b.has(x + ',' + (y + 1)) || b.has(x + ',' + (y - 1))) return true;
+  }
+  return false;
+}
+function nextZoneColor() {
+  const used = new Set(S.zones.list.map(z => z.color.toLowerCase()));
+  return ZONE_COLORS.find(c => !used.has(c)) || ZONE_COLORS[S.zones.list.length % ZONE_COLORS.length];
+}
+function zonesChanged() {
+  // drop empty zones, rebuild outlines
+  S.zones.list = S.zones.list.filter(z => z.tiles.size);
+  S.zones.list.forEach(z => { z.paths = tilePaths(z.tiles); });
+  saveZones();
+  renderArea();
+  drawOverlay();
+}
+function makeZone(name, color) {
+  if (!S.area || !S.area.tiles.size) { toast('Select an area first', true); return; }
+  name = String(name || '').trim();
+  if (!name) { toast('Give the zone a name', true); return; }
+  if (S.zones.grid == null) S.zones.grid = S.area.grid;
+  const tiles = new Set(S.area.tiles);
+  // a tile belongs to one zone: take the new tiles out of every other zone
+  for (const z of S.zones.list) for (const k of tiles) z.tiles.delete(k);
+  // same-named zones next to (or overlapping) the new one join it and lend it their colour
+  const same = S.zones.list.filter(z => normName(z.name) === normName(name) && z.tiles.size && touches(tiles, z.tiles));
+  let target;
+  if (same.length) {
+    target = same[0];
+    for (const k of tiles) target.tiles.add(k);
+    for (const z of same.slice(1)) { for (const k of z.tiles) target.tiles.add(k); z.tiles.clear(); }
+    toast(`Joined the neighbouring "${target.name}" zone`);
+  } else {
+    target = { id: zid(), name, color: color || nextZoneColor(), tiles };
+    S.zones.list.push(target);
+  }
+  zonesChanged();
+}
+function removeFromZones() {
+  if (!S.area || !S.area.tiles.size) { toast('Select an area first', true); return; }
+  let n = 0;
+  for (const z of S.zones.list) for (const k of S.area.tiles) if (z.tiles.delete(k)) n++;
+  toast(n ? `Removed ${n} tile${n === 1 ? '' : 's'} from zones` : 'No zone tiles in the selection');
+  zonesChanged();
+}
+function zoneToSelection(z) {
+  S.area = { grid: S.zones.grid != null ? S.zones.grid : areaGrid(), tiles: new Set(z.tiles) };
+  buildAreaPaths();
+  if (S.onlyMode === 'area') setOnly('area'); else renderArea();
+  drawOverlay();
+}
+function zoomToZone(z) {
+  const gr = S.renderer.grids && S.renderer.grids.get(S.zones.grid);
+  if (!gr) return;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const k of z.tiles) { const i = k.indexOf(','), x = +k.slice(0, i), y = +k.slice(i + 1); x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x + 1); y1 = Math.max(y1, y + 1); }
+  const [cx, cy] = gridWorld(gr, (x0 + x1) / 2, (y0 + y1) / 2);
+  const pw = panelWidth();
+  S.cam.s = Math.max(4, Math.min(64, Math.min((W - pw - 120) / (x1 - x0), (H - 120) / (y1 - y0))));
+  S.cam.x = cx + (pw / 2) / S.cam.s; S.cam.y = cy;
+  draw();
+}
+function exportZones() {
+  const data = { kind: 'ss14-map-viewer zones', v: 1, map: mapKey(), mapName: S.model && S.model.name, grid: S.zones.grid,
+    zones: S.zones.list.map(z => ({ name: z.name, color: z.color, tiles: [...z.tiles] })) };
+  download(new Blob([JSON.stringify(data)], { type: 'application/json' }), safeName((S.model && S.model.name) || 'map') + '.zones.json');
+}
+async function importZones(file) {
+  try {
+    const d = JSON.parse(await file.text());
+    if (!Array.isArray(d.zones)) throw new Error('not a zones file');
+    if (d.map && d.map !== mapKey()) toast(`These zones were made for ${d.mapName || d.map}; added anyway`, true);
+    if (S.zones.grid == null && d.grid != null) S.zones.grid = d.grid;
+    for (const z of d.zones) S.zones.list.push({ id: zid(), name: z.name, color: z.color || nextZoneColor(), tiles: new Set(z.tiles || []) });
+    zonesChanged();
+    toast('Zones imported');
+  } catch (e) { toast('Could not import: ' + e.message, true); }
+}
+function drawZones(g) {
+  const r = S.renderer, Z = S.zones;
+  if (!Z || !Z.show || !Z.list.length || !r.grids) return;
+  const gr = r.grids.get(Z.grid != null ? Z.grid : areaGrid());
+  if (!gr) return;
+  g.save();
+  setGridXf(g, gr);
+  for (const z of Z.list) {
+    g.globalAlpha = Z.alpha;
+    g.fillStyle = z.color;
+    g.fill(z.paths.fill);
+    g.globalAlpha = 0.9;
+    g.strokeStyle = z.color;
+    g.lineWidth = 1.5 / S.cam.s;
+    g.stroke(z.paths.edges);
+  }
+  g.restore();
+  // labels in the top-left corner of each zone, at a fixed screen size
+  g.save();
+  g.setTransform(DPR, 0, 0, DPR, 0, 0);
+  g.font = '600 11px "IBM Plex Sans", system-ui, sans-serif';
+  g.textBaseline = 'top';
+  for (const z of Z.list) {
+    if (!z.paths.top || S.cam.s < 3) continue;
+    const [sx, sy] = cam.toScreen(...gridWorld(gr, z.paths.top[0], z.paths.top[1] + 1));
+    const w = g.measureText(z.name).width;
+    g.globalAlpha = 0.85;
+    g.fillStyle = 'rgba(6,8,13,.8)';
+    g.fillRect(sx + 2, sy + 2, w + 8, 15);
+    g.globalAlpha = 1;
+    g.fillStyle = z.color;
+    g.fillText(z.name, sx + 6, sy + 4);
+  }
+  g.restore();
+}
+
 function inArea(gridUid, lx, ly) {
   const r = S.renderer, a = S.area;
   let x = lx, y = ly;
@@ -1369,6 +1513,70 @@ function renderArea() {
     row.innerHTML = `<label class="tglbtn"><input type="checkbox" checked> Show only the kinds from the last selection</label>`;
     row.querySelector('input').onchange = () => setOnly(null);
     pane.appendChild(row);
+  }
+  // ---- zones
+  if (S.scene && S.zones) {
+    const Z = S.zones;
+    pane.insertAdjacentHTML('beforeend', `<h3>Zones <span class="badge">${Z.list.length}</span></h3>
+      <p class="hint">Name and colour the selection. A zone touching one with the same name joins it and takes its colour.</p>`);
+    const mk = document.createElement('div');
+    mk.className = 'zonemk';
+    const lastName = S.zoneLastName || '';
+    mk.innerHTML = `<input class="search zname" placeholder="Zone name, e.g. Medbay" value="${esc(lastName)}" list="zoneNames">
+      <datalist id="zoneNames">${[...new Set(Z.list.map(z => z.name))].map(n => `<option value="${esc(n)}">`).join('')}</datalist>
+      <input type="color" class="zcol" value="${nextZoneColor()}" title="Colour (a touching zone with the same name keeps its own)">
+      <button class="btn small primary" data-a="mk" ${hasArea ? '' : 'disabled'}>Make zone</button>`;
+    const nameIn = mk.querySelector('.zname'), colIn = mk.querySelector('.zcol');
+    // a name that matches a zone touching the selection shows the colour it will inherit
+    const defCol = colIn.value;
+    nameIn.oninput = () => {
+      S.zoneLastName = nameIn.value;
+      const ex = hasArea && Z.list.find(z => normName(z.name) === normName(nameIn.value) && touches(S.area.tiles, z.tiles));
+      colIn.value = ex ? ex.color : defCol;
+      colIn.disabled = !!ex;
+      colIn.title = ex ? `Joins the touching "${ex.name}" zone and takes its colour` : 'Colour';
+    };
+    nameIn.oninput();
+    nameIn.onkeydown = (e) => { if (e.key === 'Enter' && hasArea) { e.preventDefault(); makeZone(nameIn.value, colIn.value); } };
+    mk.querySelector('[data-a=mk]').onclick = () => makeZone(nameIn.value, colIn.value);
+    pane.appendChild(mk);
+    const zr = document.createElement('div');
+    zr.className = 'row gap wrap';
+    zr.innerHTML = `<button class="btn small" data-a="rm" ${hasArea && Z.list.length ? '' : 'disabled'}>Remove selection from zones</button>
+      <label class="tglbtn"><input type="checkbox" ${Z.show ? 'checked' : ''}> Show zones</label>
+      <label class="tglbtn" title="Fill strength">Fill <input type="range" min="0.05" max="0.8" step="0.05" value="${Z.alpha}" style="width:70px"></label>`;
+    zr.querySelector('[data-a=rm]').onclick = removeFromZones;
+    zr.querySelector('input[type=checkbox]').onchange = (e) => { Z.show = e.target.checked; saveZones(); drawOverlay(); };
+    zr.querySelector('input[type=range]').oninput = (e) => { Z.alpha = +e.target.value; saveZones(); drawOverlay(); };
+    pane.appendChild(zr);
+    if (Z.list.length) {
+      const box = document.createElement('div');
+      box.className = 'zlist';
+      for (const z of Z.list) {
+        const row = document.createElement('div');
+        row.className = 'zrow';
+        row.innerHTML = `<input type="color" value="${esc(z.color)}" title="Colour">
+          <input class="zn" value="${esc(z.name)}" title="Rename">
+          <span class="zc">${z.tiles.size}</span>
+          <button title="Select this zone">⬚</button><button title="Zoom to it">⌖</button><button title="Delete">✕</button>`;
+        const [col, nm] = row.querySelectorAll('input');
+        const [bSel, bZoom, bDel] = row.querySelectorAll('button');
+        col.oninput = () => { z.color = col.value; saveZones(); drawOverlay(); };
+        nm.onchange = () => { z.name = nm.value.trim() || z.name; zonesChanged(); };
+        bSel.onclick = () => zoneToSelection(z);
+        bZoom.onclick = () => zoomToZone(z);
+        bDel.onclick = () => { if (confirmBox(`Delete zone "${z.name}"?`)) { z.tiles.clear(); zonesChanged(); } };
+        box.appendChild(row);
+      }
+      pane.appendChild(box);
+    }
+    const zr2 = document.createElement('div');
+    zr2.className = 'row gap wrap';
+    zr2.innerHTML = `<button class="btn small" data-a="exp" ${Z.list.length ? '' : 'disabled'}>Export zones</button>
+      <label class="btn small file">Import zones <input type="file" accept=".json" hidden></label>`;
+    zr2.querySelector('[data-a=exp]').onclick = exportZones;
+    zr2.querySelector('input').onchange = (e) => { const f = e.target.files[0]; if (f) importZones(f); e.target.value = ''; };
+    pane.appendChild(zr2);
   }
   // ---- saved list of kinds
   if (S.kinds) {
