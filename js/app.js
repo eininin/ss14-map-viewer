@@ -193,6 +193,11 @@ async function loadItems(f) {
   if (!S.itemLists[f.id]) S.itemLists[f.id] = (await fetch(`db/items-${f.id}.json`)).json();
   return S.itemLists[f.id];
 }
+async function loadThumbs(f) {
+  S.thumbLists = S.thumbLists || {};
+  if (!S.thumbLists[f.id]) S.thumbLists[f.id] = fetch(`thumbs/${f.id}/index.json`, { cache: 'no-cache' }).then(r => r.ok ? r.json() : {}).catch(() => ({}));
+  return S.thumbLists[f.id];
+}
 function mapCounts() {
   const c = {};
   for (const [k, v] of Object.entries(S.mapLists || {})) c[k] = v.maps.length;
@@ -420,7 +425,7 @@ function syncUrl() {
 async function browseMaps(startFork) {
   browse({
     forks: S.forks, current: S.fork, startFork,
-    loadMaps, loadItems, loadDb, mapCounts,
+    loadMaps, loadItems, loadDb, mapCounts, loadThumbs,
     listState: S.browseState || (S.browseState = {}),
     onOpen: (f, r) => openFromParam(f.id + ':' + r.p, null, r.n),
   });

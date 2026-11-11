@@ -26,7 +26,7 @@ function shell(title) {
   modal.hidden = false;
   return modal;
 }
-function close() { if (modal) modal.hidden = true; }
+function close() { if (modal) modal.hidden = true; hidePop(); }
 function crumbs(parts) {
   const c = modal.querySelector('.bcrumbs');
   c.innerHTML = '';
@@ -142,6 +142,43 @@ const FILTERS = [
   { id: 'engine', label: 'Engine', get: (r) => r.v && r.v.engine ? r.v.engine : [] },
 ];
 
+const THUMB_BG = [
+  { id: 'black', label: 'Black' },
+  { id: 'space', label: 'Space' },
+  { id: 'checker', label: 'Checker' },
+  { id: 'panel', label: 'Dark grey' },
+  { id: 'none', label: 'None' },
+];
+const lsGet = (k, d) => { try { const v = localStorage.getItem('ss14mv.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
+const lsSet = (k, v) => { try { localStorage.setItem('ss14mv.' + k, JSON.stringify(v)); } catch (e) { /* ignore */ } };
+const thumbSlug = (p) => p.replace(/^Maps\//, '').replace(/\.yml$/, '');
+const thumbUrl = (fid, p, info, big) => `thumbs/${fid}/${thumbSlug(p).split('/').map(encodeURIComponent).join('/')}${big ? '.lg' : ''}.webp?${info.h}`;
+
+// large preview that follows the mouse
+let pop = null, popTimer = 0;
+function showPop(ev, url, title, sub) {
+  if (!pop) {
+    pop = document.createElement('div');
+    pop.className = 'thumbpop';
+    document.body.appendChild(pop);
+  }
+  pop.className = 'thumbpop bg-' + lsGet('thumbBg', 'black');
+  pop.innerHTML = `<img src="${url}" alt=""><div class="tpcap"><b>${esc(title)}</b><span>${esc(sub)}</span></div>`;
+  pop.hidden = false;
+  movePop(ev);
+}
+function movePop(ev) {
+  if (!pop || pop.hidden) return;
+  const r = pop.getBoundingClientRect();
+  const pad = 18;
+  let x = ev.clientX + pad, y = ev.clientY + pad;
+  if (x + r.width > innerWidth - 8) x = ev.clientX - r.width - pad;
+  if (y + r.height > innerHeight - 8) y = Math.max(8, innerHeight - r.height - 8);
+  pop.style.left = Math.max(8, x) + 'px';
+  pop.style.top = y + 'px';
+}
+function hidePop() { clearTimeout(popTimer); if (pop) pop.hidden = true; }
+
 function listView(body, f, c, list, o) {
   const all = list.maps.map((r, i) => ({ ...r, _i: i })).filter(r => c.id === '*' || r.c === c.id);
   const inList = new Set(all.map(r => r._i));
@@ -160,12 +197,16 @@ function listView(body, f, c, list, o) {
       <label>Sort <select data-r="sort">${SORTS.map(s => `<option value="${s.id}">${esc(s.label)}</option>`).join('')}</select></label>
       <button class="btn small" data-r="dir" title="Reverse order">⇅</button>
       <label>Group <select data-r="group">${GROUPS.map(g => `<option value="${g.id}">${esc(g.label)}</option>`).join('')}</select></label>
+      <label title="Background behind the transparent previews">Preview <select data-r="bg">${THUMB_BG.map(b => `<option value="${b.id}">${esc(b.label)}</option>`).join('')}</select></label>
       ${present.map(fl => `<label>${esc(fl.label)} <select data-f="${fl.id}"><option value="">any</option>${fl.values.map(v => `<option>${esc(v)}</option>`).join('')}</select></label>`).join('')}
     </div>
     <div class="bcount" data-r="count"></div>
     <div class="blist" data-r="list"></div>`;
   const $r = (k) => body.querySelector(`[data-r="${k}"]`);
   $r('sort').value = S.sort;
+  $r('bg').value = lsGet('thumbBg', 'black');
+  let thumbs = {};
+  (o.loadThumbs ? o.loadThumbs(f) : Promise.resolve({})).then(t => { thumbs = t || {}; render(); }).catch(() => {});
   $r('group').value = S.group;
   body.querySelectorAll('[data-f]').forEach(sel => { sel.value = S.filters[sel.dataset.f] || ''; });
 
@@ -211,7 +252,9 @@ function listView(body, f, c, list, o) {
     rows = rows.slice().sort(cmp);
     $r('count').textContent = `${rows.length} of ${all.length} maps` + (S.items.length ? ` containing ${S.items.join(' + ')}` : '');
     const listEl = $r('list');
+    listEl.className = 'blist bg-' + lsGet('thumbBg', 'black');
     listEl.innerHTML = '';
+    hidePop();
     const grp = GROUPS.find(g => g.id === S.group);
     const sections = new Map();
     if (!grp || grp.id === 'none') sections.set('', rows);
@@ -238,11 +281,23 @@ function listView(body, f, c, list, o) {
     }
     if (r.s && (r.s.min || r.s.max)) badges.push(`<span class="bb ply">${r.s.min || 0}${r.s.max ? '–' + r.s.max : '+'} players</span>`);
     b.title = (r.v && r.v.desc ? r.v.desc + '\n' : '') + r.p;
-    b.innerHTML = `<div class="bn"><span class="nm">${esc(r.n)}</span>${r.v && r.v.price != null ? `<span class="pr">${num(r.v.price)} ¤</span>` : ''}${r._count != null ? `<span class="ic">× ${num(r._count)}</span>` : ''}</div>
+    const th = thumbs[r.p];
+    if (th) b.classList.add('hasthumb');
+    b.innerHTML = (th ? `<div class="bthumb"><img loading="lazy" src="${thumbUrl(f.id, r.p, th, false)}" alt=""></div>` : '') + `<div class="btext"><div class="bn"><span class="nm">${esc(r.n)}</span>${r.v && r.v.price != null ? `<span class="pr">${num(r.v.price)} ¤</span>` : ''}${r._count != null ? `<span class="ic">× ${num(r._count)}</span>` : ''}</div>
       <div class="bp">${esc(r.p)}</div>
       ${badges.length ? `<div class="bbs">${badges.join('')}</div>` : ''}
-      <div class="bst"><span>${num(r.t)} tiles</span><span>${r.w}×${r.h}</span><span>${num(r.e)} entities</span><span>${kb(r.b)}</span>${r.g > 1 ? `<span>${r.g} grids</span>` : ''}</div>`;
-    b.onclick = () => { close(); o.onOpen(f, r, list); };
+      <div class="bst"><span>${num(r.t)} tiles</span><span>${r.w}×${r.h}</span><span>${num(r.e)} entities</span><span>${kb(r.b)}</span>${r.g > 1 ? `<span>${r.g} grids</span>` : ''}</div></div>`;
+    b.onclick = () => { hidePop(); close(); o.onOpen(f, r, list); };
+    if (th) {
+      const img = b.querySelector('.bthumb');
+      img.onmouseenter = (ev) => {
+        clearTimeout(popTimer);
+        const e0 = { clientX: ev.clientX, clientY: ev.clientY };
+        popTimer = setTimeout(() => showPop(e0, thumbUrl(f.id, r.p, th, true), r.n, `${r.w}×${r.h} tiles · ${num(r.e)} entities`), 120);
+      };
+      img.onmousemove = (ev) => movePop(ev);
+      img.onmouseleave = hidePop;
+    }
     return b;
   };
   const renderChips = () => {
@@ -261,6 +316,7 @@ function listView(body, f, c, list, o) {
   $r('sort').onchange = (e) => { S.sort = e.target.value; S.dir = 0; render(); };
   $r('dir').onclick = () => { const s = SORTS.find(x => x.id === S.sort); S.dir = -(S.dir || s.dir); render(); };
   $r('group').onchange = (e) => { S.group = e.target.value; render(); };
+  $r('bg').onchange = (e) => { lsSet('thumbBg', e.target.value); render(); };
   body.querySelectorAll('[data-f]').forEach(sel => sel.onchange = () => { S.filters[sel.dataset.f] = sel.value; render(); });
 
   // item search with suggestions (prototypes that appear in this server's maps)

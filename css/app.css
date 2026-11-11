@@ -307,3 +307,18 @@ label.dimmed { opacity: .45; }
 .sugg button.none { opacity: .5; }
 .bbox.compact { height: auto; max-height: 92vh; }
 .bbox.compact .bbody { padding-bottom: 18px; }
+
+/* map previews */
+.brow.hasthumb { flex-direction: row; align-items: stretch; gap: 10px; padding: 8px; }
+.btext { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
+.bthumb { width: 104px; flex: none; border-radius: 6px; display: grid; place-items: center; overflow: hidden; border: 1px solid #1c2330; cursor: zoom-in; }
+.bthumb img { max-width: 100%; max-height: 104px; display: block; image-rendering: auto; }
+.blist.bg-black .bthumb, .thumbpop.bg-black { background: #000; }
+.blist.bg-space .bthumb, .thumbpop.bg-space { background: #000 url(../img/stars-tile.webp) 0 0 / 256px; }
+.blist.bg-checker .bthumb, .thumbpop.bg-checker { background: repeating-conic-gradient(#2a3242 0 25%, #1a202b 0 50%) 0 0 / 16px 16px; }
+.blist.bg-panel .bthumb, .thumbpop.bg-panel { background: #20262f; }
+.blist.bg-none .bthumb, .thumbpop.bg-none { background: transparent; }
+.thumbpop { position: fixed; z-index: 80; pointer-events: none; border: 1px solid var(--line); border-radius: 10px; padding: 8px; box-shadow: 0 14px 40px #000c; }
+.thumbpop img { display: block; max-width: min(800px, 62vw); max-height: min(800px, 78vh); }
+.thumbpop .tpcap { display: flex; gap: 10px; align-items: baseline; padding: 6px 2px 0; font-size: 12.5px; color: #cdd5e2; }
+.thumbpop .tpcap span { font: 11px var(--mono); color: #8792a6; }

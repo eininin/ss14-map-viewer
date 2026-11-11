@@ -14,6 +14,8 @@ on:
     paths:
       - "tools/**"
       - "sources.json"
+      - "js/thumbs.js"
+      - "js/scene.js"
       - ".github/workflows/update-db.yml"
 
 permissions:
@@ -121,11 +123,19 @@ jobs:
           json.dump({"maps": maps}, open("maps/index.json", "w"), indent=2)
           EOF
 
+      - name: Station and shuttle previews
+        run: |
+          set -e
+          pip install -q playwright
+          python3 -m playwright install --with-deps chromium > /dev/null
+          # only maps whose file changed since the last run are drawn again
+          python3 tools/render_thumbs.py --src /tmp/src
+
       - name: Commit changes
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
-          git add -A db packs maps mirror
+          git add -A db packs maps mirror thumbs
           if git diff --cached --quiet; then echo "nothing changed"; exit 0; fi
           git commit -q -m "Update databases"
           # someone may have pushed while this ran: rebase onto it and retry

@@ -22,6 +22,11 @@ cables, doors and everything placed on it.
   - group by shipyard, class (role), size class, engine, folder or category
   - filter by shipyard, class, size and engine
   
+  Stations and shuttles show a **preview picture** on their card; hover it
+  for a larger one. Previews are drawn on a transparent background, and the
+  *Preview* menu lets you put black, stars, a checkerboard, dark grey or
+  nothing behind them.
+
   The official data comes from the servers' own shipyard `vessel` prototypes
   (price, size class Micro/Small/Medium/Large, shipyard group, classes such as
   Salvage, Medical, Expedition, engines) and `gameMap` prototypes (player
@@ -140,6 +145,9 @@ Keys: drag to pan · scroll / double-click to zoom · `WASD` / arrows to move ·
 | `mirror/aurora/` | copy of Aurora Song's maps, for the same reason |
 | `maps/` | maps saved into the repo (`maps/index.json` lists them) |
 | `annotations/` | drawings saved into the repo, one file per map |
+| `thumbs/<server>/` | station and shuttle previews (`.webp` small, `.lg.webp` large, `index.json`) |
+| `thumbs.html`, `js/thumbs.js` | render-only page used to draw the previews |
+| `tools/render_thumbs.py` | draws the previews in headless Chromium; only maps whose file (or the drawing code) changed are drawn again |
 | `tools/build_db.py` | builds a server's database from its `Resources/Prototypes` |
 | `tools/map_index.py` | builds a server's map list and item index from its `Resources/Maps` |
 | `tools/packtool.py` | builds "fork minus base" packs and pack indexes |
@@ -179,6 +187,8 @@ The token is stored only in your browser.
 pip install pyyaml
 python3 tools/build_db.py <fork>/Resources db/sprites-<server>.json --repo <owner/name> --commit <sha>
 python3 tools/map_index.py <fork>/Resources <server> <owner/name> <sha> db
+# previews (needs: pip install playwright; python3 -m playwright install chromium)
+python3 tools/render_thumbs.py --src <folder with one <server>/Resources/Maps per server>
 ```
 
 ## Licences

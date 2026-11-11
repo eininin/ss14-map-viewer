@@ -71,7 +71,10 @@ def _unknown(loader, suffix, node):
     if suffix == "PartialOnly" and isinstance(node, yaml.ScalarNode):
         return Partial(loader.construct_scalar(node))
     if isinstance(node, yaml.MappingNode):
-        return loader.construct_mapping(node, deep=True)
+        m = loader.construct_mapping(node, deep=True)
+        if suffix.startswith("type:") and suffix.endswith("Smoothing"):
+            m["!type"] = suffix[5:]     # Space Wizards' newer IconSmooth "states" entries
+        return m
     if isinstance(node, yaml.SequenceNode):
         return loader.construct_sequence(node, deep=True)
     return loader.construct_scalar(node)
@@ -421,8 +424,25 @@ def build(res):
             e["icon"] = 1
         ism = comps.get("IconSmooth")
         if ism and ism.get("key"):
-            e["sm"] = [str(ism.get("key")), str(ism.get("base", "")), str(ism.get("mode", "Corners")),
-                       [str(x) for x in (ism.get("additionalKeys") or [])]]
+            sts = [x for x in (ism.get("states") or []) if isinstance(x, dict) and x.get("!type")]
+            if sts:
+                # newer format: a list of smoothing rules, each with its own base and mask of keys
+                modes = {"CornerSpriteSmoothing": "Corner2", "CardinalCornerSpriteSmoothing": "CardinalCorner",
+                         "DiagonalSpriteSmoothing": "Diagonal2", "DirectionSpriteSmoothing": "Direction",
+                         "EdgeSpriteSmoothing": "Edge"}
+                st = next((x for x in sts if x["!type"] in modes), None)
+                if st:
+                    sm = [str(ism.get("key")), str(st.get("base", "")), modes[st["!type"]],
+                          [str(x) for x in (st.get("mask") or [])], [str(x) for x in (st.get("altMask") or [])]]
+                    sm.append(int(st["index"]) if st.get("index") is not None else None)
+                    e["sm"] = sm   # the mask is the whole list here: the own key is not implied
+            elif "states" in ism or ("base" not in ism and "mode" not in ism):
+                # no rule of its own: in the newer format this only gives a key to neighbours
+                # (decided once the whole fork is read, see "NoSprite" below)
+                e["sm"] = [str(ism.get("key")), "", "Corners", [str(x) for x in (ism.get("additionalKeys") or [])], "?"]
+            else:
+                e["sm"] = [str(ism.get("key")), str(ism.get("base", "")), str(ism.get("mode", "Corners")),
+                           [str(x) for x in (ism.get("additionalKeys") or [])]]
         cv = comps.get("CableVisualizer")
         if cv and cv.get("statePrefix"):
             e["cab"] = [str(cv["statePrefix"]), str(cv.get("extraLayerPrefix") or "")]
@@ -596,6 +616,12 @@ def main():
             set_idx[k] = len(sets)
             sets.append(arr)
         return set_idx[k]
+    # IconSmooth without a rule: the newer format means "key only", the older one defaulted to corners
+    newer = any(e.get("sm") and len(e["sm"]) == 6 for e in out_e.values())
+    for e in out_e.values():
+        sm = e.get("sm")
+        if sm and len(sm) == 5 and sm[4] == "?":
+            e["sm"] = [sm[0], "", "NoSprite", sm[3], [], None] if newer else sm[:4]
     for e in out_e.values():
         if "plr" in e:
             e["plr"] = {mk: ref(arr) for mk, arr in e["plr"].items()}

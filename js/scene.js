@@ -133,8 +133,14 @@ export function buildScene(model, db, opts) {
   const smoothMatch = (sm, g, x, y) => {
     const s = smoothAt.get(tkey(g, x, y));
     if (!s) return false;
-    if (s.has(sm[0])) return true;
+    if (sm.length < 6 && s.has(sm[0])) return true;   // older format: own key always smooths
     for (const a of sm[3] || []) if (s.has(a)) return true;
+    return false;
+  };
+  const altMatch = (sm, g, x, y) => {
+    const s = smoothAt.get(tkey(g, x, y));
+    if (!s) return false;
+    for (const a of sm[4] || []) if (s.has(a)) return true;
     return false;
   };
 
@@ -285,6 +291,49 @@ export function buildScene(model, db, opts) {
         // SE uses the south frame, NE east (counter-clockwise), NW north (flip), SW west (clockwise)
         const corner = (v, dir) => ({ rsi: base, state: sbase + v, fixedDir: dir, color: col, smooth: true });
         layers.push(corner(cSE, 0), corner(cNE, 2), corner(cNW, 1), corner(cSW, 3));
+      } else if (mode === 'Corner2' || mode === 'CardinalCorner') {
+        // newer Space Wizards smoothing: neighbours in Direction order S, SE, E, NE, N, NW, W, SW;
+        // each corner reads three of them (cardinal, diagonal, cardinal). The game turns both the
+        // neighbour order and the drawn frames with the entity, which cancels out, so world directions here.
+        const DV = [[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1]];
+        const dirAt = (i) => DV[i];
+        let mt = 0, at = 0;
+        for (let i = 0; i < 8; i++) {
+          const [dx, dy] = dirAt(i);
+          if (smoothMatch(info.sm, e.grid, tx + dx, ty + dy)) mt |= 1 << i;
+          if (mode === 'CardinalCorner' && altMatch(info.sm, e.grid, tx + dx, ty + dy)) at |= 1 << i;
+        }
+        const three = (v, i0) => (((v | (v << 8)) >> i0) & 7);   // bits i0, i0+1, i0+2 (wrapping)
+        const card = (v) => (v & 1) | ((v >> 1) & 2);
+        const val = (i0) => {
+          const d = three(mt, i0);
+          if (mode === 'Corner2') return d;
+          const a = three(at, i0);
+          const c = card(d), cm = c | card(a);
+          if (cm < 3) return cm !== c ? cm + 2 : c;
+          if (cm === c) return (d & 2) ? 6 : (a & 2) ? 7 : 5;
+          return ((d & 2) || (a & 2)) ? c + 11 : c + 8;
+        };
+        const col = layers[0] ? layers[0].color : null;
+        const corner = (v, dir) => ({ rsi: base, state: sbase + v, fixedDir: dir, color: col, smooth: true });
+        const cs = [corner(val(0), 0), corner(val(2), 2), corner(val(4), 1), corner(val(6), 3)];
+        const idx = info.sm[5];
+        if (idx != null && idx <= layers.length) layers.splice(idx, 0, ...cs); else layers.push(...cs);
+      } else if (mode === 'Diagonal2') {
+        const c = Math.cos(rot), s = Math.sin(rot);
+        const ok = [[0, -1], [1, -1], [1, 0]].every(([dx, dy]) =>
+          m(Math.round(dx * c - dy * s), Math.round(dx * s + dy * c)));
+        const l = { rsi: base, state: sbase + (ok ? 1 : 0), color: layers[0] ? layers[0].color : null, smooth: true };
+        const idx = info.sm[5];
+        if (idx != null && idx <= layers.length) layers.splice(idx, 0, l); else layers.push(l);
+      } else if (mode === 'Direction') {
+        const c = Math.cos(rot), s = Math.sin(rot);
+        let f = 0;
+        [[0, -1], [1, 0], [0, 1], [-1, 0]].forEach(([dx, dy], i) => {
+          if (m(Math.round(dx * c - dy * s), Math.round(dx * s + dy * c))) f |= 1 << i;
+        });
+        if (!layers.length) layers.push({ rsi: base });
+        layers[0] = { ...layers[0], state: sbase + f, tex: null, hidden: false, smooth: true };
       } else if (mode === 'CardinalFlags' || mode === 'Linear') {
         let f = 0;
         if (m(0, 1)) f |= 1;
