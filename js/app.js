@@ -134,7 +134,7 @@ async function loadDb(f) {
   S.dbCache = S.dbCache || {};
   if (!S.dbCache[f.id]) {
     S.dbCache[f.id] = (async () => {
-      const r = await fetch(`db/sprites-${f.id}.json`);
+      const r = await fetch(`db/sprites-${f.id}.json`, { cache: 'no-cache' });
       if (!r.ok) throw new Error(`no sprite database for ${f.name} yet`);
       return r.json();
     })();
