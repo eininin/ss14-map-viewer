@@ -1,0 +1,19 @@
+{
+    "version": 1,
+    "license": "CC-BY-SA-3.0",
+    "copyright": "arm fins by AraiMaia, greyscale edit by Sere",
+    "size": {
+        "x": 32,
+        "y": 32
+    },
+    "states": [
+        {
+            "name": "rarmfins1",
+            "directions": 4
+        },
+        {
+            "name": "rarmfins2",
+            "directions": 4
+        }
+    ]
+}

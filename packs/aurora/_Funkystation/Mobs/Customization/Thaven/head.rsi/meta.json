@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "license": "CC-BY-SA-3.0",
+  "copyright": "fairy fins, angler stem and angler bubl by trixxedheart (Discord), greyscale edit by Sere",
+  "size": {
+    "x": 32,
+    "y": 32
+  },
+  "states": [
+    {
+      "name": "fairyfins",
+      "directions": 4
+    },
+    {
+      "name": "angler-stem",
+      "directions": 4
+    },
+    {
+      "name": "angler-bulb",
+      "directions": 4
+    }
+  ]
+}

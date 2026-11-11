@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "license": "CC-BY-SA-4.0",
+  "copyright": "Made by Vandanna/ Cygnall (discord/ github) for Aurora's Song",
+  "size": {
+    "x": 32,
+    "y": 32
+  },
+  "states": [
+    {
+      "name": "cr"
+    },
+    {
+      "name": "cafleader"
+    },
+    {
+      "name": "caftrooper"
+    },
+    {
+      "name": "cafmedical"
+    },
+    {
+      "name": "cafengineer"
+    },
+    {
+      "name": "sle-off-duty-officer"
+    },
+    {
+      "name": "colcom"
+    },
+    {
+      "name": "site-manager"
+    },
+    {
+      "name": "site-worker"
+    }
+  ]
+}

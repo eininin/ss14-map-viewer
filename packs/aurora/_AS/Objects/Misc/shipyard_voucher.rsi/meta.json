@@ -1,0 +1,81 @@
+{
+    "version": 1,
+    "license": "CC-BY-SA-3.0",
+    "copyright": "blue-inhand-left, blue-inhand-right, voucherstationguard taken from tgstation at commit https://github.com/tgstation/tgstation/commit/d917f4c2a088419d5c3aec7656b7ff8cebd1822e.",
+    "extra_copyright": [
+        "blue, nfsd, voucher* by Whatstone (Discord)",
+		"Resprites and recolors for Aurora's Song by Vandanna/ Cygnall (discord/ github)"
+    ],
+    "size": {
+        "x": 32,
+        "y": 32
+    },
+    "states": [
+        {
+            "name": "blue"
+        },
+        {
+            "name": "blue-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "blue-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "sle"
+        },
+        {
+            "name": "sle-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "sle-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "red"
+        },
+        {
+            "name": "red-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "red-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "voucherpirate"
+        },
+        {
+            "name": "voucherlieutenant"
+        },
+        {
+            "name": "voucherjanitor"
+        },
+        {
+            "name": "vouchermailcarrier"
+        },
+        {
+            "name": "vouchersergeant"
+        },
+        {
+            "name": "vouchermedical"
+        },
+        {
+            "name": "voucherstationguard"
+        },
+        {
+            "name": "vouchervalet"
+        },
+        {
+            "name": "vouchercr"
+        },
+		{
+            "name": "voucherservice"
+        },
+        {
+            "name": "voucherstationtrafficcontroller"
+        }
+    ]
+}

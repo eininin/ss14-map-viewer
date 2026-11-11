@@ -1,0 +1,31 @@
+{
+    "version": 1,
+    "license": "CC-BY-NC-SA-3.0",
+    "copyright": "sprites by toasterblast for Aurora's Song",
+    "size": {
+        "x": 32,
+        "y": 32
+    },
+    "states": [
+    {
+        "name": "feroxi-torso-gills",
+        "directions": 4
+    },
+    {
+        "name": "feroxi-larm-gills",
+        "directions": 4
+    },
+    {
+        "name": "feroxi-rarm-gills",
+        "directions": 4
+    },
+    {
+        "name": "feroxi-lleg-gills",
+        "directions": 4
+    },
+    {
+        "name": "feroxi-rleg-gills",
+        "directions": 4
+    }
+    ]
+}

@@ -1,0 +1,26 @@
+{
+    "version": 1,
+    "license": "CC-BY-SA-3.0",
+    "copyright": "Taken from tgstation at https://github.com/tgstation/tgstation/blob/729d858807905263adab8b5a331c1d8a04982dd3/icons/obj/flora/ausflora.dmi, edits to the sprites of Resources/Textures/Decals/Flora/flora_grass.rsi by Sunburstschitin (Github)",
+    "size": {
+        "x": 32,
+        "y": 32
+    },
+    "states": [
+        {
+            "name": "grassa"
+        },
+        {
+            "name": "grassb"
+        },
+        {
+            "name": "grassc"
+        },
+        {
+            "name": "grassd"
+        },
+        {
+            "name": "grasse"
+        }
+    ]
+}

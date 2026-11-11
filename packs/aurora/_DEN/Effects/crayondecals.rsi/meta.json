@@ -1,0 +1,19 @@
+{
+    "version": 1,
+    "size": {
+        "x": 32,
+        "y": 32
+    },
+    "license": "CC-BY-SA-3.0",
+    "copyright": "From https://github.com/TheDenSS14/TheDen/commit/f92f50b5b76fe061a812fb8d575c264e2d6a3f0e, by maninbucket917 (Github).",
+    "states": [
+        {
+            "name": "tinydot"
+
+        },
+        {
+            "name": "tinyline"
+
+        }
+    ]
+}

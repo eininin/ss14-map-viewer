@@ -1,0 +1,63 @@
+{
+    "version": 1,
+    "size": {
+        "x": 32,
+        "y": 32
+    },
+    "license": "CC-BY-SA-3.0",
+    "copyright": "original sprites made for New Frontier Station 14",
+    "extra_copyright": [
+		"original direction_sr made by MagnusCrowe",
+        "original direction_nfsd made by GentleButter",
+        "original nfsd/range/law/brig/brigmed/detective/brief/armoury/evidence made by GhostPrinceLost",
+        "original interrogation made by whatston3 (GitHub) (interrogation edited from base signs.rsi, likely from bee station at commit https://github.com/BeeStation/BeeStation-Hornet/commit/13dd5ac712385642574138f6d7b30eea7c2fab9c)",
+		"recolors of NFSD sprites to SLE sprites made by chamomileteatime and Vandanna/ Cygnall (discord/ github)",
+        "ihs_sign designed by Toasterblast (Discord)"
+    ],
+    "states": [
+        {
+            "name": "direction_sle",
+            "directions": 4
+        },
+        {
+            "name": "direction_cr",
+            "directions": 4
+        },
+        {
+            "name": "sle"
+        },
+        {
+            "name": "armoury"
+        },
+        {
+            "name": "brief"
+        },
+        {
+            "name": "brig"
+        },
+        {
+            "name": "brigmed"
+        },
+        {
+            "name": "detective"
+        },
+        {
+            "name": "evidence"
+        },
+        {
+            "name": "interrogation"
+        },
+        {
+            "name": "law"
+        },
+        {
+            "name": "range"
+        },
+		{
+			"name": "genpop"
+		},
+        {
+            "name": "ihs_sign"
+        }
+    ]
+}

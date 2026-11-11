@@ -1,0 +1,29 @@
+{
+    "version": 1,
+    "license": "CC-BY-SA-3.0",
+    "copyright": "Sprite by FancyPlanks",
+    "size": {
+        "x": 32,
+        "y": 32
+    },
+    "states": [
+        {
+            "name": "mediaplayer"
+        },
+        {
+            "name": "mediaplayer_red"
+        },
+        {
+            "name": "mediaplayer_green"
+        },
+        {
+            "name": "mediaplayer_blue"
+        },
+        {
+            "name": "mediaplayer_pink"
+        },
+        {
+            "name": "mediaplayer_bloodred"
+        }
+    ]
+}

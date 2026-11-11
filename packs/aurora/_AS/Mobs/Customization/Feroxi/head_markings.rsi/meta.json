@@ -1,0 +1,19 @@
+{
+    "version": 1,
+    "license": "CC-BY-NC-SA-3.0",
+    "copyright": "sprites originally for DV thaven by kushbreth (github), ever so slightly tweaked by Toasterblast",
+    "size": {
+        "x": 32,
+        "y": 32
+    },
+    "states": [
+    {
+        "name": "feroxi-cheek-barbels",
+        "directions": 4
+    },
+    {
+        "name": "feroxi-eyebrow-barbels",
+        "directions": 4
+    }
+    ]
+}

@@ -1,0 +1,53 @@
+{
+    "version": 1,
+    "license": "CC-BY-NC-SA-4.0",
+    "copyright": "Content created by GhostPrince for Frontier Server, color modifications by vandanna for Aurora's Song, recolored by BudaLope for Aurora Song Server.",
+    "extra_copyright":	[
+	"rank decals made by Vandanna/ Cygnall (discord/ github)"
+	],
+	"size": {
+        "x": 32,
+        "y": 32
+    },
+    "states": [
+        {
+            "name": "icon"
+        },
+        {
+            "name": "equipped-INNERCLOTHING",
+            "directions": 4
+        },
+        {
+            "name": "inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "equipped-INNERCLOTHING-rke",
+            "directions": 4
+        },
+        {
+            "name": "equipped-INNERCLOTHING-off",
+            "directions": 4
+        },
+        {
+            "name": "equipped-INNERCLOTHING-sgt",
+            "directions": 4
+        },
+        {
+            "name": "equipped-INNERCLOTHING-lt",
+            "directions": 4
+        },
+        {
+            "name": "equipped-INNERCLOTHING-crp",
+            "directions": 4
+        },
+        {
+            "name": "equipped-INNERCLOTHING-com",
+            "directions": 4
+        }
+    ]
+}

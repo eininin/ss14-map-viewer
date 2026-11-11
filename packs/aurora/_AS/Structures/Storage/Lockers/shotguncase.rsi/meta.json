@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "license": "CC-BY-SA-3.0",
+  "copyright": "Taken from tgstation, Resprite by FancyPlanks",
+  "size": {
+    "x": 32,
+    "y": 36
+  },
+  "states": [
+    {
+      "name": "shotguncase"
+    },
+    {
+      "name": "shotguncase_door"
+    },
+    {
+      "name": "shotguncase_open"
+    },
+    {
+      "name": "shotgun"
+    },
+    {
+      "name": "welded"
+    },
+    {
+      "name": "generic"
+    },
+    {
+      "name": "generic_open"
+    },
+    {
+      "name": "generic_door"
+    },
+    {
+      "name": "locked"
+    },
+    {
+      "name": "unlocked"
+    }
+  ]
+}

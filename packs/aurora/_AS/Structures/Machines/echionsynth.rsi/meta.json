@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "license": "CC-BY-SA-3.0",
+  "copyright": "by DVDPlayerOfDiscordFame (github) for Aurora Song",
+  "size": {
+    "x": 32,
+    "y": 32
+  },
+  "states": [
+    {
+      "name": "off"
+    },
+    {
+      "name": "panel"
+    },
+    {
+      "name": "cap-1"
+    },
+    {
+      "name": "cap-2"
+    },
+    {
+      "name": "cap-3"
+    },
+    {
+      "name": "cap-4"
+    },
+    {
+      "name": "cap-5"
+    },
+    {
+      "name": "cap-6"
+    },
+    {
+      "name": "cap-7"
+    },
+    {
+      "name": "cap-8"
+    },
+    {
+      "name": "normal-unshaded",
+      "delays": [
+        [
+          0.35,
+          0.2,
+		  0.2,
+		  0.35,
+          0.35,
+          0.2,
+		  0.2,
+		  0.35
+        ]
+      ]
+    }
+  ]
+}

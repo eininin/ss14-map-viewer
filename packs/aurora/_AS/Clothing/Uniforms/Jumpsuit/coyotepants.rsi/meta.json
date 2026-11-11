@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "license": "CC-BY-SA-3.0",
+  "copyright": "Original sprite from FunkyStation https://github.com/funky-station/funky-station/tree/70b9732d0378f883b11878231a2a81f1dc73a244/Resources/Textures/_Funkystation/Clothing/Uniforms/Jumpsuit/cargoshirt.rsi",
+  "extra_copyright": [
+  "recolored and edited by Zephyrpak for Aurora's Song, further edited and recolored by heirdragonair"
+  ], 
+  "size": {
+    "x": 32,
+    "y": 32
+  },
+  "states": [
+    {
+      "name": "icon"
+    },
+    {
+      "name": "equipped-INNERCLOTHING",
+      "directions": 4
+    },
+    {
+      "name": "inhand-left",
+      "directions": 4
+    },
+    {
+      "name": "inhand-right",
+      "directions": 4
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "license": "CC-BY-SA-3.0",
+  "copyright": "Sprites by Thlrds",
+  "size": {
+    "x": 32,
+    "y": 32
+  },
+  "states": [
+    {
+      "name": "tuft",
+      "directions": 4
+    },
+    {
+      "name": "tuft_bangs",
+      "directions": 4
+    },
+    {
+      "name": "tuft_blunt",
+      "directions": 4
+    },
+    {
+      "name": "tuft_daisy",
+      "directions": 4
+    },
+    {
+      "name": "tuft_emo",
+      "directions": 4
+    },
+    {
+      "name": "tuft_heart",
+      "directions": 4
+    },
+    {
+      "name": "tuft_horned",
+      "directions": 4
+    },
+    {
+      "name": "tuft_sideburn",
+      "directions": 4
+    },
+    {
+      "name": "tuft_small",
+      "directions": 4
+    },
+    {
+      "name": "tuft_spike",
+      "directions": 4
+    },
+    {
+      "name": "tuft_spine",
+      "directions": 4
+    },
+    {
+      "name": "tuft_sweep",
+      "directions": 4
+    },
+    {
+      "name": "tuft_swoosh",
+      "directions": 4
+    },
+    {
+      "name": "tuft_vertical",
+      "directions": 4
+    }
+  ]
+}

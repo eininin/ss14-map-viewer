@@ -1,0 +1,67 @@
+{
+    "version": 1,
+    "copyright": "smallflower sprited by parahumans (discord), remaining sprited by SunburstsChitin (github)",
+    "license": "CC-BY-SA-4.0",
+    "size": {
+        "x": 32,
+        "y": 32
+    },
+    "states": [
+        {
+            "name": "nymphtail",
+            "directions": 4
+        },
+        {
+            "name": "smallflower",
+            "directions": 4
+        },
+        {
+            "name": "snake",
+            "directions": 4
+        },
+        {
+            "name": "sprouttail",
+            "directions": 4
+        },
+        {
+            "name": "trunk",
+            "directions": 4
+        },
+        {
+            "name": "lighttailinner",
+            "directions": 4
+        },
+        {
+            "name": "lighttailouter",
+            "directions": 4
+        },
+        {
+            "name": "ladybugshell",
+            "directions": 4
+        },
+        {
+            "name": "ladybugspots",
+            "directions": 4
+        },
+        {
+            "name": "sylvan",
+            "directions": 4
+        },
+        {
+            "name": "littlewing",
+            "directions": 4
+        },
+        {
+            "name": "shavedwillowwings",
+            "directions": 4
+        },
+        {
+            "name": "willowwingleaves",
+            "directions": 4
+        },
+        {
+            "name": "willowwings",
+            "directions": 4
+        }
+    ]
+}

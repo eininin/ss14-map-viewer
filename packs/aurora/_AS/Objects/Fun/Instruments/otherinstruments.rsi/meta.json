@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "size": {
+    "x": 32,
+    "y": 32
+  },
+  "license": "CC-BY-SA-4.0",
+  "copyright": "blue_phone made by Vandanna/ Cygnall for Aurora's Song fork of SS14",
+  "states": [
+    {
+      "name": "blue_phone"
+    }
+  ]
+}

@@ -1,0 +1,149 @@
+{
+  "version": 1,
+  "license": "CC-BY-SA-4.0",
+  "copyright": "Designed by C1trus/ C1trus (Discord/ Github).",
+  "extra_copyright": [
+  "Resprites by Vandanna/ Cygnall (discord/ github)"
+  ],
+  "size": {
+    "x": 32,
+    "y": 32
+  },
+  "states": [
+    {
+      "name": "icon-fabric"
+    },
+    {
+      "name": "icon-plate"
+    },
+    {
+      "name": "icon-detail"
+    },
+    {
+      "name": "icon-eyes"
+    },
+    {
+      "name": "icon-light"
+    },
+    {
+      "name": "helmet-fabric",
+      "directions": 4
+    },
+    {
+      "name": "helmet-plate",
+      "directions": 4
+    },
+    {
+      "name": "helmet-detail",
+      "directions": 4
+    },
+    {
+      "name": "helmet-eyes",
+      "directions": 4
+    },
+    {
+      "name": "helmet-fabric-felinid",
+      "directions": 4
+    },
+    {
+      "name": "helmet-plate-felinid",
+      "directions": 4
+    },
+    {
+      "name": "helmet-detail-felinid",
+      "directions": 4
+    },
+    {
+      "name": "helmet-eyes-felinid",
+      "directions": 4
+    },
+    {
+      "name": "helmet-fabric-feroxi",
+      "directions": 4
+    },
+    {
+      "name": "helmet-plate-feroxi",
+      "directions": 4
+    },
+    {
+      "name": "helmet-detail-feroxi",
+      "directions": 4
+    },
+    {
+      "name": "helmet-eyes-feroxi",
+      "directions": 4
+    },
+    {
+      "name": "helmet-fabric-reptilian",
+      "directions": 4
+    },
+    {
+      "name": "helmet-plate-reptilian",
+      "directions": 4
+    },
+    {
+      "name": "helmet-detail-reptilian",
+      "directions": 4
+    },
+    {
+      "name": "helmet-eyes-reptilian",
+      "directions": 4
+    },
+    {
+      "name": "helmet-fabric-vox",
+      "directions": 4
+    },
+    {
+      "name": "helmet-plate-vox",
+      "directions": 4
+    },
+    {
+      "name": "helmet-detail-vox",
+      "directions": 4
+    },
+    {
+      "name": "helmet-eyes-vox",
+      "directions": 4
+    },
+    {
+      "name": "helmet-fabric-vulpkanin",
+      "directions": 4
+    },
+    {
+      "name": "helmet-plate-vulpkanin",
+      "directions": 4
+    },
+    {
+      "name": "helmet-detail-vulpkanin",
+      "directions": 4
+    },
+    {
+      "name": "helmet-eyes-vulpkanin",
+      "directions": 4
+    },
+    {
+      "name": "light",
+      "directions": 4
+    },
+    {
+      "name": "light-felinid",
+      "directions": 4
+    },
+    {
+      "name": "light-feroxi",
+      "directions": 4
+    },
+    {
+      "name": "light-reptilian",
+      "directions": 4
+    },
+    {
+      "name": "light-vox",
+      "directions": 4
+    },
+    {
+      "name": "light-vulpkanin",
+      "directions": 4
+    }
+  ]
+}

@@ -1,0 +1,110 @@
+{
+  "version": 1,
+  "license": "CC-BY-SA-4.0",
+  "copyright": "Designed by C1trus/ C1trus (Discord/ Github).",
+  "extra_copyright":	[
+  "Recolorable states sectioned by Vandanna/ Cygnall (discord/ github)"
+  ],
+  "size": {
+    "x": 32,
+    "y": 32
+  },
+  "states": [
+    {
+      "name": "icon-fabric"
+    },
+    {
+      "name": "icon-plate"
+    },
+    {
+      "name": "icon-detail"
+    },
+    {
+      "name": "icon-swat"
+    },
+    {
+      "name": "icon-hazmat"
+    },
+    {
+      "name": "icon-riot"
+    },
+    {
+      "name": "icon-armband-right"
+    },
+    {
+      "name": "unibody"
+    },
+    {
+      "name": "fabric",
+      "directions": 4
+    },
+    {
+      "name": "plate",
+      "directions": 4
+    },
+    {
+      "name": "detail",
+      "directions": 4
+    },
+    {
+      "name": "armband-right",
+      "directions": 4
+    },
+    {
+      "name": "fabric-harpy",
+      "directions": 4
+    },
+    {
+      "name": "plate-harpy",
+      "directions": 4
+    },
+    {
+      "name": "detail-harpy",
+      "directions": 4
+    },
+    {
+      "name": "armband-right-harpy",
+      "directions": 4
+    },
+    {
+      "name": "fabric-vox",
+      "directions": 4
+    },
+    {
+      "name": "plate-vox",
+      "directions": 4
+    },
+    {
+      "name": "detail-vox",
+      "directions": 4
+    },
+    {
+      "name": "armband-right-vox",
+      "directions": 4
+    },
+    {
+      "name": "inhand-left-fabric",
+      "directions": 4
+    },
+    {
+      "name": "inhand-left-plate",
+      "directions": 4
+    },
+    {
+      "name": "inhand-left-detail",
+      "directions": 4
+    },
+    {
+      "name": "inhand-right-fabric",
+      "directions": 4
+    },
+    {
+      "name": "inhand-right-plate",
+      "directions": 4
+    },
+    {
+      "name": "inhand-right-detail",
+      "directions": 4
+    }
+  ]
+}

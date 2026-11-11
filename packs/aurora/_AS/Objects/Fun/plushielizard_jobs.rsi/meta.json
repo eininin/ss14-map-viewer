@@ -1,0 +1,467 @@
+{
+    "version": 1,
+    "license": "CC-BY-SA-3.0",
+    "copyright": "All job lizard plushie hold and helmet sprites made by KieueCaprie based on the lizard plushie hold by KieueCaprie and modified by SolStar and the lizard plushie helmet by Cinder and modified by SolStar.",
+    "size": {
+        "x": 32,
+        "y": 32
+    },
+    "states": [
+        {
+            "name": "atmospherictechnician-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "atmospherictechnician-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "atmospherictechnician-equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "bartender-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "bartender-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "bartender-equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "botanist-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "botanist-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "botanist-equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "boxer-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "boxer-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "boxer-equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "captain-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "captain-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "captain-equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "cargotechnician-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "cargotechnician-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "cargotechnician-equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "chaplain-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "chaplain-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "chaplain-equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "chef-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "chef-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "chef-equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "chemist-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "chemist-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "chemist-equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "chiefengineer-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "chiefengineer-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "chiefengineer-equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "chiefmedicalofficer-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "chiefmedicalofficer-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "chiefmedicalofficer-equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "clown-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "clown-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "clown-equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "detective-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "detective-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "detective-equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "headofpersonnel-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "headofpersonnel-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "headofpersonnel-equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "headofsecurity-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "headofsecurity-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "headofsecurity-equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "janitor-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "janitor-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "janitor-equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "lawyer-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "lawyer-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "lawyer-equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "librarian-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "librarian-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "librarian-equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "medicaldoctor-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "medicaldoctor-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "medicaldoctor-equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "medicalintern-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "medicalintern-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "medicalintern-equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "mime-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "mime-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "mime-equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "musician-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "musician-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "musician-equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "paramedic-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "paramedic-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "paramedic-equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "passenger-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "passenger-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "passenger-equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "psychologist-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "psychologist-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "psychologist-equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "quartermaster-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "quartermaster-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "quartermaster-equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "reporter-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "reporter-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "reporter-equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "researchassistant-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "researchassistant-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "researchassistant-equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "researchdirector-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "researchdirector-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "researchdirector-equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "salvager-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "salvager-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "salvager-equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "scientist-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "scientist-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "scientist-equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "securitycadet-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "securitycadet-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "securitycadet-equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "securityofficer-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "securityofficer-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "securityofficer-equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "serviceworker-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "serviceworker-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "serviceworker-equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "stationengineer-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "stationengineer-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "stationengineer-equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "technicalassistant-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "technicalassistant-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "technicalassistant-equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "warden-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "warden-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "warden-equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "zookeeper-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "zookeeper-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "zookeeper-equipped-HELMET",
+            "directions": 4
+        }
+    ]
+}

@@ -1,0 +1,23 @@
+{
+    "version": 1,
+    "license": "CC-BY-SA-3.0",
+    "copyright": "tails by trixxedheart (Discord), greyscale edit by Sere",
+    "size": {
+        "x": 32,
+        "y": 32
+    },
+    "states": [
+        {
+            "name": "carpish",
+            "directions": 4
+        },
+        {
+            "name": "draconiclong",
+            "directions": 4
+        },
+        {
+            "name": "fishtail",
+            "directions": 4
+        }
+    ]
+}

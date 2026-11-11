@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "license": "CC-BY-SA-4.0",
+  "copyright": "taken from Paradise Station, https://github.com/ParadiseSS13/Paradise/commit/0deaf46e1a080baabf1753662051c8f3fbf1be0a; nfsd-banner and nfsd-flag Created by Ghost Prince for Frontier Station; sle-banner and sle-flag recolored for Aurora Song by Vandanna/ Cygnall (discord/ github)",
+  "size": {
+    "x": 32,
+    "y": 32
+  },
+  "states": [
+    {
+      "name": "sle-banner"
+    },
+    {
+      "name": "as-banner"
+    },
+    {
+      "name": "as-banner-2"
+    },
+    {
+      "name": "bus-banner"
+    },
+    {
+      "name": "engisci-banner"
+    },
+    {
+      "name": "merc-banner"
+    },
+    {
+      "name": "sle-flag"
+    }
+  ]
+}

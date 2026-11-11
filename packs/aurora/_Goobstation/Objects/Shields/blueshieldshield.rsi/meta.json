@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "license": "CC-BY-SA-3.0",
+  "copyright": "Sprited by Taro Varne. Suitstorage and backpack sprites by ASaltySeabass.",
+  "size": {
+    "x": 32,
+    "y": 32
+  },
+  "states": [
+    {
+        "name": "icon"
+    },
+    {
+         "name": "icon-on"
+    },
+    {
+        "name": "inhand-left",
+        "directions": 4
+    },
+    {
+        "name": "inhand-left-on",
+        "directions": 4
+    },
+    {
+        "name": "inhand-right-on",
+        "directions": 4
+    },
+    {
+        "name": "inhand-right",
+        "directions": 4
+    },
+    {
+        "name": "equipped-SUITSTORAGE",
+        "directions": 4
+    },
+    {
+        "name": "equipped-SUITSTORAGE-on",
+        "directions": 4
+    },
+    {
+        "name": "equipped-BACKPACK",
+        "directions": 4
+    },
+    {
+        "name": "equipped-BACKPACK-on",
+        "directions": 4
+    }
+  ]
+}

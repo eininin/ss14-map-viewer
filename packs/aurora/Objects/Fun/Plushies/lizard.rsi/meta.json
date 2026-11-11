@@ -1,0 +1,71 @@
+{
+    "version": 1,
+    "license": "CC-BY-NC-SA-3.0",
+    "copyright": "Taken from tgstation at https://github.com/tgstation/tgstation/commit/e1142f20f5e4661cb6845cfcf2dd69f864d67432, modified by SolStar, equipped-HELMET sprite made by Cinder, modified by SolStar, in-hand lizard plushie sprites by KieueCaprie, modified by SolStar, plushie_lizard_inversed and inhand sprites modified from plushie_lizard_mirrored and plushielizard-inhand-left, modified by SolStar, plushielizard-inhand-right by ArtisticRoomba, modified by SolStar, spacelizard-equipped-HELMET by miamioni, modified by SolStar, spacelizard-inhand-(left/right) by SeamLesss (GitHub), modified by SolStar, rainbowlizardplush-equipped-HELMET modified from equipped-HELMET by perryprog, modified by SolStar.",
+    "size": {
+        "x": 32,
+        "y": 32
+    },
+    "states": [
+        {
+            "name": "icon"
+        },
+        {
+            "name": "inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "plushie_spacelizard"
+        },
+        {
+            "name": "spacelizard-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "spacelizard-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "spacelizard-equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "rainbowlizardplush"
+        },
+        {
+            "name": "rainbowlizardplush-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "rainbowlizardplush-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "rainbowlizardplush-equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "plushie_lizard_inversed"
+        },
+        {
+            "name": "plushielizardinversed-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "plushielizardinversed-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "plushielizardinversed-equipped-HELMET",
+            "directions": 4
+        }
+    ]
+}

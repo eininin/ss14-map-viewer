@@ -1,0 +1,32 @@
+{
+    "version": 1,
+    "license": "CC-BY-SA-4.0",
+    "copyright": "shanamctavish plushie made by Karlm4x / eixfrilledlizard and neemgreenkobold edited from base lizard plushie by Karlm4x / shanamcativh inhand sprites made by Ecramox (Github)",
+    "size": {
+        "x": 32,
+        "y": 32
+    },
+    "states": [
+        {
+            "name": "shanamctavish"
+        },
+        {
+            "name": "shana-inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "shana-inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "eixfrilledlizard"
+        },
+        {
+            "name": "neemgreenkobold"
+        },
+        {
+            "name": "treble"
+        }
+    ]
+}
+

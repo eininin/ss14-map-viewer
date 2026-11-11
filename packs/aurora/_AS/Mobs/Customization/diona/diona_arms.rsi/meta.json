@@ -1,0 +1,19 @@
+{
+    "version": 1,
+    "copyright": "armeyes sprited by SunburstsChitin (github)",
+    "license": "CC-BY-SA-4.0",
+    "size": {
+        "x": 32,
+        "y": 32
+    },
+    "states": [
+        {
+            "name": "larmeyes",
+            "directions": 4
+        },
+        {
+            "name": "rarmeyes",
+            "directions": 4
+        }
+    ]
+}

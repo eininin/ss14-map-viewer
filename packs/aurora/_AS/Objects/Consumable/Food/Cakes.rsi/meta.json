@@ -1,0 +1,65 @@
+{
+    "version": 1,
+    "license": "CC-BY-SA-3.0",
+    "copyright": "Taken from tgstation and modified by Swept at https://github.com/tgstation/tgstation/commit/40d75cc340c63582fb66ce15bf75a36115f6bdaa, cake sprites (apple, carrot, cheese, pumpkin, berry, chocolate, lemon, lime and orange) plus slices made by snavian (Github)",
+    "size": {
+        "x": 32,
+        "y": 32
+    },
+    "states": [
+        {
+            "name": "apple"
+        },
+        {
+            "name": "apple-slice"
+        },
+        {
+            "name": "carrot"
+        },
+        {
+            "name": "carrot-slice"
+        },
+        {
+            "name": "cheese"
+        },
+        {
+            "name": "cheese-slice"
+        },
+        {
+            "name": "pumpkinspice"
+        },
+        {
+            "name": "pumpkinspice-slice"
+        },
+        {
+            "name": "berry"
+        },
+        {
+            "name": "berry-slice"
+        },
+        {
+            "name": "chocolate"
+        },
+        {
+            "name": "chocolate-slice"
+        },
+        {
+            "name": "lemon"
+        },
+        {
+            "name": "lemon-slice"
+        },
+        {
+            "name": "lime"
+        },
+        {
+            "name": "lime-slice"
+        },
+        {
+            "name": "orange"
+        },
+        {
+            "name": "orange-slice"
+        }
+    ]
+}

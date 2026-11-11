@@ -1,0 +1,19 @@
+{
+    "version": 1,
+    "license": "CC-BY-SA-3.0",
+    "copyright": "By Sha-Seng (Github) for Impstation, Position edited by Sere for Aurora's Song",
+    "size": {
+        "x": 32,
+        "y": 32
+    },
+    "states": [
+        {
+            "name": "head_heavy1_thaven",
+            "directions": 4
+        },
+        {
+            "name": "head_heavy2_thaven",
+            "directions": 4
+        }
+    ]
+}

@@ -1,0 +1,47 @@
+{
+    "version": 1,
+    "license": "CC-BY-NC-SA-3.0",
+    "copyright": "sprites by toasterblast for Aurora's Song",
+    "size": {
+        "x": 32,
+        "y": 32
+    },
+    "states": [
+    {
+        "name": "feroxi-tail-robot-uppertip",
+        "directions": 4
+    },
+    {
+        "name": "feroxi-tail-robot-lowertip",
+        "directions": 4
+    },
+    {
+        "name": "feroxi-tail-robot-thingy",
+        "directions": 4
+    },
+    {
+        "name": "feroxi-tail-robot-endsegment",
+        "directions": 4
+    },
+    {
+        "name": "feroxi-tail-robot-midsegment",
+        "directions": 4
+    },
+    {
+        "name": "feroxi-tail-robot-basesegment",
+        "directions": 4
+    },
+    {
+        "name": "feroxi-tail-robot-joints",
+        "directions": 4
+    },
+    {
+        "name": "feroxi-tail-robot-joints-dark",
+        "directions": 4
+    },
+    {
+        "name": "feroxi-tail-robot-joints-glow",
+        "directions": 4
+    }
+    ]
+}

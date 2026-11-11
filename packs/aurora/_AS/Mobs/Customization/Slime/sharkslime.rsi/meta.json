@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "license": "CC-BY-SA-3.0",
+  "copyright": "Made by BlitzTheSquishy, Edited to fit slimes by snezshiba",
+  "size": {
+    "x": 32,
+    "y": 32
+  },
+  "states": [
+    {
+      "name": "slime_feroxi_head",
+      "directions": 4
+    },
+    {
+      "name": "slime_feroxi_ears",
+      "directions": 4
+    },
+    {
+      "name": "slime_feroxi_tail",
+      "directions": 4
+    }
+  ]
+}

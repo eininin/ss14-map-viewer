@@ -1,0 +1,15 @@
+{
+    "version": 1,
+    "license": "CC-BY-SA-3.0",
+    "copyright": "leg fins by AraiMaia, greyscale edit by Sere",
+    "size": {
+        "x": 32,
+        "y": 32
+    },
+    "states": [
+        {
+            "name": "llegfins1",
+            "directions": 4
+        }
+    ]
+}

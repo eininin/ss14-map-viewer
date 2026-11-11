@@ -1,0 +1,182 @@
+﻿{
+    "version": 1,
+    "license": "CC-BY-SA-3.0",
+    "copyright": "All job lizard plushies made by seam_less (discord), multiweh from all job lizard plushies by ArtisticRoomba. All job lizard plushie hold and helmet sprites made by KieueCaprie based on the lizard plushie hold by KieueCaprie and modified by SolStar and the lizard plushie helmet by Cinder and modified by SolStar.",
+    "size": {
+        "x": 32,
+        "y": 32
+    },
+    "states": [
+        {
+            "name": "inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "equipped-HELMET",
+            "directions": 4
+        },
+        {
+            "name": "atmospherictechnician"
+        },
+        {
+            "name": "bartender"
+        },
+        {
+            "name": "botanist"
+        },
+        {
+            "name": "boxer"
+        },
+        {
+            "name": "captain"
+        },
+        {
+            "name": "cargotechnician"
+        },
+        {
+            "name": "chaplain"
+        },
+        {
+            "name": "chef"
+        },
+        {
+            "name": "chemist"
+        },
+        {
+            "name": "chiefengineer"
+        },
+        {
+            "name": "chiefmedicalofficer"
+        },
+        {
+            "name": "clown"
+        },
+        {
+            "name": "detective"
+        },
+        {
+            "name": "headofpersonnel"
+        },
+        {
+            "name": "headofsecurity"
+        },
+        {
+            "name": "janitor"
+        },
+        {
+            "name": "lawyer"
+        },
+        {
+            "name": "librarian"
+        },
+        {
+            "name": "medicaldoctor"
+        },
+        {
+            "name": "medicalintern"
+        },
+        {
+            "name": "mime"
+        },
+        {
+            "name": "musician"
+        },
+        {
+            "name": "paramedic"
+        },
+        {
+            "name": "passenger"
+        },
+        {
+            "name": "psychologist"
+        },
+        {
+            "name": "quartermaster"
+        },
+        {
+            "name": "reporter"
+        },
+        {
+            "name": "researchassistant"
+        },
+        {
+            "name": "researchdirector"
+        },
+        {
+            "name": "salvager"
+        },
+        {
+            "name": "scientist"
+        },
+        {
+            "name": "securitycadet"
+        },
+        {
+            "name": "securityofficer"
+        },
+        {
+            "name": "serviceworker"
+        },
+        {
+            "name": "stationengineer"
+        },
+        {
+            "name": "technicalassistant"
+        },
+        {
+            "name": "warden"
+        },
+        {
+            "name": "zookeeper"
+        },
+        {
+            "name": "multiweh",
+            "delays": [
+                [
+                    0.3,
+                    0.3,
+                    0.3,
+                    0.3,
+                    0.3,
+                    0.3,
+                    0.3,
+                    0.3,
+                    0.3,
+                    0.3,
+                    0.3,
+                    0.3,
+                    0.3,
+                    0.3,
+                    0.3,
+                    0.3,
+                    0.3,
+                    0.3,
+                    0.3,
+                    0.3,
+                    0.3,
+                    0.3,
+                    0.3,
+                    0.3,
+                    0.3,
+                    0.3,
+                    0.3,
+                    0.3,
+                    0.3,
+                    0.3,
+                    0.3,
+                    0.3,
+                    0.3,
+                    0.3,
+                    0.3,
+                    0.3,
+                    0.3,
+                    0.3
+                ]
+            ]
+        }
+    ]
+}

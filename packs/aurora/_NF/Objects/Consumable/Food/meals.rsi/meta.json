@@ -1,0 +1,29 @@
+{
+    "version": 1,
+    "license": "CC-BY-SA-4.0",
+    "copyright": "chickenParm made by Sen (Discord), quesadilla, tamale made by Prismatic, burrito made by Sketchii",
+    "size": {
+        "x": 32,
+        "y": 32
+    },
+    "states": [
+        {
+            "name": "chickenparm"
+        },
+        {
+            "name": "burrito"
+        },
+        {
+            "name": "quesadilla"
+        },
+        {
+            "name": "tamale"
+        },
+        {
+            "name": "tamale_husk"
+        },
+        {
+            "name": "tamale_wrapped"
+        }
+    ]
+}

@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "license": "CC-BY-SA-3.0",
+  "copyright": "Made by SalamanderSkies (discord / github)",
+  "size": {
+    "x": 32,
+    "y": 32
+  },
+  "states": [
+    {
+      "name": "chitin-1"
+    },
+    {
+      "name": "chitin-2"
+    },
+    {
+      "name": "chitin-3"
+    }
+  ]
+}

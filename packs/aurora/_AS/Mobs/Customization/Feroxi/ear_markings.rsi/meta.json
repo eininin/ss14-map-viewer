@@ -1,0 +1,15 @@
+{
+    "version": 1,
+    "license": "CC-BY-NC-SA-3.0",
+    "copyright": "sprites by toasterblast for Aurora's Song, based on Impstation's thaven fishears/finned ears by crocodilecarousel",
+    "size": {
+        "x": 32,
+        "y": 32
+    },
+    "states": [
+    {
+        "name": "feroxi-ears-double",
+        "directions": 4
+    }
+    ]
+}

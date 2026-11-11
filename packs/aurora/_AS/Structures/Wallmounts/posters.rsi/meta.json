@@ -1,0 +1,57 @@
+{
+    "version": 1,
+    "license": "CC-BY-NC-SA-4.0",
+    "copyright": "Posters designed by Vandanna/ Cygnall (discord/ github) for Aurora's Song",
+	"extra_copyright": [
+	"as_poster_iac_logo2-9 designed by Doner4037/ Doner19 (Discord/ Patreon)",
+    "as_poster_ihs_logo designed by Toasterblast (Discord)"
+	],
+    "size": {
+        "x": 32,
+        "y": 32
+    },
+    "states": [
+        {
+            "name": "as_poster_sle_pinpointer"
+        },
+        {
+            "name": "as_poster_aurora"
+        },
+        {
+            "name": "as_poster_bh_logo"
+        },
+        {
+            "name": "as_poster_iac_logo1"
+        },
+        {
+            "name": "as_poster_iac_logo2"
+        },
+        {
+            "name": "as_poster_iac_logo3"
+        },
+        {
+            "name": "as_poster_iac_logo4"
+        },
+        {
+            "name": "as_poster_iac_logo5"
+        },
+        {
+            "name": "as_poster_iac_logo6"
+        },
+        {
+            "name": "as_poster_iac_logo7"
+        },
+        {
+            "name": "as_poster_iac_logo8"
+        },
+        {
+            "name": "as_poster_iac_logo9"
+        },
+		{
+            "name": "as_poster_cns_horizon"
+        },
+        {
+            "name": "as_poster_ihs_logo"
+        }
+    ]
+}

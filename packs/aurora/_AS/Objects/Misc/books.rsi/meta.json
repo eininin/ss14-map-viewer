@@ -1,0 +1,17 @@
+{
+    "version" : 1,
+    "copyright" : "@Vordenburg",
+	"extra_copyright": [
+    "Resprites and recolors for NFSD to SLE by Vandanna/ Cygnall (discord/ github)"
+    ],
+    "license" : "CC-BY-SA-4.0",
+    "size" : {
+        "x" : 32,
+        "y" : 32
+    },
+    "states" : [
+        {
+            "name" : "sle_sop"
+        }
+    ]
+}

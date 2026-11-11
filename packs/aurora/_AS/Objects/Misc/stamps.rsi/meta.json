@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "license": "CC-BY-SA-4.0",
+  "copyright": "stamp-sheriff by GhostPrince (Discord). stamp-pal/doctor by whatston3 (GitHub), stamp-bailiff by dustylens (GitHub)",
+  "extra_copyright": [
+    "Resprites and recolors (sheriff to commissioner, site manager, and colcom, bailiff to site worker and lieutenant)  for Aurora's Song rebrand by Vandanna/ Cygnall (discord/ github)"
+    ],
+  "size": {
+    "x": 32,
+    "y": 32
+  },
+  "states": [
+    {
+      "name": "stamp-pal"
+    },
+    {
+      "name": "stamp-commissioner"
+    },
+    {
+      "name": "stamp-lieutenant"
+    },
+    {
+      "name": "stamp-cr"
+    },
+    {
+      "name": "stamp-colcom"
+    },
+    {
+      "name": "stamp-site-manager"
+    },
+    {
+      "name": "stamp-site-worker"
+    }
+  ]
+}

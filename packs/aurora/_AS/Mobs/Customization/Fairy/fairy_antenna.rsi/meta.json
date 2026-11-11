@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "license": "CC0-1.0",
+  "copyright": "Sprites by portfiend (GitHub)",
+  "size": {
+    "x": 32,
+    "y": 32
+  },
+  "states": [
+    {
+      "name": "droop",
+      "directions": 4
+    },
+    {
+      "name": "droop-tip",
+      "directions": 4
+    },
+    {
+      "name": "feeler",
+      "directions": 4
+    },
+	{
+      "name": "feeler-tip",
+      "directions": 4
+    },
+	{
+      "name": "long",
+      "directions": 4
+    },
+	{
+      "name": "long-tip",
+      "directions": 4
+    },
+	{
+      "name": "low_feeler",
+      "directions": 4
+    },
+	{
+      "name": "low_feeler-tip",
+      "directions": 4
+    },
+	{
+      "name": "side",
+      "directions": 4
+    },
+	{
+      "name": "side-tip",
+      "directions": 4
+    },
+	{
+      "name": "slug",
+      "directions": 4
+    },
+	{
+      "name": "slug-tip",
+      "directions": 4
+    },
+	{
+      "name": "thin",
+      "directions": 4
+    },
+	{
+      "name": "thin-tip",
+      "directions": 4
+    },
+	{
+      "name": "wings",
+      "directions": 4
+    },
+	{
+      "name": "wings-tip",
+      "directions": 4
+    }
+  ]
+}

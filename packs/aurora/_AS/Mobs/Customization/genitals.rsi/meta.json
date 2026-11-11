@@ -1,0 +1,27 @@
+{
+  "version":1,
+  "size": {
+    "x":32,
+    "y":32
+  },
+  "copyright":"Created by Vandanna, slime editions made by TrixxedHeart",
+  "license":"CC-BY-SA-3.0",
+  "states": [
+    {
+      "name":"tpenis",
+      "directions":4
+    },
+    {
+      "name":"tvagina",
+      "directions":4
+    },
+	{
+      "name":"tpenis_slime",
+      "directions":4
+    },
+    {
+      "name":"tvagina_slime",
+      "directions":4
+    }
+  ]
+}

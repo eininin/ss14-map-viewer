@@ -1,0 +1,115 @@
+{
+    "version": 1,
+    "copyright": "bigeye, bluebell, eyeflower, intenna, outenna, pompom, sideantler, smallcornflower, sproutleaves, and tripleeye sprited by parahumans (discord) and edited by SunburstsChitin (github), remaining sprited by SunburstsChitin (github)",
+    "license": "CC-BY-SA-4.0",
+    "size": {
+        "x": 32,
+        "y": 32
+    },
+    "states": [
+        {
+            "name": "antlers",
+            "directions": 4
+        },
+        {
+            "name": "bigeye",
+            "directions": 4
+        },
+        {
+            "name": "bluebellflower",
+            "directions": 4
+        },
+        {
+            "name": "bluebellstem",
+            "directions": 4
+        },
+        {
+            "name": "eyeflower",
+            "directions": 4
+        },
+        {
+            "name": "eyeflowerstem",
+            "directions": 4
+        },
+        {
+            "name": "intenna",
+            "directions": 4
+        },
+        {
+            "name": "mandibles",
+            "directions": 4
+        },
+        {
+            "name": "mothface",
+            "directions": 4
+        },
+        {
+            "name": "outenna",
+            "directions": 4
+        },
+        {
+            "name": "pompom",
+            "directions": 4
+        },
+        {
+            "name": "sideantlerflower",
+            "directions": 4
+        },
+        {
+            "name": "sideantlertrunk",
+            "directions": 4
+        },
+        {
+            "name": "smallcornflower",
+            "directions": 4
+        },
+        {
+            "name": "smallmandibles",
+            "directions": 4
+        },
+        {
+            "name": "sproutleaves",
+            "directions": 4
+        },
+        {
+            "name": "stem",
+            "directions": 4
+        },
+        {
+            "name": "thornfangs",
+            "directions": 4
+        },
+        {
+            "name": "treefaceleaves",
+            "directions": 4
+        },
+        {
+            "name": "treefacetrunk",
+            "directions": 4
+        },
+        {
+            "name": "tripleeye",
+            "directions": 4
+        },
+        {
+            "name": "vinehorns",
+            "directions": 4
+        },
+        {
+            "name": "faceburn",
+            "directions": 4
+        },
+        {
+            "name": "flylure",
+            "directions": 4
+        },
+        {
+            "name": "leafponytail",
+            "directions": 4
+        },
+        {
+            "name": "thornridge",
+            "directions": 4
+        }
+    ]
+}

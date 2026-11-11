@@ -1,0 +1,32 @@
+{
+    "version": 1,
+    "license": "CC-BY-SA-4.0",
+    "copyright": "wehfren-box, wehfren-box-unfolded made by KieueCaprie based on sb-box and sb-box-unfolded sprites by gentlebutter; inhands made by KieueCaprie based on inhand sprites for sb-box by gentlebutter",
+    "size": {
+        "x": 32,
+        "y": 32
+    },
+    "states": [
+        {
+            "name": "inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "wehfren-box"
+        },
+        {
+            "name": "wehfren-box-unfolded"
+        },
+        {
+            "name": "wehfren-box-gold"
+        },
+        {
+            "name": "wehfren-box-gold-unfolded"
+        }
+    ]
+}
+

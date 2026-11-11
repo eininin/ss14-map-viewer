@@ -1,0 +1,35 @@
+{
+    "version": 1,
+    "license": "CC-BY-NC-SA-4.0",
+    "copyright": "SLE decals made by Vandanna/ Cygnall (discord/ github) for Aurora's.",
+    "size": {
+        "x": 32,
+        "y": 32
+    },
+    "states": [
+        {
+            "name": "decal-com",
+            "directions": 4
+        },
+        {
+            "name": "decal-crp",
+            "directions": 4
+        },
+        {
+            "name": "decal-lt",
+            "directions": 4
+        },
+        {
+            "name": "decal-off",
+            "directions": 4
+        },
+        {
+            "name": "decal-rke",
+            "directions": 4
+        },
+        {
+            "name": "decal-sgt",
+            "directions": 4
+        }
+    ]
+}

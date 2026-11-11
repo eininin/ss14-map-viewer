@@ -1,0 +1,91 @@
+{
+  "version": 1,
+  "license": "CC-BY-SA-3.0",
+  "copyright": "Sprites by Thlrds",
+  "size": {
+    "x": 32,
+    "y": 32
+  },
+  "states": [
+    {
+      "name": "eyes",
+      "directions": 4
+    },
+    {
+      "name": "default_primary",
+      "directions": 4
+    },
+    {
+      "name": "default_secondary",
+      "directions": 4
+    },
+    {
+      "name": "eyebag_soft_primary",
+      "directions": 4
+    },
+    {
+      "name": "eyebag_soft_secondary",
+      "directions": 4
+    },
+    {
+      "name": "eyelid_primary",
+      "directions": 4
+    },
+    {
+      "name": "eyelid_secondary",
+      "directions": 4
+    },
+    {
+      "name": "motheyeliner_primary",
+      "directions": 4
+    },
+    {
+      "name": "motheyeliner_quaternary",
+      "directions": 4
+    },
+    {
+      "name": "motheyeliner_secondary",
+      "directions": 4
+    },
+    {
+      "name": "motheyeliner_tertiary",
+      "directions": 4
+    },
+    {
+      "name": "reflective_eyes_soft_primary",
+      "directions": 4
+    },
+    {
+      "name": "reflective_eyes_soft_secondary",
+      "directions": 4
+    },
+    {
+      "name": "reflective_eyes_soft_tertiary",
+      "directions": 4
+    },
+    {
+      "name": "reflectivebiggereyes_primary",
+      "directions": 4
+    },
+    {
+      "name": "reflectivebiggereyes_secondary",
+      "directions": 4
+    },
+    {
+      "name": "reflectiveeyes_primary",
+      "directions": 4
+    },
+    {
+      "name": "reflectiveeyes_secondary",
+      "directions": 4
+    },
+    {
+      "name": "tiny_eyes_primary",
+      "directions": 4
+    },
+    {
+      "name": "tiny_eyes_secondary",
+      "directions": 4
+    }
+  ]
+}

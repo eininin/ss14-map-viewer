@@ -1,0 +1,23 @@
+{
+    "version": 1,
+    "license": "CC0-1.0",
+    "copyright": "Modified by ZingoDult (Discord) from the ComputerBankATM sprite which was created by EmoGarbage and reshaded by Checkraze",
+    "size": {
+      "x": 32,
+      "y": 32
+    },
+      "states": [
+        {
+            "name": "dispenser_cmo"
+        },
+        {
+            "name": "dispenser_sle"
+        },
+        {
+            "name": "dispenser_es"
+        },
+        {
+            "name": "dispenser_cr"
+        }
+      ]
+  }

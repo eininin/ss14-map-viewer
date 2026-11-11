@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "license": "CC-BY-SA-3.0",
+  "copyright": "hand sprite by TrixxedHeart; species hand sprites by Thlrds",
+  "size": {
+    "x": 32,
+    "y": 32
+  },
+  "states": [
+    {
+      "name": "hand"
+    },
+    {
+      "name": "allulalo-hand"
+    },
+    {
+      "name": "arachnid-hand"
+    },
+    {
+      "name": "avali-hand"
+    },
+    {
+      "name": "decapoid-hand"
+    },
+    {
+      "name": "diona-hand"
+    },
+    {
+      "name": "dwarf-hand"
+    },
+    {
+      "name": "felinid-hand"
+    },
+    {
+      "name": "feroxi-hand"
+    },
+    {
+      "name": "gingerbread-hand"
+    },
+    {
+      "name": "goblin-hand"
+    },
+    {
+      "name": "harpy-hand"
+    },
+    {
+      "name": "human-hand"
+    },
+    {
+      "name": "ipc-hand"
+    },
+    {
+      "name": "moth-hand"
+    },
+    {
+      "name": "ovinia-hand"
+    },
+    {
+      "name": "fairy-hand"
+    },
+    {
+      "name": "reptilian-hand"
+    },
+    {
+      "name": "rodentia-hand"
+    },
+    {
+      "name": "sheleg-hand"
+    },
+    {
+      "name": "slimeperson-hand"
+    },
+    {
+      "name": "tajaran-hand"
+    },
+    {
+      "name": "vox-hand"
+    },
+    {
+      "name": "vulpkanin-hand"
+    },
+	{
+      "name": "lumari-hand"
+    }
+  ]
+}

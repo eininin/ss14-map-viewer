@@ -1,0 +1,151 @@
+{
+    "version": 1,
+    "size": {
+        "x": 32,
+        "y": 32
+    },
+    "copyright": "base, thrust, thrust_burn, thrust_burn_unshaded by Shaeone",
+    "extra_copyright": [
+        "base_nfsd, thrust_burn_nfsd edited by Ghost Prince",
+        "small sprites edited by whatston3",
+		"default and small size sprites edited to sle versions by Vandanna/ Cygnall (discord/ github) for Aurora's Song"
+    ],
+    "license": "CC-BY-SA-4.0",
+    "states": [
+        {
+            "name": "base"
+        },
+        {
+            "name": "base_nfsd"
+        },
+        {
+            "name": "base_sec"
+        },
+        {
+            "name": "base_small"
+        },
+        {
+            "name": "base_sle"
+        },
+        {
+            "name": "base_small_nfsd"
+        },
+        {
+            "name": "base_small_sec"
+        },
+        {
+            "name": "base_small_sle"
+        },
+        {
+            "name": "thrust"
+        },
+        {
+            "name": "thrust_burn",
+            "directions": 1,
+            "delays": [
+                [
+                    0.1,
+                    0.1,
+                    0.1,
+                    0.1
+                ]
+            ]
+        },
+        {
+            "name": "thrust_burn_nfsd",
+            "directions": 1,
+            "delays": [
+                [
+                    0.1,
+                    0.1,
+                    0.1,
+                    0.1
+                ]
+            ]
+        },
+        {
+            "name": "thrust_burn_sec",
+            "directions": 1,
+            "delays": [
+                [
+                    0.1,
+                    0.1,
+                    0.1,
+                    0.1
+                ]
+            ]
+        },
+        {
+            "name": "thrust_burn_sle",
+            "directions": 1,
+            "delays": [
+                [
+                    0.1,
+                    0.1,
+                    0.1,
+                    0.1
+                ]
+            ]
+        },
+        {
+            "name": "thrust_burn_small",
+            "directions": 1,
+            "delays": [
+                [
+                    0.1,
+                    0.1,
+                    0.1,
+                    0.1
+                ]
+            ]
+        },
+        {
+            "name": "thrust_burn_small_nfsd",
+            "directions": 1,
+            "delays": [
+                [
+                    0.1,
+                    0.1,
+                    0.1,
+                    0.1
+                ]
+            ]
+        },
+        {
+            "name": "thrust_burn_small_sec",
+            "directions": 1,
+            "delays": [
+                [
+                    0.1,
+                    0.1,
+                    0.1,
+                    0.1
+                ]
+            ]
+        },
+        {
+            "name": "thrust_burn_small_sle",
+            "directions": 1,
+            "delays": [
+                [
+                    0.1,
+                    0.1,
+                    0.1,
+                    0.1
+                ]
+            ]
+        },
+        {
+            "name": "thrust_burn_unshaded",
+            "directions": 1,
+            "delays": [
+                [
+                    0.1,
+                    0.1,
+                    0.1,
+                    0.1
+                ]
+            ]
+        }
+    ]
+}

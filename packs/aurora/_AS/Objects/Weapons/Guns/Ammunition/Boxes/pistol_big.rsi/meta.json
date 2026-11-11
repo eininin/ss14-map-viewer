@@ -1,0 +1,52 @@
+﻿{
+    "version": 1,
+    "license": "CC-BY-SA-3.0",
+    "copyright": "Taken from https://github.com/discordia-space/CEV-Eris/blob/f7aa28fd4b4d0386c3393d829681ebca526f1d2d/icons/obj/ammo.dmi, modified by Flareguy for Space Station 14. Rifle big box sprites (base, mag, and inhand) modified from big rifle ammo box by Vandanna/ Cygnall (Discord/ Github) and combined with pistol box decals from Flareguy",
+    "size": {
+        "x": 32,
+        "y": 32
+    },
+    "states": [
+        {
+            "name": "base"
+        },
+        {
+            "name": "mag-0"
+        },
+        {
+            "name": "mag-1"
+        },
+        {
+            "name": "mag-2"
+        },
+        {
+            "name": "mag-3"
+        },
+        {
+            "name": "mag-4"
+        },
+        {
+            "name": "mag-5"
+        },
+        {
+            "name": "decal-01"
+        },
+        {
+            "name": "decal-calibre-35"
+        },
+        {
+            "name": "decal-calibre-40"
+        },
+        {
+            "name": "decal-calibre-45"
+        },
+        {
+            "name": "inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "inhand-right",
+            "directions": 4
+        }
+    ]
+}

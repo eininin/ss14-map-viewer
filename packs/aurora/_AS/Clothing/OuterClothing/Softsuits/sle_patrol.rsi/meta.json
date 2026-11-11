@@ -1,0 +1,121 @@
+{
+    "version": 1,
+    "license": "CC-BY-SA-3.0",
+    "copyright": "Made by Ci1rus for Aurora's Song.",
+    "extra_copyright":	[
+	"rank decals made by Vandanna/ Cygnall (discord/ github)"
+	],
+    "size": {
+        "x": 32,
+        "y": 32
+    },
+    "states": [
+        {
+            "name": "icon"
+        },
+        {
+            "name": "icon-com"
+        },
+        {
+            "name": "icon-crp"
+        },
+        {
+            "name": "icon-lt"
+        },
+        {
+            "name": "icon-off"
+        },
+        {
+            "name": "icon-rke"
+        },
+        {
+            "name": "icon-sgt"
+        },
+        {
+            "name": "icon-com-shop"
+        },
+        {
+            "name": "icon-crp-shop"
+        },
+        {
+            "name": "icon-lt-shop"
+        },
+        {
+            "name": "icon-off-shop"
+        },
+        {
+            "name": "icon-rke-shop"
+        },
+        {
+            "name": "icon-sgt-shop"
+        },
+        {
+            "name": "equipped-OUTERCLOTHING",
+            "directions": 4
+        },
+        {
+            "name": "equipped-OUTERCLOTHING-harpy",
+            "directions": 4
+        },
+        {
+            "name": "equipped-OUTERCLOTHING-vox",
+            "directions": 4
+        },
+        {
+            "name": "inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "equipped-OUTERCLOTHING-rke",
+            "directions": 4
+        },
+        {
+            "name": "equipped-OUTERCLOTHING-rke-harpy",
+            "directions": 4
+        },
+        {
+            "name": "equipped-OUTERCLOTHING-off",
+            "directions": 4
+        },
+        {
+            "name": "equipped-OUTERCLOTHING-off-harpy",
+            "directions": 4
+        },
+        {
+            "name": "equipped-OUTERCLOTHING-sgt",
+            "directions": 4
+        },
+        {
+            "name": "equipped-OUTERCLOTHING-sgt-harpy",
+            "directions": 4
+        },
+        {
+            "name": "equipped-OUTERCLOTHING-lt",
+            "directions": 4
+        },
+        {
+            "name": "equipped-OUTERCLOTHING-lt-harpy",
+            "directions": 4
+        },
+        {
+            "name": "equipped-OUTERCLOTHING-crp",
+            "directions": 4
+        },
+        {
+            "name": "equipped-OUTERCLOTHING-crp-harpy",
+            "directions": 4
+        },
+        {
+            "name": "equipped-OUTERCLOTHING-com",
+            "directions": 4
+        },
+        {
+            "name": "equipped-OUTERCLOTHING-com-harpy",
+            "directions": 4
+        }
+    ]
+}

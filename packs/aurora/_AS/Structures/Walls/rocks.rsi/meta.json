@@ -1,0 +1,17 @@
+{
+    "version": 1,
+    "license": "CC-BY-SA-3.0",
+    "copyright": "Made by TrixxedHeart for Aurora's Song",
+    "size": {
+        "x": 32,
+        "y": 32
+    },
+    "states": [
+        {
+            "name": "rock_mnemolith"
+        },
+        {
+            "name": "rock_eidolite"
+        }
+    ]
+}

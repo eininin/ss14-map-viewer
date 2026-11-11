@@ -1,0 +1,43 @@
+{
+    "version": 1,
+    "license": "CC-BY-NC-SA-3.0",
+    "copyright": "sprites by toasterblast for Aurora's Song",
+    "size": {
+        "x": 32,
+        "y": 32
+    },
+    "states": [
+    {
+        "name": "feroxi-fin",
+        "directions": 4
+    },
+    {
+        "name": "feroxi-fin-big",
+        "directions": 4
+    },
+    {
+        "name": "feroxi-fin-back",
+        "directions": 4
+    },
+    {
+        "name": "feroxi-fin-big-back",
+        "directions": 4
+    },
+    {
+        "name": "feroxi-fin-tip",
+        "directions": 4
+    },
+    {
+        "name": "feroxi-fin-big-tip",
+        "directions": 4
+    },
+    {
+        "name": "feroxi-fin-tip-back",
+        "directions": 4
+    },
+    {
+        "name": "feroxi-fin-big-tip-back",
+        "directions": 4
+    }
+    ]
+}

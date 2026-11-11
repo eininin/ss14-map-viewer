@@ -1,0 +1,92 @@
+{
+  "version": 1,
+  "license": "CC-BY-SA-3.0",
+  "copyright": "Taken from Nukapop-13 and Mojave-Sun-13, modified by SalamanderSkies (github/discord)",
+  "size": {
+    "x": 32,
+    "y": 32
+  },
+  "states": [
+    {
+      "name": "metalblue"
+    },
+    {
+      "name": "metalbluesolid"
+    },
+    {
+      "name": "metalgreen"
+    },
+    {
+      "name": "metalgreensolid"
+    },
+    {
+      "name": "metalgrey"
+    },
+    {
+      "name": "metalgreysolid"
+    },
+    {
+      "name": "metalgreydark"
+    },
+    {
+      "name": "metalgreydarksolid"
+    },
+    {
+      "name": "metalpurple"
+    },
+    {
+      "name": "metalpurplesolid"
+    },
+    {
+      "name": "metalred"
+    },
+    {
+      "name": "metalredsolid"
+    },
+    {
+      "name": "metalteal"
+    },
+    {
+      "name": "metaltealsolid"
+    },
+    {
+      "name": "metalwhite"
+    },
+    {
+      "name": "metalwhitesolid"
+    },
+    {
+      "name": "metalyellow"
+    },
+    {
+      "name": "metalyellowsolid"
+    },
+    {
+      "name": "metalfreezer"
+    },
+    {
+      "name": "oak"
+    },
+    {
+      "name": "woodhouse"
+    },
+    {
+      "name": "maple"
+    },
+    {
+      "name": "steel_industrial"
+    },
+    {
+      "name": "steel_tiles"
+    },
+    {
+      "name": "steel_grate"
+    },
+    {
+      "name": "steel_solid"
+    },
+    {
+      "name": "carpet"
+    }
+  ]
+}

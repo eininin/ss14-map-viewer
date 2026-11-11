@@ -1,0 +1,35 @@
+{
+    "version": 1,
+    "copyright": "Ladybug and sylvan sprited by parahumans (discord), remaining sprited by SunburstsChitin (github)",
+    "license": "CC-BY-SA-4.0",
+    "size": {
+        "x": 32,
+        "y": 32
+    },
+    "states": [
+        {
+            "name": "clownflower",
+            "directions": 4
+        },
+        {
+            "name": "ribs",
+            "directions": 4
+        },
+        {
+            "name": "spine",
+            "directions": 4
+        },
+        {
+            "name": "chestburn",
+            "directions": 4
+        },
+        {
+            "name": "chestmouth",
+            "directions": 4
+        },
+         {
+            "name": "chestmouthblep",
+            "directions": 4
+        }
+    ]
+}

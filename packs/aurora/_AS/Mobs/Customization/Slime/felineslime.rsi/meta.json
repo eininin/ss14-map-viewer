@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "license": "CC-BY-SA-3.0",
+  "copyright": "Felinid ears taken from https://github.com/tgstation/tgstation/blob/master/icons/mob/mutant_bodyparts.dmi, Tajarans taken from https://github.com/ParadiseSS13/Paradise, All editted by snez-shiba ",
+  "size": {
+    "x": 32,
+    "y": 32
+  },
+  "states": [
+    {
+      "name": "slime_feline_ears",
+      "directions": 4
+    },
+    {
+      "name": "slime_feline_tail",
+      "directions": 4
+    },
+    {
+      "name": "slime_tajaran_head",
+      "directions": 4
+    },
+    {
+      "name": "slime_tajaran_ears",
+      "directions": 4
+    },
+    {
+      "name": "slime_tajaran_tail",
+      "directions": 4
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+    "version": 1,
+    "license": "CC-BY-SA-3.0",
+    "copyright": "fins by AraiMaia, greyscale edit by Sere",
+    "size": {
+        "x": 32,
+        "y": 32
+    },
+    "states": [
+        {
+            "name": "larmfins1",
+            "directions": 4
+        },
+        {
+            "name": "larmfins2",
+            "directions": 4
+        }
+    ]
+}
