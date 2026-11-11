@@ -252,8 +252,9 @@ async function openText(text, source) {
   S.onlyMode = null;
   S.renderer.only = null;
   $('#empty').hidden = true;
-  $('#mapName').textContent = (model.name || source.name || 'map') + '  ·  ' + (source.label || source.name || '');
-  document.title = (model.name || source.name) + ' – SS14 Map Viewer';
+  const shown = source.title || model.name || source.name || 'map';
+  $('#mapName').textContent = shown + '  ·  ' + (source.label || source.name || '');
+  document.title = shown + ' – SS14 Map Viewer';
   loadAnnotsLocal();
   loadZones();
   await resolveAndRender(false, token);
@@ -370,7 +371,7 @@ async function fetchText(url) {
   return r.text();
 }
 
-async function openFromParam(v, q) {
+async function openFromParam(v, q, title) {
   try {
     let url, name = baseName(v), src;
     const src0 = v.split(':')[0];
@@ -380,7 +381,9 @@ async function openFromParam(v, q) {
       if (S.fork !== f.id) await useFork(f.id);
       try { await loadMaps(f); } catch (e) { /* use pinned commit */ }
       url = mapUrl(f, p);
-      src = { kind: 'fork', name, label: f.name + ' · ' + p, key: v, param: v };
+      let t = title;
+      if (!t) { const row = S.mapLists && S.mapLists[f.id] && S.mapLists[f.id].maps.find(r => r.p === p); if (row) t = row.n; }
+      src = { kind: 'fork', name, label: f.name + ' · ' + p, key: v, param: v, title: t };
     } else if (v.startsWith('repo:')) {
       const p = v.slice(5);
       url = p;
@@ -419,7 +422,7 @@ async function browseMaps(startFork) {
     forks: S.forks, current: S.fork, startFork,
     loadMaps, loadItems, loadDb, mapCounts,
     listState: S.browseState || (S.browseState = {}),
-    onOpen: (f, r) => openFromParam(f.id + ':' + r.p),
+    onOpen: (f, r) => openFromParam(f.id + ':' + r.p, null, r.n),
   });
   // fill in map counts on the server tiles in the background
   Promise.all(S.forks.map(f => loadMaps(f).catch(() => null))).then(() => {
@@ -1735,7 +1738,7 @@ function renderPacks() {
     if (c.enabled === false) li.className = 'off';
     const o = objs[i];
     let src = '';
-    if (c.type === 'github') src = `${c.repo} @ ${c.ref === '{db}' ? 'database commit' : (c.ref || 'master')} · ${c.path || ''}`;
+    if (c.type === 'github') { const rf = o ? o.ref() : (c.ref || 'master'); src = `${c.repo} @ ${/^[0-9a-f]{40}$/.test(rf) ? rf.slice(0, 7) : rf} · ${c.path || ''}`; }
     else if (c.type === 'site') src = `this repo · ${c.path}`;
     else if (c.type === 'local') src = `folder · ${c.folder || ''} · ${c.files ? c.files.size : 0} files`;
     li.innerHTML = `<span class="num">${i + 1}</span>

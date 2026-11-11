@@ -173,13 +173,12 @@ write** on this repository only. With it the site can upload a local folder as
 a pack, save the pack order, save the open map into `maps/` and save drawings.
 The token is stored only in your browser.
 
-### Rebuilding the database by hand
+### Rebuilding by hand
 
 ```
 pip install pyyaml
-python3 tools/build_db.py <starlight>/Resources db/sprites.json \
-    --repo ss14Starlight/space-station-14 --commit <sha> \
-    --extra <hardlight>/Resources Vontens/HardLight-new <sha>
+python3 tools/build_db.py <fork>/Resources db/sprites-<server>.json --repo <owner/name> --commit <sha>
+python3 tools/map_index.py <fork>/Resources <server> <owner/name> <sha> db
 ```
 
 ## Licences
