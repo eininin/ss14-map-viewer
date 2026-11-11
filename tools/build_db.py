@@ -26,7 +26,48 @@ class L(yaml.CSafeLoader if hasattr(yaml, "CSafeLoader") else yaml.SafeLoader):
 class Partial(str):
     pass
 
+
+class Variants(dict):
+    """!type:CreateVariants: one prototype written once, expanded into several (values / sequences)"""
+    def pick(self, i):
+        for k in ("values", "sequences"):
+            if isinstance(self.get(k), list) and i < len(self[k]):
+                return self[k][i]
+        return None
+    def count(self):
+        for k in ("values", "sequences"):
+            if isinstance(self.get(k), list):
+                return len(self[k])
+        return 0
+
+
+def expand_variants(doc):
+    """a prototype using CreateVariants becomes one prototype per variant"""
+    n = 0
+    def find(o):
+        nonlocal n
+        if isinstance(o, Variants):
+            n = max(n, o.count())
+        elif isinstance(o, dict):
+            for v in o.values(): find(v)
+        elif isinstance(o, list):
+            for v in o: find(v)
+    find(doc)
+    if not n:
+        return [doc]
+    def sub(o, i):
+        if isinstance(o, Variants):
+            return sub(o.pick(i), i)
+        if isinstance(o, dict):
+            return {k: sub(v, i) for k, v in o.items()}
+        if isinstance(o, list):
+            return [sub(v, i) for v in o]
+        return o
+    return [sub(doc, i) for i in range(n)]
+
 def _unknown(loader, suffix, node):
+    if suffix == "type:CreateVariants" and isinstance(node, yaml.MappingNode):
+        return Variants(loader.construct_mapping(node, deep=True))
     if suffix == "PartialOnly" and isinstance(node, yaml.ScalarNode):
         return Partial(loader.construct_scalar(node))
     if isinstance(node, yaml.MappingNode):
@@ -70,8 +111,9 @@ def load_all(root):
                 rel = os.path.relpath(p, root).replace(os.sep, "/")
                 for x in d:
                     if isinstance(x, dict):
-                        x["__file"] = rel
-                        docs.append(x)
+                        for v in expand_variants(x):
+                            v["__file"] = rel
+                            docs.append(v)
     return docs
 
 def vec(v):
@@ -135,8 +177,20 @@ PIPE_DIRS = {"North": 1, "South": 2, "West": 4, "East": 8}
 PIPE_NAMED = {"Longitudinal": 3, "Lateral": 12, "NWBend": 5, "NEBend": 9, "SWBend": 6, "SEBend": 10,
               "TNorth": 13, "TSouth": 14, "TWest": 7, "TEast": 11, "Fourway": 15, "All": 15}
 PIPE_LAYERS = {"primary": 0, "secondary": 1, "tertiary": 2, "quaternary": 3, "quinary": 4}
-DEFAULT_CONNECTORS = [[f"_Carpmosia/Structures/Piping/Atmospherics/{n}.rsi", "pipeConnector"]
-                      for n in ("pipe", "pipe_alt1", "pipe_alt2", "pipe_alt3", "pipe_alt4")]
+# PipeAppearanceComponent's default connector sprites (one per pipe layer). Read from the
+# fork's C# when available (see connector_defaults), upstream list otherwise.
+DEFAULT_CONNECTORS = [[f"Structures/Piping/Atmospherics/{n}.rsi", "pipeConnector"] for n in ("pipe", "pipe_alt1", "pipe_alt2")]
+
+
+def connector_defaults(res):
+    """parse Content.Shared/Atmos/Components/PipeAppearanceComponent.cs next to Resources/"""
+    cs = os.path.join(os.path.dirname(os.path.abspath(res)), "Content.Shared", "Atmos", "Components",
+                      "PipeAppearanceComponent.cs")
+    if not os.path.exists(cs):
+        return None
+    txt = open(cs, encoding="utf-8", errors="replace").read()
+    found = re.findall(r'new\(new\("([^"]+\.rsi)"\),\s*"([^"]+)"\)', txt)
+    return [[a, b] for a, b in found] or None
 
 
 def pipe_mask(s):
@@ -255,6 +309,10 @@ def categorize(pid, d, comps, e):
 
 
 def build(res):
+    global DEFAULT_CONNECTORS
+    cd = connector_defaults(res)
+    if cd:
+        DEFAULT_CONNECTORS = cd
     docs = load_all(os.path.join(res, "Prototypes"))
     ents, tiles, decals = {}, {}, {}
     talias = {str(d["id"]): str(d["target"]) for d in docs

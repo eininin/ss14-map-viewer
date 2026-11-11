@@ -1,17 +1,15 @@
-name: Update sprite database
+name: Update databases
 
-# Rebuilds db/sprites.json, the map lists and the "only what the base lacks"
-# packs from the forks listed in sources.json.
+# For every server in sources.json: the sprite database, the map list (with official ship and
+# station data) and the item index. For servers with a "pack" entry (Aurora Song, hosted on
+# Codeberg), the sprites that differ from its bases are stored in this repo, and with a
+# "mirror" entry its maps are copied here too, because browsers may not be allowed to read
+# them from Codeberg directly.
 
 on:
   schedule:
     - cron: "17 3 * * 1"   # every Monday
   workflow_dispatch:
-    inputs:
-      packs:
-        description: "Also rebuild the packs (packs/hardlight …)"
-        type: boolean
-        default: true
   push:
     paths:
       - "tools/**"
@@ -28,6 +26,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
 
@@ -37,73 +36,80 @@ jobs:
 
       - run: pip install pyyaml
 
-      - name: Decide what to rebuild
-        id: what
-        run: |
-          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ inputs.packs }}" = "true" ]; then
-            echo "packs=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "packs=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Fetch the forks
-        env:
-          PACKS: ${{ steps.what.outputs.packs }}
+      - name: Fetch every server
         run: |
           set -e
           mkdir -p /tmp/src
           python3 -c '
           import json
           for s in json.load(open("sources.json"))["sources"]:
-              print(s["id"], s["repo"], s.get("branch", "master"))
+              host = {"github": "https://github.com", "codeberg": "https://codeberg.org"}[s.get("host", "github")]
+              print(s["id"], host + "/" + s["repo"], s.get("branch", "master"))
           ' > /tmp/src/list.txt
-          while read id repo branch; do
+          cat /tmp/src/list.txt
+          while read id url branch; do
             d="/tmp/src/$id"
-            git clone -q --filter=blob:none --no-checkout --depth 1 --branch "$branch" "https://github.com/$repo" "$d"
-            if [ "$PACKS" = "true" ]; then
-              git -C "$d" sparse-checkout set --no-cone '/Resources/Prototypes/' '/Resources/migration.yml' '/Resources/Textures/'
-            else
-              git -C "$d" sparse-checkout set --no-cone '/Resources/Prototypes/' '/Resources/migration.yml'
+            # blobless clone: trees only, files are fetched for the paths checked out
+            if ! git clone -q --filter=blob:none --no-checkout --depth 1 --branch "$branch" "$url" "$d"; then
+              rm -rf "$d"
+              git clone -q --no-checkout --depth 1 --branch "$branch" "$url" "$d"
             fi
+            git -C "$d" sparse-checkout set --no-cone '/Resources/Prototypes/' '/Resources/Maps/' '/Resources/migration.yml' \
+              '/Content.Shared/Atmos/Components/PipeAppearanceComponent.cs'
             git -C "$d" checkout -q
-            git -C "$d" ls-tree -r --name-only HEAD Resources/Maps > "$d.maps.txt"
             git -C "$d" rev-parse HEAD > "$d.commit"
+            echo "$id: $(git -C "$d" rev-parse --short HEAD), $(find "$d/Resources/Maps" -name '*.yml' | wc -l) maps"
           done < /tmp/src/list.txt
 
-      - name: Build database and map lists
+      - name: Build databases, map lists and item indexes
         run: |
           set -e
           python3 - <<'EOF'
           import json, subprocess
           srcs = json.load(open("sources.json"))["sources"]
-          commit = lambda s: open(f"/tmp/src/{s['id']}.commit").read().strip()
-          main = srcs[0]
-          cmd = ["python3", "tools/build_db.py", f"/tmp/src/{main['id']}/Resources", "db/sprites.json",
-                 "--repo", main["repo"], "--commit", commit(main)]
-          for s in srcs[1:]:
-              cmd += ["--extra", f"/tmp/src/{s['id']}/Resources", s["repo"], commit(s)]
-          subprocess.run(cmd, check=True)
+          commits = {}
           for s in srcs:
-              maps = sorted(l.strip().replace("Resources/", "", 1)
-                            for l in open(f"/tmp/src/{s['id']}.maps.txt") if l.strip().endswith(".yml"))
-              with open(f"db/maps-{s['id']}.json", "w") as fh:
-                  json.dump({"repo": s["repo"], "commit": commit(s), "maps": maps}, fh, indent=0)
+              c = open(f"/tmp/src/{s['id']}.commit").read().strip()
+              commits[s["id"]] = c
+              res = f"/tmp/src/{s['id']}/Resources"
+              subprocess.run(["python3", "tools/build_db.py", res, f"db/sprites-{s['id']}.json", "--repo", s["repo"], "--commit", c], check=True)
+              subprocess.run(["python3", "tools/map_index.py", res, s["id"], s["repo"], c, "db"], check=True)
+          json.dump({"commits": commits}, open("db/commits.json", "w"), indent=1)
           EOF
 
-      - name: Rebuild packs
-        if: steps.what.outputs.packs == 'true'
+      - name: Sprite packs stored in this repo (servers outside GitHub)
         run: |
           set -e
           python3 - <<'EOF'
-          import json, shutil, subprocess, os
+          import json, os, subprocess
           for s in json.load(open("sources.json"))["sources"]:
-              if not s.get("pack"):
+              pk = s.get("pack")
+              if not pk:
                   continue
-              out = s["pack"]
-              shutil.rmtree(out, ignore_errors=True)
-              bases = [f"/tmp/src/{b}/Resources/Textures" for b in s.get("packBase", [])]
-              subprocess.run(["python3", "tools/packtool.py", "diff", f"/tmp/src/{s['id']}/Resources/Textures", out,
-                              "--base", *bases], check=True)
+              fork = f"/tmp/src/{s['id']}"
+              bases = [f"/tmp/src/{b}" for b in pk.get("base", [])]
+              # decide from git hashes which files differ, then fetch only those
+              paths = subprocess.run(["python3", "tools/packtool.py", "gitdiff", fork, pk["path"], "--base", *bases, "--list"],
+                                     check=True, capture_output=True, text=True).stdout.split()
+              cur = subprocess.run(["git", "-C", fork, "sparse-checkout", "list"], capture_output=True, text=True).stdout.split()
+              subprocess.run(["git", "-C", fork, "sparse-checkout", "set", "--no-cone", "--stdin"], input="\n".join(cur + paths), text=True, check=True)
+              subprocess.run(["git", "-C", fork, "checkout", "-q"], check=True)
+              subprocess.run(["python3", "tools/packtool.py", "gitdiff", fork, pk["path"], "--base", *bases], check=True)
+          EOF
+
+      - name: Map mirrors (servers outside GitHub)
+        run: |
+          set -e
+          python3 - <<'EOF'
+          import json, os, shutil
+          for s in json.load(open("sources.json"))["sources"]:
+              if not s.get("mirror"):
+                  continue
+              src = f"/tmp/src/{s['id']}/Resources/Maps"
+              dst = os.path.join(s["mirror"], "Resources", "Maps")
+              shutil.rmtree(s["mirror"], ignore_errors=True)
+              shutil.copytree(src, dst, ignore=shutil.ignore_patterns("*.md", "*.txt"))
+              print(s["id"], "maps mirrored to", dst)
           EOF
 
       - name: Index packs and maps
@@ -119,9 +125,9 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
-          git add -A db packs maps
+          git add -A db packs maps mirror
           if git diff --cached --quiet; then echo "nothing changed"; exit 0; fi
-          git commit -q -m "Update sprite database"
+          git commit -q -m "Update databases"
           # someone may have pushed while this ran: rebase onto it and retry
           for i in 1 2 3 4 5; do
             git pull -q --rebase -X theirs origin main && git push && exit 0

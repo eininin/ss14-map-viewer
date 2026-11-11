@@ -14,8 +14,9 @@
   <div class="brand"><span class="mark"></span>SS14 MAP VIEWER</div>
   <div class="mapname" id="mapName">No map loaded</div>
   <div class="topbtns">
+    <button id="btnServer" class="btn server" title="Server: whose prototypes and sprites draw the map"><span class="dot"></span><span class="sv">Server</span></button>
     <button id="btnOpenFile" class="btn primary" title="Open a .yml map file (or drop it on the page)">Open .yml</button>
-    <button id="btnBrowse" class="btn" title="Browse maps from Starlight, Hardlight and this repo">Browse maps</button>
+    <button id="btnBrowse" class="btn" title="Browse every server's maps">Browse maps</button>
     <input type="file" id="fileInput" accept=".yml,.yaml" hidden>
   </div>
 </header>
@@ -170,6 +171,6 @@
 </div>
 <div id="toast" class="toast" hidden></div>
 
-<script type="module" src="js/app.js?v=12"></script>
+<script type="module" src="js/app.js?v=13"></script>
 </body>
 </html>

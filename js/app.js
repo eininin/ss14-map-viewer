@@ -5,6 +5,7 @@ import { GitHub } from './github.js';
 import { openImageViewer } from './imageviewer.js';
 import { Parallax } from './parallax.js';
 import { exportSelection } from './exportsel.js';
+import { browse, pickServer } from './browse.js';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
@@ -20,6 +21,7 @@ const S = {
   config: { repo: '', branch: 'main', db: 'db/sprites.json' },
   db: null,
   packCfgs: [],          // ordered configs (local packs keep their file maps here)
+  forks: [], commits: {}, fork: null,
   defaultPacks: [],
   store: new SpriteStore(),
   renderer: null,
@@ -97,33 +99,118 @@ async function boot() {
   try { Object.assign(S.config, await (await fetch('config.json', { cache: 'no-cache' })).json()); } catch (e) { /* defaults */ }
   if (!S.config.repo) S.config.repo = guessRepo();
   gh = new GitHub(S.config.repo, S.config.branch);
-  try { S.defaultPacks = (await (await fetch('packs.json', { cache: 'no-cache' })).json()).packs || []; } catch (e) { S.defaultPacks = []; }
-  S.defaultPacks.forEach((p, i) => { p.id = p.id || ('p' + i); });
-  const saved = LS.get('packs', null);
-  S.packCfgs = (saved && saved.length ? saved : S.defaultPacks).map(p => ({ enabled: true, ...p }));
-
-  progress(0.05, 'Loading sprite database…');
-  try {
-    S.db = await (await fetch(S.config.db)).json();
-  } catch (e) {
-    toast('Could not load the sprite database (' + S.config.db + ')', true);
-    S.db = { ent: {}, tile: {}, decal: {} };
-  }
-  progress(null);
-  applyPacks(false);
+  try { S.extraPacks = (await (await fetch('packs.json', { cache: 'no-cache' })).json()).extra || []; } catch (e) { S.extraPacks = []; }
+  try { S.forks = (await (await fetch('sources.json', { cache: 'no-cache' })).json()).sources || []; } catch (e) { S.forks = []; }
+  try { S.commits = (await (await fetch('db/commits.json', { cache: 'no-cache' })).json()).commits || {}; } catch (e) { S.commits = {}; }
   setupUI();
   resize();
-  renderRepoInfo();
   const q = new URLSearchParams(location.search);
-  if (q.get('map')) { await loadMapLists(); openFromParam(q.get('map'), q); }
+  const want = q.get('map') && q.get('map').split(':')[0];
+  await useFork(S.forks.some(f => f.id === want) ? want : LS.get('fork', 'starlight'));
+  renderRepoInfo();
+  if (q.get('map')) openFromParam(q.get('map'), q);
 }
 
-function packCtx() { return { siteRepo: S.config.repo, siteBranch: S.config.branch, dbCommit: S.db && S.db.commit }; }
+// ---------------------------------------------------------------- servers (forks)
+// Each server has its own prototype database and its own sprite set.
+const forkById = (id) => S.forks.find(f => f.id === id) || S.forks[0];
+const ghPack = (f, extra) => ({ id: f.id, name: f.name, type: 'github', repo: f.repo, ref: '{commit:' + f.id + '}', path: 'Resources/Textures', ...extra });
+function ownPacks(f) {
+  if (f.pack) {   // stored in this repo: only the files that differ from its bases, which come after it
+    return [{ id: f.id, name: f.name + ' (its own files)', type: 'site', path: f.pack.path },
+      ...(f.pack.base || []).map(b => ghPack(forkById(b), { id: f.id + '-base-' + b, name: forkById(b).name + ' (' + f.name + ' base)' }))];
+  }
+  return [ghPack(f)];
+}
+function defaultStack(id) {
+  const f = forkById(id);
+  const own = ownPacks(f);
+  const ids = new Set(own.map(p => p.id));
+  // other servers' sprites follow, switched off: turn them on as a fallback if you want
+  const others = S.forks.filter(x => x.id !== f.id && x.host === 'github').map(x => ghPack(x, { enabled: false })).filter(p => !ids.has(p.id));
+  return [...S.extraPacks.map(p => ({ enabled: true, ...p })), ...own.map(p => ({ enabled: true, ...p })), ...others];
+}
+async function loadDb(f) {
+  S.dbCache = S.dbCache || {};
+  if (!S.dbCache[f.id]) {
+    S.dbCache[f.id] = (async () => {
+      const r = await fetch(`db/sprites-${f.id}.json`);
+      if (!r.ok) throw new Error(`no sprite database for ${f.name} yet`);
+      return r.json();
+    })();
+    S.dbCache[f.id].catch(() => { delete S.dbCache[f.id]; });
+  }
+  return S.dbCache[f.id];
+}
+async function useFork(id) {
+  const f = forkById(id);
+  if (!f) return;
+  progress(0.05, `Loading ${f.name}'s sprite database…`);
+  try {
+    S.db = await loadDb(f);
+  } catch (e) {
+    toast(e.message, true);
+    S.db = { ent: {}, tile: {}, decal: {}, sets: [] };
+  }
+  progress(null);
+  S.fork = f.id;
+  LS.set('fork', f.id);
+  const saved = LS.get('packs.' + f.id, null);
+  S.packCfgs = (saved && saved.length ? saved : defaultStack(f.id)).map(p => ({ enabled: true, ...p }));
+  applyPacks(false);
+  renderServer();
+  renderRepoInfo();
+}
+function renderServer() {
+  const f = forkById(S.fork);
+  const b = $('#btnServer');
+  if (!b || !f) return;
+  b.style.setProperty('--fc', f.color || '#f2b84b');
+  b.querySelector('.sv').textContent = f.name;
+}
+// switch the server for the open map: same file, other server's prototypes and sprites
+function chooseServerForCurrent() {
+  pickServer({ forks: S.forks, current: S.fork, title: 'Server', counts: mapCounts(),
+    hint: S.model ? "Draw the open map with another server's prototypes and sprites." : "Which server's prototypes and sprites to use.",
+    onPick: async (f) => {
+      closeBrowse();
+      await useFork(f.id);
+      if (S.model) resolveAndRender(true);
+    } });
+}
+function closeBrowse() { const m = document.querySelector('.bmodal'); if (m) m.hidden = true; }
+async function loadMaps(f) {
+  S.mapLists = S.mapLists || {};
+  if (!S.mapLists[f.id]) {
+    const r = await fetch(`db/maps-${f.id}.json`, { cache: 'no-cache' });
+    if (!r.ok) throw new Error('not built yet');
+    S.mapLists[f.id] = await r.json();
+  }
+  return S.mapLists[f.id];
+}
+async function loadItems(f) {
+  S.itemLists = S.itemLists || {};
+  if (!S.itemLists[f.id]) S.itemLists[f.id] = (await fetch(`db/items-${f.id}.json`)).json();
+  return S.itemLists[f.id];
+}
+function mapCounts() {
+  const c = {};
+  for (const [k, v] of Object.entries(S.mapLists || {})) c[k] = v.maps.length;
+  return c;
+}
+function mapUrl(f, path) {
+  const commit = (S.mapLists && S.mapLists[f.id] && S.mapLists[f.id].commit) || S.commits[f.id] || f.branch || 'master';
+  if (f.mirror) return `${f.mirror}/Resources/${path}`;
+  if (f.host === 'codeberg') return `https://codeberg.org/${f.repo}/raw/commit/${commit}/Resources/${path}`;
+  return `https://raw.githubusercontent.com/${f.repo}/${commit}/Resources/${path}`;
+}
+
+function packCtx() { return { siteRepo: S.config.repo, siteBranch: S.config.branch, dbCommit: S.db && S.db.commit, commits: S.commits }; }
 function applyPacks(reload = true) {
   const packs = S.packCfgs.map(c => new Pack(c, packCtx()));
   S.store.setPacks(packs);
   S.packObjs = packs;
-  LS.set('packs', S.packCfgs.filter(c => c.type !== 'local').map(({ files, ...c }) => c));
+  if (S.fork) LS.set('packs.' + S.fork, S.packCfgs.filter(c => c.type !== 'local').map(({ files, ...c }) => c));
   renderPacks();
   if (S.bgMode === 'space' && parallax.ready) parallax.init(S.store).then(draw);
   if (reload && S.model) resolveAndRender(true);
@@ -267,8 +354,14 @@ async function backgroundFill(token) {
 
 async function openFile(file) {
   const text = await file.text();
-  openText(text, { kind: 'file', name: file.name, label: 'local file', key: 'file:' + file.name });
-  history.replaceState(null, '', location.pathname);
+  pickServer({ forks: S.forks, current: S.fork, title: 'Which server is ' + file.name + ' from?', counts: mapCounts(),
+    hint: 'Its prototypes and sprites are used to draw the map.',
+    onPick: async (f) => {
+      closeBrowse();
+      await useFork(f.id);
+      openText(text, { kind: 'file', name: file.name, label: 'local file', key: 'file:' + file.name });
+      history.replaceState(null, '', location.pathname);
+    } });
 }
 
 async function fetchText(url) {
@@ -281,11 +374,13 @@ async function openFromParam(v, q) {
   try {
     let url, name = baseName(v), src;
     const src0 = v.split(':')[0];
-    const list = S.mapLists && S.mapLists.find(l => l.id === src0);
-    if (list) {
+    const f = S.forks.find(x => x.id === src0);
+    if (f) {
       const p = v.slice(src0.length + 1);
-      url = `https://raw.githubusercontent.com/${list.repo}/${list.commit || 'master'}/Resources/${p}`;
-      src = { kind: 'fork', name, label: list.repo + ' · ' + p, key: v, param: v };
+      if (S.fork !== f.id) await useFork(f.id);
+      try { await loadMaps(f); } catch (e) { /* use pinned commit */ }
+      url = mapUrl(f, p);
+      src = { kind: 'fork', name, label: f.name + ' · ' + p, key: v, param: v };
     } else if (v.startsWith('repo:')) {
       const p = v.slice(5);
       url = p;
@@ -303,7 +398,8 @@ async function openFromParam(v, q) {
     }
   } catch (e) {
     progress(null);
-    toast('Could not open map: ' + e.message, true);
+    const f = S.forks.find(x => x.id === v.split(':')[0]);
+    toast('Could not open map: ' + e.message + (f && f.host === 'codeberg' ? ' (Codeberg may block this; download the file from Codeberg and open it)' : ''), true);
   }
 }
 let urlTimer = 0;
@@ -318,56 +414,20 @@ function syncUrl() {
   }, 300);
 }
 
-async function browseMaps() {
-  openModal('Browse maps', '<p class="hint">Loading lists…</p>');
-  const groups = [];
-  try {
-    const repoList = await (await fetch('maps/index.json', { cache: 'no-cache' })).json();
-    if (repoList.maps && repoList.maps.length) groups.push({ title: 'This repo', items: repoList.maps.map(p => ({ p: 'repo:maps/' + p, name: baseName(p), path: 'maps/' + p })) });
-  } catch (e) { /* none */ }
-  for (const l of await loadMapLists()) {
-    const by = new Map();
-    for (const p of l.maps) {
-      const parts = p.split('/');
-      const grp = parts.slice(1, -1).join('/') || 'Maps';
-      if (!by.has(grp)) by.set(grp, []);
-      by.get(grp).push({ p: l.id + ':' + p, name: baseName(p).replace(/\.yml$/, ''), path: p });
-    }
-    const order = [...by.keys()].sort((a, b) => (b.includes('Stations') - a.includes('Stations')) || a.localeCompare(b));
-    for (const k of order) groups.push({ title: l.name + ' · ' + k, items: by.get(k) });
-  }
-  let html = '<input id="mapSearch" class="search" placeholder="Search maps…" style="width:100%;margin-bottom:6px">';
-  html += groups.map(g => `<div class="group"><h3>${esc(g.title)}</h3><div class="maplist">${g.items.map(i =>
-    `<button data-p="${esc(i.p)}" data-s="${esc((g.title + ' ' + i.path).toLowerCase())}"><div class="mn">${esc(i.name)}</div><div class="mp">${esc(i.path)}</div></button>`).join('')}</div></div>`).join('');
-  if (!groups.length) html = '<p class="hint">No map lists found.</p>';
-  $('#modalBody').innerHTML = html;
-  $$('#modalBody .maplist button').forEach(b => b.onclick = () => { closeModal(); openFromParam(b.dataset.p); });
-  const ms = $('#mapSearch');
-  if (ms) {
-    ms.focus();
-    ms.oninput = () => {
-      const q = ms.value.toLowerCase();
-      $$('#modalBody .group').forEach(g => {
-        let any = false;
-        g.querySelectorAll('button').forEach(b => { const ok = !q || b.dataset.s.includes(q); b.hidden = !ok; any = any || ok; });
-        g.hidden = !any;
-      });
-    };
-  }
-}
-async function loadMapLists() {
-  if (S.mapLists) return S.mapLists;
-  const out = [];
-  let sources = [];
-  try { sources = (await (await fetch('sources.json', { cache: 'no-cache' })).json()).sources || []; } catch (e) { /* none */ }
-  await Promise.all(sources.map(async (src, i) => {
-    try {
-      const j = await (await fetch(`db/maps-${src.id}.json`, { cache: 'no-cache' })).json();
-      out[i] = { id: src.id, name: src.name || src.id, repo: j.repo || src.repo, commit: j.commit, maps: j.maps || [] };
-    } catch (e) { /* none */ }
-  }));
-  S.mapLists = out.filter(Boolean);
-  return S.mapLists;
+async function browseMaps(startFork) {
+  browse({
+    forks: S.forks, current: S.fork, startFork,
+    loadMaps, loadItems, loadDb, mapCounts,
+    listState: S.browseState || (S.browseState = {}),
+    onOpen: (f, r) => openFromParam(f.id + ':' + r.p),
+  });
+  // fill in map counts on the server tiles in the background
+  Promise.all(S.forks.map(f => loadMaps(f).catch(() => null))).then(() => {
+    document.querySelectorAll('.bmodal .tile.server').forEach((b, i) => {
+      const f = S.forks[i], n = mapCounts()[f.id];
+      if (n != null && !b.querySelector('.tc')) b.insertAdjacentHTML('beforeend', `<span class="tc">${n.toLocaleString('en-US')} maps</span>`);
+    });
+  });
 }
 function openModal(title, html) { $('#modalTitle').textContent = title; $('#modalBody').innerHTML = html; $('#modal').hidden = false; }
 function closeModal() { $('#modal').hidden = true; }
@@ -1880,7 +1940,8 @@ function renderRepoInfo() {
   $('#repoInfo').innerHTML = repo ? `
     <span class="k">repo</span><span class="v"><a href="https://github.com/${esc(repo)}" target="_blank" rel="noopener">${esc(repo)}</a></span>
     <span class="k">branch</span><span class="v">${esc(S.config.branch)}</span>
-    <span class="k">database</span><span class="v">${esc(S.db.repo || '')} @ ${esc((S.db.commit || '').slice(0, 10))}<br>built ${esc(S.db.built || '?')}</span>
+    <span class="k">server</span><span class="v">${esc((forkById(S.fork) || {}).name || '')}</span>
+    <span class="k">database</span><span class="v">${esc(S.db ? S.db.repo || '' : '')} @ ${esc(S.db ? (S.db.commit || '').slice(0, 10) : '')}<br>built ${esc(S.db ? S.db.built || '?' : '?')}</span>
     <span class="k">update</span><span class="v"><a href="https://github.com/${esc(repo)}/actions/workflows/update-db.yml" target="_blank" rel="noopener">rebuild database ↗</a></span>`
     : '<span class="k">repo</span><span class="v">not configured (set "repo" in config.json)</span>';
   $('#ghToken').value = gh && gh.token ? '••••••••' : '';
@@ -2022,7 +2083,8 @@ function setupUI() {
   $('#stage').dataset.tool = S.tool;
   $('#btnOpenFile').onclick = () => $('#fileInput').click();
   $('#fileInput').onchange = (e) => { const f = e.target.files[0]; if (f) openFile(f); e.target.value = ''; };
-  $('#btnBrowse').onclick = browseMaps;
+  $('#btnBrowse').onclick = () => browseMaps();
+  $('#btnServer').onclick = chooseServerForCurrent;
   $('#btnDownloadYml').onclick = downloadYml;
   $('#modalClose').onclick = closeModal;
   $('#modal').onclick = (e) => { if (e.target.id === 'modal') closeModal(); };
@@ -2070,7 +2132,7 @@ function setupUI() {
     toast(`Added ${cfg.name} (${cfg.files.size} files)`);
     applyPacks();
   };
-  $('#btnPacksReset').onclick = () => { S.packCfgs = S.defaultPacks.map(p => ({ enabled: true, ...p })); applyPacks(); };
+  $('#btnPacksReset').onclick = () => { S.packCfgs = defaultStack(S.fork).map(p => ({ enabled: true, ...p })); applyPacks(); };
   $('#btnPacksSave').onclick = savePackOrder;
 
   renderToggles();

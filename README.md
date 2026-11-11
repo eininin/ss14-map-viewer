@@ -8,10 +8,27 @@ cables, doors and everything placed on it.
 
 ## What it does
 
-- **Open maps** from your computer (button or drag and drop), from Starlight's
-  own map list (*Browse maps*), or from the `maps/` folder of this repo.
-  Links keep the map and view: `?map=starlight:Maps/_Starlight/Stations/Manor.yml&x=0&y=0&z=1`
-  (or `hardlight:Maps/...`).
+- **Five servers**: Space Wizards, Starlight, Frontier, Hardlight and Aurora
+  Song. Each has its own full prototype database and its own sprite set; the
+  server badge in the top bar shows which one draws the map, and switches it.
+- **Browse maps**: pick a server, then a category (stations, shuttles,
+  dungeons, dev, misc, or all), then a list you can
+  - search by name or path, and by **items they contain** (several items =
+    maps with all of them; the list then shows how many of each)
+  - sort by name, official order (shipyard › size › price), floor area,
+    bounding box, width, height, entities, entities per tile, file size,
+    price, ship size class, station players (max / min), grids, folder, or
+    count of the searched item
+  - group by shipyard, class (role), size class, engine, folder or category
+  - filter by shipyard, class, size and engine
+  
+  The official data comes from the servers' own shipyard `vessel` prototypes
+  (price, size class Micro/Small/Medium/Large, shipyard group, classes such as
+  Salvage, Medical, Expedition, engines) and `gameMap` prototypes (player
+  counts).
+- **Open a .yml from your computer** (button or drag and drop): you are asked
+  which server it is from.
+  Links keep the map and view: `?map=frontier:Maps/_NF/Shuttles/vagabond.yml&x=0&y=0&z=1`.
 - **Sprite packs, in order.** Every sprite is looked up in the packs from top to
   bottom; the first pack that has it wins. Whatever no pack has is drawn with the
   dev texture (#FF00DC / black checker). The *Map* tab lists everything that fell
@@ -113,17 +130,20 @@ Keys: drag to pan · scroll / double-click to zoom · `WASD` / arrows to move ·
 | Path | What |
 | --- | --- |
 | `index.html`, `css/`, `js/` | the site (plain HTML/JS, no build step) |
-| `db/sprites.json` | sprite database: prototype id → sprite, layers, draw depth, smoothing, tiles, decals, renames. Starlight first, then what only Hardlight has |
-| `db/maps-<fork>.json` | each fork's map list for *Browse maps* |
-| `packs.json` | default pack order shown to new visitors |
-| `packs/hardlight/` | every Hardlight sprite that Starlight doesn't have (lobby art and parallax backgrounds left out) |
-| `packs/<name>/` | packs stored in this repo, laid out like `Resources/Textures` (`Structures/Walls/solid.rsi/…`) with an `index.json` |
+| `sources.json` | the five servers: repo, host, branch, colour; Aurora's pack and map mirror |
+| `db/sprites-<server>.json` | sprite database per server: prototype id → sprite, layers, draw depth, smoothing, group, pipes, renames |
+| `db/maps-<server>.json` | every map of a server: name, category, size, tiles, entities, official ship / station data |
+| `db/items-<server>.json` | which maps contain which prototypes (item search) |
+| `db/commits.json` | the commit each server's data was built from (sprites are read at that commit) |
+| `packs.json` | extra packs placed above every server's own sprites (`packs/custom`) |
+| `packs/aurora/` | Aurora Song's sprites that differ from Space Wizards / Frontier (Codeberg can't be read by browsers) |
+| `mirror/aurora/` | copy of Aurora Song's maps, for the same reason |
 | `maps/` | maps saved into the repo (`maps/index.json` lists them) |
 | `annotations/` | drawings saved into the repo, one file per map |
-| `sources.json` | forks the database is built from; the first wins, later ones only add prototypes it lacks |
-| `tools/build_db.py` | builds the database from a fork's `Resources/Prototypes` |
+| `tools/build_db.py` | builds a server's database from its `Resources/Prototypes` |
+| `tools/map_index.py` | builds a server's map list and item index from its `Resources/Maps` |
 | `tools/packtool.py` | builds "fork minus base" packs and pack indexes |
-| `.github/workflows/update-db.yml` | rebuilds the database every Monday, on demand, or when tools/packs change |
+| `.github/workflows/update-db.yml` | rebuilds everything every Monday, on demand (Actions tab), or when tools / sources change |
 
 ### Pack types
 

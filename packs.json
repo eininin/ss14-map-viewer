@@ -1,8 +1,5 @@
 {
-  "packs": [
-    { "id": "custom", "name": "Custom (this repo)", "type": "site", "path": "packs/custom" },
-    { "id": "starlight", "name": "Starlight", "type": "github", "repo": "ss14Starlight/space-station-14", "ref": "{db}", "path": "Resources/Textures" },
-    { "id": "hardlight", "name": "Hardlight (only what Starlight lacks)", "type": "site", "path": "packs/hardlight" },
-    { "id": "wizden", "name": "Space Wizards (upstream)", "type": "github", "repo": "space-wizards/space-station-14", "ref": "master", "path": "Resources/Textures", "enabled": false }
+  "extra": [
+    { "id": "custom", "name": "Custom (this repo)", "type": "site", "path": "packs/custom" }
   ]
 }

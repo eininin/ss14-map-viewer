@@ -63,7 +63,10 @@ export class Pack {
   get type() { return this.cfg.type; }
   ref() {
     const r = this.cfg.ref || 'master';
-    return r === '{db}' ? (this.ctx.dbCommit || 'master') : r;
+    if (r === '{db}') return this.ctx.dbCommit || this.cfg.branch || 'master';
+    const m = /^\{commit:([\w-]+)\}$/.exec(r);      // pinned to the commit a fork's database was built from
+    if (m) return (this.ctx.commits && this.ctx.commits[m[1]]) || this.cfg.branch || 'master';
+    return r;
   }
   root() { return (this.cfg.path || '').replace(/^\/+|\/+$/g, ''); }
   url(rel) {
@@ -118,7 +121,8 @@ export class Pack {
       if (idx) {
         const lr = rel.toLowerCase();
         const i = lr.indexOf('.rsi/');
-        if (i >= 0 ? !idx.rsis.has(lr.slice(0, i + 4)) : !idx.files.has(lr)) return null;
+        const ok = idx.files.has(lr) || (i >= 0 && idx.rsis.has(lr.slice(0, i + 4)));
+        if (!ok) return null;
       }
     }
     if (this.type === 'local') {

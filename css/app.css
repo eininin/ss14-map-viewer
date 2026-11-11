@@ -242,3 +242,68 @@ label.dimmed { opacity: .45; }
 .zrow .zc { font: 11px var(--mono); color: var(--dim); }
 .zrow button { background: none; border: 1px solid var(--line); border-radius: 5px; color: var(--dim); width: 24px; height: 24px; cursor: pointer; padding: 0; flex: none; }
 .zrow button:hover { color: var(--text); border-color: #3a475d; }
+
+/* server badge */
+.btn.server { gap: 7px; }
+.btn.server .dot, .tile .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--fc, var(--acc)); box-shadow: 0 0 8px var(--fc, var(--acc)); flex: none; }
+
+/* browse window */
+.bmodal { position: fixed; inset: 0; background: #000b; display: grid; place-items: center; z-index: 55; }
+.bbox { width: min(1180px, 96vw); height: min(860px, 92vh); background: var(--panel); border: 1px solid var(--line); border-radius: 12px; display: flex; flex-direction: column; }
+.bhead { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--line); gap: 10px; }
+.bcrumbs { display: flex; align-items: center; gap: 6px; font-size: 15px; min-width: 0; flex-wrap: wrap; }
+.bcrumbs .csep { color: var(--dim); }
+.crumb { background: none; border: 0; color: var(--acc2); cursor: pointer; font-size: 15px; padding: 2px 4px; border-radius: 5px; }
+.crumb:hover { background: var(--panel2); }
+.crumb.cur { color: var(--text); font-weight: 600; cursor: default; }
+.bbody { flex: 1; overflow: hidden; display: flex; flex-direction: column; padding: 12px 14px; min-height: 0; }
+.tiles { display: grid; gap: 12px; align-content: start; overflow-y: auto; }
+.tiles.servers { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+.tiles.cats { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+.tile { position: relative; text-align: left; background: var(--panel2); border: 1px solid var(--line); border-radius: 12px; padding: 16px 16px 14px; cursor: pointer; color: var(--text); display: flex; flex-direction: column; gap: 4px; min-height: 120px; overflow: hidden; }
+.tile::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 3px; background: var(--fc, var(--acc)); opacity: .85; }
+.tile:hover:not(:disabled) { border-color: var(--fc, var(--acc)); transform: translateY(-1px); }
+.tile:disabled { opacity: .35; cursor: default; }
+.tile.cur { box-shadow: inset 0 0 0 1px var(--fc, var(--acc)); }
+.tile .tn { font-size: 17px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.tile.server .dot { position: absolute; right: 14px; top: 16px; }
+.tile .ts { font: 11.5px var(--mono); color: var(--dim); word-break: break-all; }
+.tile .tc { margin-top: auto; font: 600 22px var(--mono); color: var(--fc, var(--acc)); }
+.tile.cat .tc { font-size: 26px; }
+.bctl { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+.bctl > .search { flex: 1 1 220px; margin: 0 !important; }
+.bctl label { display: flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--dim); }
+.bctl select { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 5px 6px; color: var(--text); font-size: 12.5px; max-width: 200px; }
+.itemsearch { position: relative; flex: 1 1 260px; display: flex; gap: 5px; align-items: center; flex-wrap: wrap; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 2px 4px; }
+.itemsearch .search { border: 0 !important; flex: 1; min-width: 120px; margin: 0 !important; padding: 4px !important; }
+.chips { display: contents; }
+.chip { font: 11.5px var(--mono); background: #2a2210; border: 1px solid var(--acc); color: var(--acc); border-radius: 12px; padding: 1px 4px 1px 8px; display: inline-flex; gap: 4px; align-items: center; }
+.chip b { cursor: pointer; padding: 0 4px; }
+.sugg { position: absolute; left: 0; right: 0; top: 100%; margin-top: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; max-height: 320px; overflow-y: auto; z-index: 5; box-shadow: 0 10px 30px #000a; }
+.sugg button { display: flex; gap: 10px; width: 100%; background: none; border: 0; border-bottom: 1px solid #1a2130; padding: 6px 9px; text-align: left; cursor: pointer; color: var(--text); align-items: baseline; }
+.sugg button.on, .sugg button:hover { background: var(--panel2); }
+.sugg .si { font: 12px var(--mono); }
+.sugg .sn { font-size: 12px; color: var(--dim); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sugg .sc { font: 11px var(--mono); color: var(--dim); }
+.bcount { font: 12px var(--mono); color: var(--dim); margin-bottom: 6px; }
+.blist { flex: 1; overflow-y: auto; min-height: 0; padding-right: 4px; }
+.bgrp { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); margin: 14px 0 6px; display: flex; gap: 8px; align-items: center; }
+.brows { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 8px; }
+.brow { text-align: left; background: var(--panel2); border: 1px solid var(--line); border-radius: 9px; padding: 9px 11px; cursor: pointer; color: var(--text); display: flex; flex-direction: column; gap: 4px; }
+.brow:hover { border-color: var(--acc); }
+.brow .bn { display: flex; gap: 8px; align-items: baseline; }
+.brow .nm { font-weight: 600; font-size: 14px; flex: 1; }
+.brow .pr { font: 12px var(--mono); color: var(--acc); }
+.brow .ic { font: 600 12px var(--mono); color: var(--acc2); }
+.brow .bp { font: 11px var(--mono); color: var(--dim); word-break: break-all; }
+.bbs { display: flex; flex-wrap: wrap; gap: 4px; }
+.bb { font-size: 11px; border-radius: 10px; padding: 0 7px; border: 1px solid var(--line); color: var(--text); background: var(--bg); }
+.bb.size { border-color: #4fc3d977; color: #4fc3d9; }
+.bb.grp { border-color: #f2b84b77; color: #f2b84b; }
+.bb.cls { border-color: #7bd88f77; color: #7bd88f; }
+.bb.eng { border-color: #c792ea77; color: #c792ea; }
+.bb.ply { border-color: #ff9f4377; color: #ff9f43; }
+.bst { display: flex; flex-wrap: wrap; gap: 4px 12px; font: 11px var(--mono); color: var(--dim); }
+.sugg button.none { opacity: .5; }
+.bbox.compact { height: auto; max-height: 92vh; }
+.bbox.compact .bbody { padding-bottom: 18px; }

@@ -1,7 +1,53 @@
 {
   "sources": [
-    { "id": "starlight", "name": "Starlight", "repo": "ss14Starlight/space-station-14", "branch": "starlight-dev" },
-    { "id": "hardlight", "name": "Hardlight", "repo": "Vontens/HardLight-new", "branch": "master",
-      "pack": "packs/hardlight", "packBase": ["starlight"] }
+    {
+      "id": "wizden",
+      "name": "Space Wizards",
+      "short": "Wizden",
+      "host": "github",
+      "repo": "space-wizards/space-station-14",
+      "branch": "master",
+      "color": "#5c8aff"
+    },
+    {
+      "id": "starlight",
+      "name": "Starlight",
+      "host": "github",
+      "repo": "ss14Starlight/space-station-14",
+      "branch": "starlight-dev",
+      "color": "#f2b84b"
+    },
+    {
+      "id": "frontier",
+      "name": "Frontier",
+      "host": "github",
+      "repo": "new-frontiers-14/frontier-station-14",
+      "branch": "master",
+      "color": "#7bd88f"
+    },
+    {
+      "id": "hardlight",
+      "name": "Hardlight",
+      "host": "github",
+      "repo": "Vontens/HardLight-new",
+      "branch": "master",
+      "color": "#ff5c8a"
+    },
+    {
+      "id": "aurora",
+      "name": "Aurora Song",
+      "host": "codeberg",
+      "repo": "Aurora-Song/Aurora-Song-14",
+      "branch": "master",
+      "color": "#c792ea",
+      "pack": {
+        "path": "packs/aurora",
+        "base": [
+          "wizden",
+          "frontier"
+        ]
+      },
+      "mirror": "mirror/aurora"
+    }
   ]
 }
