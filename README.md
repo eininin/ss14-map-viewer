@@ -26,6 +26,11 @@ cables, doors and everything placed on it.
   click a row to highlight those objects. **Show only these kinds, map-wide**
   hides everything except objects, floor tiles and decals of the kinds found in
   the selection, anywhere on the map.
+- **Export selection as .yml** (*Area* tab): a new map file with only the
+  selected tiles: the map and grid entities, every entity on a selected tile
+  (plus anything inside it), floor tiles, decals and tile atmospheres. With
+  "only shown layers" on, hidden layers are left out. Coordinates stay as in
+  the original map; custom `!type:` tags are kept.
 - **Zones** (*Area* tab): turn the selection into a named, coloured zone,
   drawn tinted on the map with its name in the top-left corner. A new zone
   touching a zone of the same name joins it and takes its colour. Rename,
@@ -66,6 +71,11 @@ cables, doors and everything placed on it.
   click a row to highlight those objects. **Show only these kinds, map-wide**
   hides everything except objects, floor tiles and decals of the kinds found in
   the selection, anywhere on the map.
+- **Export selection as .yml** (*Area* tab): a new map file with only the
+  selected tiles: the map and grid entities, every entity on a selected tile
+  (plus anything inside it), floor tiles, decals and tile atmospheres. With
+  "only shown layers" on, hidden layers are left out. Coordinates stay as in
+  the original map; custom `!type:` tags are kept.
 - **Zones** (*Area* tab): turn the selection into a named, coloured zone,
   drawn tinted on the map with its name in the top-left corner. A new zone
   touching a zone of the same name joins it and takes its colour. Rename,

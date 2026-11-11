@@ -4,6 +4,7 @@ import { Annotations } from './annot.js';
 import { GitHub } from './github.js';
 import { openImageViewer } from './imageviewer.js';
 import { Parallax } from './parallax.js';
+import { exportSelection } from './exportsel.js';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
@@ -1124,6 +1125,27 @@ function applyArea(a, b, mode) {
   showTab('area');
   drawOverlay();
 }
+async function exportSelectionYml() {
+  if (!S.area || !S.area.tiles.size || !S.mapSource) return;
+  const r = S.renderer, shownOnly = S.exportShownOnly !== false;
+  try {
+    progress(0.3, 'Cutting out the selection…');
+    const res = await exportSelection({
+      text: S.mapSource.text, gridUid: S.area.grid, tiles: S.area.tiles,
+      keepEntity: shownOnly ? (uid) => { const it = r.byUid.get(uid); return !it || r.visible(it); } : null,
+      keepTiles: !shownOnly || r.opts.tiles,
+      keepDecals: !shownOnly || r.opts.decals,
+    });
+    progress(null);
+    const base = String(S.mapSource.name || 'map').replace(/\.ya?ml$/i, '');
+    download(new Blob([res.text], { type: 'text/yaml' }), safeName(base) + '-selection.yml');
+    toast(`Exported ${res.entities} entities, ${res.tiles} floor tiles, ${res.decals} decals`);
+  } catch (e) {
+    progress(null);
+    toast('Export failed: ' + e.message, true);
+  }
+}
+
 function clearArea() {
   S.area = null;
   renderArea();
@@ -1506,6 +1528,13 @@ function renderArea() {
     row.querySelector('input').onchange = (e) => setOnly(e.target.checked ? 'area' : null);
     row.querySelector('[data-a=clear]').onclick = clearArea;
     pane.appendChild(row);
+    const ex = document.createElement('div');
+    ex.className = 'row gap wrap';
+    ex.innerHTML = `<button class="btn small primary" data-a="yml" title="A new map file with only what is in the selection">Export selection as .yml</button>
+      <label class="tglbtn" title="Leave out layers hidden in the View tab"><input type="checkbox" ${S.exportShownOnly !== false ? 'checked' : ''}> only shown layers</label>`;
+    ex.querySelector('input').onchange = (e) => { S.exportShownOnly = e.target.checked; };
+    ex.querySelector('[data-a=yml]').onclick = exportSelectionYml;
+    pane.appendChild(ex);
   } else if (S.onlyMode === 'area' && S.onlyKinds) {
     // filter stays on after the selection is cleared
     const row = document.createElement('div');
