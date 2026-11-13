@@ -6,8 +6,8 @@ name: Replay tools
 #   export -> saves every grid (or one) as a map .yml at an exact time
 # Results are uploaded as a workflow artifact.
 #
-# Start it from the Actions tab (Run workflow), or push a change to replay-tools/job.env on a
-# branch (workflow_dispatch only shows up once this file is on the default branch).
+# Manual only (Actions tab -> Run workflow, once this file is on the default branch). It used to run
+# on every push to the replay-tools branch, which sent a GitHub email for each failed run.
 
 on:
   workflow_dispatch:
@@ -35,12 +35,6 @@ on:
       content_commit:
         description: "Override the content commit (if the replay's buildForkVersion is not a commit hash)"
         default: ""
-  push:
-    paths:
-      - "replay-tools/**"
-      - ".github/workflows/replay-tools.yml"
-    branches-ignore:
-      - main
 
 jobs:
   run:
