@@ -7,7 +7,7 @@ import { Parallax } from './parallax.js';
 import { exportSelection } from './exportsel.js';
 import { browse, pickServer } from './browse.js';
 import { viewPolygons, eyePolygon, seenTiles, tileX, tileY, grow, tileKey } from './fov.js?v=60';
-import { openGuesser } from './guess.js?v=64';
+import { openGuesser } from './guess.js?v=69';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));

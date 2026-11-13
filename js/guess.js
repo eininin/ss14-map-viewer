@@ -42,7 +42,8 @@ export function openGuesser(ctx) {
   const opt = { rot: 'none', walls: true, mode: 'photo', ...load() };
   opt.minutes = 3;
   opt.sizes = { maints: 7, photo: 5, items: 3, training: (opt.sizes && opt.sizes.training) || 5 };
-  opt.rot = '90';                             // always random quarter turns
+  opt.rot = '90';
+  opt.walls = true;                             // always random quarter turns
   const { renderer: R, scene, grid, CHUNK, PX } = ctx;
   const gr = R.grids && R.grids.get(grid);
   if (!gr) return 'This map has no station grid to play on';
@@ -59,6 +60,7 @@ export function openGuesser(ctx) {
   for (const it of scene.items) {
     if (it.kind !== 'ent' || it.grid !== grid || !it.info) continue;
     const k = tileKey(it.tx, it.ty);
+    if (/railing/i.test(it.proto)) continue;   // railings are not on the outline
     if (/directional|windoor/i.test(it.proto) && !it.info.oc) {
       if (!thin.has(k)) thin.set(k, []);
       const c = Math.cos(it.rot), sn = Math.sin(it.rot);
@@ -225,7 +227,6 @@ export function openGuesser(ctx) {
     <div class="gbar">
       <b>Station Guesser</b><span class="gmap"></span><span class="gmode"></span>
       <span class="gtimer"></span>
-      <label class="tglbtn gwallsw" title="Walls, windows and airlocks on the station outline"><input type="checkbox" class="gwalls" ${opt.walls ? 'checked' : ''}> walls</label>
       <label class="gtrain">View <input type="number" class="gsize" min="1" max="61" step="1"> tiles</label>
       <span class="gscore"></span>
       <button class="btn small gskip">Skip</button>
@@ -238,8 +239,8 @@ export function openGuesser(ctx) {
         <div class="gmodes"></div>
         <div class="gopts">
           <label class="tglbtn" title="Today's game: the same for everyone, once a day per mode"><input type="checkbox" class="gdaily" ${opt.daily ? 'checked' : ''}> Daily</label>
-          <label>Seed <input class="gseed" placeholder="empty = random" maxlength="40" value="${esc0(opt.seed || '')}"></label>
-          <button class="btn small grandseed" title="Fill in a random seed">Random seed</button>
+          <label class="tglbtn" title="A new seed is rolled when the game starts; untick to type your own"><input type="checkbox" class="grandom" ${opt.randomSeed !== false ? 'checked' : ''}> Random seed</label>
+          <label>Seed <input class="gseed" placeholder="your seed" maxlength="40" value="${esc0(opt.seed || '')}"></label>
         </div>
         <p class="gwarn"></p>
         <p class="hint">${ROUNDS} rounds · 3 min each · click where you think it is</p>
@@ -249,8 +250,7 @@ export function openGuesser(ctx) {
     <div class="gbody">
       <div class="gside"><canvas class="gview"></canvas><div class="gnote"></div>
         <div class="ghints">
-          <button class="ghintbtn ghint" title="One more tile all around (H)"><b>⤢ Bigger view</b><small>−25% points</small></button>
-          <button class="ghintbtn gfoghint" title="Lift the shadows (F)"><b>👁 No shadows</b><small>−25% points</small></button>
+          <button class="ghintbtn ghint" title="One more tile all around (H)"><b>⤢ Bigger view</b><small>−50% points</small></button>
         </div></div>
       <div class="gside"><div class="goutwrap"><canvas class="gout"></canvas></div>
         <div class="gresult"></div><div class="gouthint"><button class="btn small gfit" title="Scroll to zoom, drag to move; this fits the whole station">Fit</button></div></div>
@@ -311,10 +311,12 @@ export function openGuesser(ctx) {
   }
   function startMode(id) {
     opt.daily = $('.gdaily').checked && !!ctx.dailyOk;
-    opt.seed = $('.gseed').value.trim(); save(opt);
+    opt.seed = $('.gseed').value.trim();
+    opt.randomSeed = $('.grandom').checked; save(opt);
     const day = londonDay();
     const daily = opt.daily && id !== 'training';     // random training is endless: no daily, no record
-    const seed = daily ? 'DAILY' : (opt.seed || randomSeed());
+    const own = !opt.randomSeed && opt.seed;          // a typed seed only when Random seed is off
+    const seed = daily ? 'DAILY' : (own || randomSeed());
     const key = `${seed}|${day}|${ctx.mapName || ''}|${grid}|${id}`;
     const played = loadPlayed();
     if (id !== 'training' && played[key]) {   // a seed is played once
@@ -328,7 +330,7 @@ export function openGuesser(ctx) {
     if (id !== 'training') { played[key] = { pts: null, at: Date.now() }; savePlayed(played); playKey = key; } else playKey = '';
     $('.gwarn').textContent = '';
     mode = id; opt.mode = id;
-    seedTyped = daily || !!opt.seed;
+    seedTyped = daily || !!own;
     seedUsed = seed;
     seedDay = day;
     rng = mulberry32(hashStr(`${seedUsed}|${seedDay}|${ctx.mapName || ''}|${grid}|${id}`));
@@ -348,7 +350,7 @@ export function openGuesser(ctx) {
   function sizeAll() {
     const body = $('.gbody').getBoundingClientRect();
     if (!body.width) return;
-    const side = Math.max(200, Math.min(body.width / 2 - 24, body.height - 40));
+    const side = Math.max(200, Math.min(body.width / 2 - 24, body.height - 120));   // room for the hint buttons below
     cv.style.width = cv.style.height = side + 'px';
     cv.width = cv.height = Math.round(side * dpr);
     const os0 = os;
@@ -469,8 +471,7 @@ export function openGuesser(ctx) {
   function drawView() {
     if (!spot || !cv.width) return;
     renderSpot(cv, spot, size, angle, fogOn);
-    note.textContent = `${size}×${size}`
-      + (fogOn ? '' : ' · no shadows');
+    note.textContent = `${size}×${size}`;
   }
   // the view from a spot: map, stars where there is space, shadows where it can't see
   function renderSpot(cv, spot, n, angle, fog) {
@@ -537,7 +538,7 @@ export function openGuesser(ctx) {
     if (!timed()) return START;
     const t = (now - t0) / 1000 - GRACE, T = Math.max(30, opt.minutes * 60);
     const u = Math.min(1, Math.max(0, t / T));
-    return START * (1 - u) * (1 - u) * Math.pow(0.75, hints);   // drains fast at first, slower near the end
+    return START * (1 - u) * (1 - u) * Math.pow(0.5, hints);   // drains fast at first, slower near the end
   }
   function tick() {
     if (!mode || done) return;
@@ -594,7 +595,6 @@ export function openGuesser(ctx) {
     remember(spot);
     angle = opt.rot === '90' ? Math.floor(rng() * 4) * Math.PI / 2 : 0;
     guess = null; done = false; hints = 0; fogOn = true;
-    $('.gfoghint').disabled = false;
     size = opt.sizes[mode] || 3;
     res.textContent = '';
     $('.ghint').disabled = false;
@@ -606,7 +606,7 @@ export function openGuesser(ctx) {
   function finish(g) {
     if (done) return;
     done = true; guess = g; cancelAnimationFrame(raf);
-    $('.ghint').disabled = true; $('.gfoghint').disabled = true;
+    $('.ghint').disabled = true;
     rounds++;
     const last = rounds >= ROUNDS && mode !== 'training';
     const nextBtn = `<button class="btn primary gnext">${last ? 'Results' : 'Next'} →</button>`;
@@ -656,7 +656,7 @@ export function openGuesser(ctx) {
       list.appendChild(card);
     });
     box.querySelector('.gagain').onclick = () => {   // the same seed can't be played again: a fresh random one
-      $('.gdaily').checked = false; $('.gseed').value = '';
+      $('.gdaily').checked = false; $('.grandom').checked = true; syncSeed();
       startMode(mode);
     };
     box.querySelector('.gcopy').onclick = (e) => copyEnd(e.target);
@@ -740,26 +740,26 @@ export function openGuesser(ctx) {
     if (timed()) hints++;
     drawView();
   };
-  $('.gfoghint').onclick = () => {
-    if (done || !fogOn) return;
-    fogOn = false;
-    if (timed()) hints++;
-    $('.gfoghint').disabled = true;
-    drawView();
-  };
+
   $('.gskip').onclick = () => { if (!done && spot && mode) finish('skip'); };
   $('.gmenu').onclick = showStart;
   $('.gsize').onchange = (e) => { opt.sizes.training = Math.max(1, Math.min(61, Math.round(+e.target.value) || 5)); e.target.value = opt.sizes.training; save(opt); if (mode === 'training') { size = opt.sizes.training; drawView(); } };
 
 
 
-  $('.gwalls').onchange = (e) => { opt.walls = e.target.checked; save(opt); drawOutline(); };
 
-  $('.grandseed').onclick = () => { $('.gdaily').checked = false; $('.gseed').disabled = false; $('.gseed').value = randomSeed(); };
-  const syncDaily = () => { $('.gseed').disabled = $('.gdaily').checked; $('.gwarn').textContent = ''; showStart(); };
-  $('.gdaily').onchange = syncDaily;
+  // the seed box is for typing your own: off while Daily or Random seed is on
+  const syncSeed = () => {
+    const daily = $('.gdaily').checked;
+    $('.grandom').disabled = daily;
+    $('.gseed').disabled = daily || $('.grandom').checked;
+    $('.gseed').placeholder = daily ? "today's daily" : $('.grandom').checked ? 'rolled at start' : 'your seed';
+    $('.gwarn').textContent = '';
+  };
+  $('.gdaily').onchange = () => { syncSeed(); showStart(); };
+  $('.grandom').onchange = () => { syncSeed(); if (!$('.grandom').checked) $('.gseed').focus(); };
   if (!ctx.dailyOk) { $('.gdaily').checked = false; $('.gdaily').closest('label').hidden = true; }   // no daily on this map
-  $('.gseed').disabled = !!opt.daily && !!ctx.dailyOk;
+  syncSeed();
   const close = () => {
     cancelAnimationFrame(raf);
     el.remove(); if (ctx.onClose) ctx.onClose();
@@ -770,7 +770,6 @@ export function openGuesser(ctx) {
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
     else if ((e.key === 'Enter' || e.key === ' ') && done && mode && !el.classList.contains('ended')) { e.preventDefault(); e.stopPropagation(); res.querySelector('.gnext') && res.querySelector('.gnext').click(); }
     else if (e.key.toLowerCase() === 'h' && mode && !done) { e.stopPropagation(); $('.ghint').click(); }
-    else if (e.key.toLowerCase() === 'f' && mode && !done) { e.stopPropagation(); $('.gfoghint').click(); }
     else e.stopPropagation();                 // keep the map's shortcuts out of the game
   };
   $('.gclose').onclick = close;

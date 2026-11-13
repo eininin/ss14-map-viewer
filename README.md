@@ -86,18 +86,19 @@ cables, doors and everything placed on it.
   next to a picture of the station zoomed onto the guess and the real spot
   (black-edged dots joined by a red-to-green line). Photo starts at a
   3×3 view; every round starts at 5000 points; after 3 seconds the points drain (fast at first)
-  over the timer (3 minutes by default). Two hints, each costing 25% of the
-  points left: *bigger view* (H) shows one more tile all around, *no field of
-  view* (F) lifts the shadows; both are big buttons under the view. The view
-  is always turned by a random quarter turn. Setting: a *seed*: the seed, today's date in London (changes at London
-  midnight), the map and the mode pick the spots and turns, so the same seed
-  is the same game for everyone that day (empty = a random seed, shown on the
-  end screen; *Random seed* fills one in). *Daily* plays today's game: the
+  over the timer (3 minutes by default). One hint, a big button under the
+  view: *bigger view* (H) shows one more tile all around and costs 50% of the
+  points left. The view
+  is always turned by a random quarter turn. Setting: the *seed*: with *Random seed* on (the default) a seed is rolled
+  when the game starts; untick it to type your own. The seed, today's date in
+  London (changes at London midnight), the map and the mode pick the spots and
+  turns, so the same seed is the same game for everyone that day. *Daily* plays today's game: the
   same for everyone, once per mode per day; once done, its % and the date sit
   on top of that mode's card. Every seed played is kept in the
   browser and can't be played again (the end screen offers a *New game* with a
   fresh seed); each mode card shows a sample view. Score = points left × closeness.
-  On the outline doors are a shade between walls and floor, thin glass panes
+  On the outline (walls always shown, railings left out) doors are a shade
+  between walls and floor, thin glass panes
   and windoors are quarter-tile strips on their edge and pane corners small
   corner squares (panes seal only their edge for the room detection); scroll zooms it,
   drag moves it, a click without dragging is the guess, *Fit* resets it.
