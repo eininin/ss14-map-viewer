@@ -60,7 +60,8 @@ cables, doors and everything placed on it.
 - **Station Guesser** (top bar): a view from a spot of the open map on the
   left, the station's outline on the right; click where you think it is. Pick a
   mode first (Tider's memory starts at 7×7, photo 5×5, item search 3×3;
-  the Random training card always shows a sample out in space):
+  the Random training card always shows a sample out in space; the samples
+  change once a day, London time):
   - *Photo from the station*: in the station proper: everything reached from
     the main hallway through doors that aren't maintenance doors (department
     and public airlocks, firelocks, windoors; doors side by side count as one

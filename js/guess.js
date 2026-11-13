@@ -9,10 +9,10 @@ const LSK = 'ss14mv.guess';
 const load = () => { try { return JSON.parse(localStorage.getItem(LSK)) || {}; } catch (e) { return {}; } };
 const save = (o) => { try { localStorage.setItem(LSK, JSON.stringify(o)); } catch (e) { /* ignore */ } };
 const MODES = {
-  maints: { name: "Tider's memory", desc: 'Somewhere in maintenance. A bigger view, since maints all look alike.' },
-  photo: { name: 'Photo from the station', desc: 'A spot in a room or hallway: real floor, not maintenance, not inside a window.' },
-  items: { name: 'Item search', desc: 'Centred on a random thing: an item, machine, locker or crate in the station (not maintenance).' },
-  training: { name: 'Random training', desc: 'Any floor at all, outside the station too. No timer.' },
+  maints: { name: "Tider's memory", desc: 'Maintenance' },
+  photo: { name: 'Photo from the station', desc: 'Rooms and hallways' },
+  items: { name: 'Item search', desc: 'A random object' },
+  training: { name: 'Random training', desc: 'Anywhere · no timer' },
 };
 const esc0 = (t) => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const START = 5000, GRACE = 3, ROUNDS = 12;
@@ -225,8 +225,8 @@ export function openGuesser(ctx) {
     <div class="gbar">
       <b>Station Guesser</b><span class="gmap"></span><span class="gmode"></span>
       <span class="gtimer"></span>
-      <button class="btn small ghint" title="Show one more tile all around (H); costs 25% of the points you have">Bigger view (−25%)</button>
-      <button class="btn small gfoghint" title="Lift the shadows (F); costs 25% of the points you have">No field of view (−25%)</button>
+      <button class="btn small ghint" title="Bigger view: one more tile all around (H). Costs 25% of your points.">⤢ Bigger −25%</button>
+      <button class="btn small gfoghint" title="No field of view: lift the shadows (F). Costs 25% of your points.">◐ No shadows −25%</button>
       <label class="tglbtn gwallsw" title="Walls, windows and airlocks on the station outline"><input type="checkbox" class="gwalls" ${opt.walls ? 'checked' : ''}> walls</label>
       <label class="gtrain">View <input type="number" class="gsize" min="1" max="61" step="1"> tiles</label>
       <span class="gscore"></span>
@@ -245,15 +245,13 @@ export function openGuesser(ctx) {
         <label>Rotation <select class="sel grot"><option value="none">north up</option><option value="90">random quarter turns</option></select></label>
       </div>
       <p class="gwarn"></p>
-      <p class="hint">${ROUNDS} rounds. Points start at ${START} and, after ${GRACE} seconds, drain over ${3} minutes. Hints cost 25% of the
-        points left: <b>bigger view</b> (H) shows one more tile all around, <b>no field of view</b> (F) lifts the shadows.
-        You get the points left × how close you clicked.</p>
+      <p class="hint">${ROUNDS} rounds · 3 min each · click where you think it is</p>
     </div>
     <div class="gend"></div>
     <div class="gbody">
       <div class="gside"><canvas class="gview"></canvas><div class="gnote"></div></div>
       <div class="gside"><div class="goutwrap"><canvas class="gout"></canvas></div>
-        <div class="gresult"></div><div class="gouthint">Scroll to zoom, drag to move · <button class="btn small gfit">Fit</button></div></div>
+        <div class="gresult"></div><div class="gouthint"><button class="btn small gfit" title="Scroll to zoom, drag to move; this fits the whole station">Fit</button></div></div>
     </div>`;
   document.body.appendChild(el);
   const $ = (s) => el.querySelector(s);
@@ -269,10 +267,10 @@ export function openGuesser(ctx) {
 
   // ---- mode picker
   // a spot out in space close to the hull, for the Random training card
-  function spaceSpot() {
+  function spaceSpot(rnd = Math.random) {
     for (let tries = 0; tries < 400; tries++) {
-      const t = tiles[Math.floor(Math.random() * tiles.length)];
-      const a = Math.random() * Math.PI * 2, r = 2 + Math.random() * 3;
+      const t = tiles[Math.floor(rnd() * tiles.length)];
+      const a = rnd() * Math.PI * 2, r = 2 + rnd() * 3;
       const x = Math.round(t.x + Math.cos(a) * r), y = Math.round(t.y + Math.sin(a) * r);
       const i = idx(x, y);
       if (x < bx0 || y < by0 || x >= bx1 || y >= by1 || !outside[i] || floorName.has(tileKey(x, y))) continue;
@@ -297,13 +295,15 @@ export function openGuesser(ctx) {
       const done = dp ? `<div class="gdaily-done"><b>${dp.pts != null ? (100 * dp.pts / (ROUNDS * START)).toFixed(1) + '%' : '—'}</b>
         <small>daily ${londonDay()}${dp.pts != null ? ' · ' + dp.pts + ' pts' : ' · unfinished'}</small></div>` : '';
       b.innerHTML = `${done}<canvas class="gdemo"></canvas><b>${m.name}</b><span>${m.desc}</span>`
-        + `<em>${n ? n + ' possible spots · starts ' + opt.sizes[id] + '×' + opt.sizes[id] : 'none on this map'}</em>`;
+        + `<em>${n ? opt.sizes[id] + '×' + opt.sizes[id] : 'not on this map'}</em>`;
       b.onclick = () => startMode(id);
       box.appendChild(b);
       if (n) {                                // a sample of what guessing in this mode looks like
         const dc = b.querySelector('canvas');
         dc.width = dc.height = Math.round(200 * dpr);
-        const t = id === 'training' ? spaceSpot() || pools[id][0] : pools[id][Math.floor(Math.random() * n)];
+        // the sample changes once a day (London time), the same for everyone
+        const drnd = mulberry32(hashStr(`sample|${londonDay()}|${ctx.mapName || ''}|${grid}|${id}`));
+        const t = id === 'training' ? spaceSpot(drnd) || pools[id][0] : pools[id][Math.floor(drnd() * n)];
         try { renderSpot(dc, t, opt.sizes[id], 0, true); } catch (e) { /* ignore */ }
       } else b.querySelector('canvas').remove();
     }
@@ -469,8 +469,8 @@ export function openGuesser(ctx) {
   function drawView() {
     if (!spot || !cv.width) return;
     renderSpot(cv, spot, size, angle, fogOn);
-    note.textContent = `${size}×${size} tiles · ` + (opt.rot === 'none' ? 'north is up' : 'the view may be turned')
-      + (fogOn ? '' : ' · no field of view');
+    note.textContent = `${size}×${size}` + (opt.rot === 'none' ? '' : ' · turned')
+      + (fogOn ? '' : ' · no shadows');
   }
   // the view from a spot: map, stars where there is space, shadows where it can't see
   function renderSpot(cv, spot, n, angle, fog) {
@@ -596,7 +596,7 @@ export function openGuesser(ctx) {
     guess = null; done = false; hints = 0; fogOn = true;
     $('.gfoghint').disabled = false;
     size = opt.sizes[mode] || 3;
-    res.textContent = 'Click the station where you think this is.';
+    res.textContent = '';
     $('.ghint').disabled = false;
     t0 = performance.now();
     drawView(); drawOutline();
@@ -609,7 +609,7 @@ export function openGuesser(ctx) {
     $('.ghint').disabled = true; $('.gfoghint').disabled = true;
     rounds++;
     const last = rounds >= ROUNDS && mode !== 'training';
-    const nextBtn = `<button class="btn small primary gnext">${last ? 'See results' : 'Next'}</button>`;
+    const nextBtn = `<button class="btn primary gnext">${last ? 'Results' : 'Next'} →</button>`;
     // keep a small copy of the view for the end screen
     const shot = document.createElement('canvas');
     shot.width = shot.height = 160;
@@ -617,7 +617,7 @@ export function openGuesser(ctx) {
     const rec = { spot, guess: Array.isArray(g) ? g : null, size, hints: (size - (opt.sizes[mode] || 3)) / 2 + (fogOn ? 0 : 1), pts: 0, d: null, shot, why: Array.isArray(g) ? '' : g };
     log.push(rec);
     if (!Array.isArray(g)) {
-      res.innerHTML = `<b>${g === 'timeout' ? "Time's up" : 'Skipped'}</b> · 0 points ${nextBtn}`;
+      res.innerHTML = `<span class="gbig">0</span><span class="gsub">${g === 'timeout' ? "time's up" : 'skipped'}</span> ${nextBtn}`;
       $('.gtimer').textContent = '';
     } else {
       const pts0 = available(performance.now());
@@ -627,8 +627,7 @@ export function openGuesser(ctx) {
       const pts = Math.round(pts0 * close);
       total += pts;
       rec.pts = pts; rec.d = d;
-      res.innerHTML = `${spot.item ? '<span class="hint">' + esc(spot.item) + ' ·</span> ' : ''}<b>${d < 1 ? 'Spot on!' : d.toFixed(1) + ' tiles away'}</b> · ${pts} points
-        <span class="hint">(${Math.round(pts0)} left × ${Math.round(close * 100)}% close)</span> ${nextBtn}`;
+      res.innerHTML = `<span class="gbig">${pts}</span><span class="gsub">${d < 1 ? 'spot on!' : d.toFixed(1) + ' tiles'}${spot.item ? ' · ' + esc(spot.item) : ''}</span> ${nextBtn}`;
     }
     res.querySelector('.gnext').onclick = last ? showEnd : newSpot;
     showScore();

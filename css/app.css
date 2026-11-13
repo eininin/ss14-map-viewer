@@ -409,3 +409,10 @@ label.dimmed { opacity: .45; }
 .gdaily-done { align-self: center; display: flex; flex-direction: column; align-items: center; line-height: 1.1; }
 .gdaily-done b { font-size: 30px; color: #f2b84b; font-weight: 700; }
 .gdaily-done small { font-size: 12px; color: #8b96a7; }
+.gresult { gap: 14px; }
+.gresult .gbig { font-size: 30px; font-weight: 700; color: #f2b84b; font-family: "IBM Plex Mono", monospace; }
+.gresult .gsub { font-size: 14px; color: #aab4c3; }
+.gresult .gnext { font-size: 17px; padding: 10px 26px; border-radius: 10px; }
+.gmodebtn em { font-size: 14px; color: #8b96a7; }
+.gmodebtn span { font-size: 14px; }
+.gnote { font-family: "IBM Plex Mono", monospace; }
