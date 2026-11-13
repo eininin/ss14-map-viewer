@@ -32,6 +32,10 @@ function hashStr(str) {
 function mulberry32(a) {
   return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
 }
+// every seed played is kept (and can't be played again): seed | London day | map | mode -> result
+const PLAYED = 'ss14mv.guessPlayed';
+const loadPlayed = () => { try { return JSON.parse(localStorage.getItem(PLAYED)) || {}; } catch (e) { return {}; } };
+const savePlayed = (p) => { try { localStorage.setItem(PLAYED, JSON.stringify(p)); } catch (e) { /* ignore */ } };
 const randomSeed = () => Array.from({ length: 6 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]).join('');
 
 export function openGuesser(ctx) {
@@ -234,10 +238,12 @@ export function openGuesser(ctx) {
       <p class="hint gmapname"></p>
       <div class="gmodes"></div>
       <div class="gopts">
+        <label class="tglbtn" title="Today's game: the same for everyone, once a day per mode"><input type="checkbox" class="gdaily" ${opt.daily ? 'checked' : ''}> Daily</label>
         <label>Seed <input class="gseed" placeholder="empty = random" maxlength="40" value="${esc0(opt.seed || '')}"></label>
         <button class="btn small grandseed" title="Fill in a random seed">Random seed</button>
         <label>Rotation <select class="sel grot"><option value="none">north up</option><option value="90">random quarter turns</option></select></label>
       </div>
+      <p class="gwarn"></p>
       <p class="hint">${ROUNDS} rounds. Points start at ${START} and, after ${GRACE} seconds, drain over ${3} minutes. Hints cost 25% of the
         points left: <b>bigger view</b> (H) shows one more tile all around, <b>no field of view</b> (F) lifts the shadows.
         You get the points left × how close you clicked.</p>
@@ -258,7 +264,7 @@ export function openGuesser(ctx) {
 
   let mode = null, spot = null, angle = 0, guess = null, rounds = 0, total = 0, log = [];
   let size = 3, hints = 0, t0 = 0, done = false, raf = 0, fogOn = true;
-  let rng = Math.random, seedUsed = '', seedTyped = false, seedDay = '';
+  let rng = Math.random, seedUsed = '', seedTyped = false, seedDay = '', playKey = '';
 
   // ---- mode picker
   // a spot out in space close to the hull, for the Random training card
@@ -285,7 +291,11 @@ export function openGuesser(ctx) {
       const b = document.createElement('button');
       b.className = 'gmodebtn';
       b.disabled = !n;
-      b.innerHTML = `<canvas class="gdemo"></canvas><b>${m.name}</b><span>${m.desc}</span><em>${n ? n + ' possible spots · starts ' + opt.sizes[id] + '×' + opt.sizes[id] : 'none on this map'}</em>`;
+      const dk = `DAILY|${londonDay()}|${ctx.mapName || ''}|${grid}|${id}`, dp = loadPlayed()[dk];
+      const daily = $('.gdaily') && $('.gdaily').checked;
+      b.innerHTML = `<canvas class="gdemo"></canvas><b>${m.name}</b><span>${m.desc}</span>`
+        + (daily && dp ? `<i class="gdone">Today's daily done${dp.pts != null ? ': ' + dp.pts + ' pts' : ''}</i>` : '')
+        + `<em>${n ? n + ' possible spots · starts ' + opt.sizes[id] + '×' + opt.sizes[id] : 'none on this map'}</em>`;
       b.onclick = () => startMode(id);
       box.appendChild(b);
       if (n) {                                // a sample of what guessing in this mode looks like
@@ -297,11 +307,28 @@ export function openGuesser(ctx) {
     }
   }
   function startMode(id) {
-    mode = id; opt.mode = id;
+    opt.daily = $('.gdaily').checked;
     opt.seed = $('.gseed').value.trim(); save(opt);
-    seedTyped = !!opt.seed;
-    seedUsed = opt.seed || randomSeed();
-    seedDay = londonDay();
+    const day = londonDay();
+    const seed = opt.daily ? 'DAILY' : (opt.seed || randomSeed());
+    const key = `${seed}|${day}|${ctx.mapName || ''}|${grid}|${id}`;
+    const played = loadPlayed();
+    if (played[key]) {                        // a seed is played once
+      const p = played[key];
+      $('.gwarn').textContent = `${opt.daily ? "Today's daily" : 'Seed ' + seed} for ${MODES[id].name} is already played`
+        + (p.pts != null ? ` (${p.pts} points, ${(100 * p.pts / (ROUNDS * START)).toFixed(1)}%).` : ' (left unfinished).')
+        + (opt.daily ? ' A new one comes at midnight, London time.' : ' Pick another seed.');
+      if (!el.classList.contains('starting')) showStart();
+      return;
+    }
+    played[key] = { pts: null, at: Date.now() };
+    savePlayed(played);
+    playKey = key;
+    $('.gwarn').textContent = '';
+    mode = id; opt.mode = id;
+    seedTyped = opt.daily || !!opt.seed;
+    seedUsed = seed;
+    seedDay = day;
     rng = mulberry32(hashStr(`${seedUsed}|${seedDay}|${ctx.mapName || ''}|${grid}|${id}`));
     rounds = 0; total = 0; log = []; showScore();
     oz = 1; opx = 0; opy = 0;
@@ -608,13 +635,14 @@ export function openGuesser(ctx) {
   function showEnd() {
     cancelAnimationFrame(raf);
     el.classList.add('ended');
+    if (playKey) { const pl = loadPlayed(); pl[playKey] = { ...(pl[playKey] || {}), pts: total }; savePlayed(pl); }
     const max = ROUNDS * START;
     const box = $('.gend');
     box.innerHTML = `<h2>${MODES[mode].name}</h2>
       <div class="gtotal"><b>${total}</b> / ${max} points · <b>${(100 * total / max).toFixed(1)}%</b></div>
       <div class="gsettings">${esc(settingsText())}</div>
       <div class="grounds"></div>
-      <div class="row gap"><button class="btn primary gagain">Play again</button><button class="btn gcopy">Copy end screen</button><button class="btn gmodes2">Modes</button></div>`;
+      <div class="row gap"><button class="btn primary gagain">New game</button><button class="btn gcopy">Copy end screen</button><button class="btn gmodes2">Modes</button></div>`;
     const list = box.querySelector('.grounds');
     log.forEach((r, i) => {
       const card = document.createElement('div');
@@ -626,7 +654,10 @@ export function openGuesser(ctx) {
       pics.appendChild(miniMap(r, 160));
       list.appendChild(card);
     });
-    box.querySelector('.gagain').onclick = () => startMode(mode);
+    box.querySelector('.gagain').onclick = () => {   // the same seed can't be played again: a fresh random one
+      $('.gdaily').checked = false; $('.gseed').value = '';
+      startMode(mode);
+    };
     box.querySelector('.gcopy').onclick = (e) => copyEnd(e.target);
     box.querySelector('.gmodes2').onclick = showStart;
   }
@@ -635,7 +666,7 @@ export function openGuesser(ctx) {
   const esc = (t) => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   function settingsText() {
     const hintsUsed = log.reduce((a, r) => a + (r.hints || 0), 0);
-    return [ctx.mapName, `seed ${seedUsed} (${seedDay})`, `start ${opt.sizes[mode]}×${opt.sizes[mode]}`, mode === 'training' ? 'no timer' : `timer ${opt.minutes} min`,
+    return [ctx.mapName, seedUsed === 'DAILY' ? `daily ${seedDay}` : `seed ${seedUsed} (${seedDay})`, `start ${opt.sizes[mode]}×${opt.sizes[mode]}`, mode === 'training' ? 'no timer' : `timer ${opt.minutes} min`,
       `rotation ${opt.rot === 'none' ? 'north up' : 'quarter turns'}`, `${hintsUsed} hint${hintsUsed === 1 ? '' : 's'} used`].filter(Boolean).join(' · ');
   }
   // the end screen as one picture, copied to the clipboard (or downloaded if that is not allowed)
@@ -724,7 +755,10 @@ export function openGuesser(ctx) {
   $('.gwalls').onchange = (e) => { opt.walls = e.target.checked; save(opt); drawOutline(); };
 
   $('.grot').onchange = (e) => { opt.rot = e.target.value; save(opt); };
-  $('.grandseed').onclick = () => { $('.gseed').value = randomSeed(); };
+  $('.grandseed').onclick = () => { $('.gdaily').checked = false; $('.gseed').disabled = false; $('.gseed').value = randomSeed(); };
+  const syncDaily = () => { $('.gseed').disabled = $('.gdaily').checked; $('.gwarn').textContent = ''; showStart(); };
+  $('.gdaily').onchange = syncDaily;
+  $('.gseed').disabled = !!opt.daily;
   const close = () => {
     cancelAnimationFrame(raf);
     el.remove(); if (ctx.onClose) ctx.onClose();

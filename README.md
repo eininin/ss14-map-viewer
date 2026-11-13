@@ -89,7 +89,10 @@ cables, doors and everything placed on it.
   turns) and a *seed*: the seed, today's date in London (changes at London
   midnight), the map and the mode pick the spots and turns, so the same seed
   is the same game for everyone that day (empty = a random seed, shown on the
-  end screen; *Random seed* fills one in); each mode card shows a sample view. Score = points left × closeness.
+  end screen; *Random seed* fills one in). *Daily* plays today's game: the
+  same for everyone, once per mode per day. Every seed played is kept in the
+  browser and can't be played again (the end screen offers a *New game* with a
+  fresh seed); each mode card shows a sample view. Score = points left × closeness.
   On the outline doors are a shade between walls and floor, thin glass panes
   and windoors are quarter-tile strips on their edge and pane corners small
   corner squares (panes seal only their edge for the room detection); scroll zooms it,
