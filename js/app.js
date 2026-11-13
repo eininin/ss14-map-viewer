@@ -1,5 +1,5 @@
 import { Pack, SpriteStore, localPackFromFiles, texRel, DEV } from './packs.js';
-import { buildScene, SceneRenderer, PX, CHUNK, LAYER_KEYS, DEFAULT_OPTS } from './scene.js?v=31';
+import { buildScene, SceneRenderer, PX, CHUNK, LAYER_KEYS, DEFAULT_OPTS } from './scene.js?v=50';
 import { Annotations } from './annot.js';
 import { GitHub } from './github.js';
 import { openImageViewer } from './imageviewer.js';
@@ -7,7 +7,7 @@ import { Parallax } from './parallax.js';
 import { exportSelection } from './exportsel.js';
 import { browse, pickServer } from './browse.js';
 import { viewPolygons, eyePolygon, seenTiles, tileX, tileY, grow, tileKey } from './fov.js?v=31';
-import { openGuesser } from './guess.js?v=46';
+import { openGuesser } from './guess.js?v=50';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));

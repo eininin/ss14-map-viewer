@@ -9,18 +9,20 @@ const LSK = 'ss14mv.guess';
 const load = () => { try { return JSON.parse(localStorage.getItem(LSK)) || {}; } catch (e) { return {}; } };
 const save = (o) => { try { localStorage.setItem(LSK, JSON.stringify(o)); } catch (e) { /* ignore */ } };
 const MODES = {
+  maints: { name: "Tider's memory", desc: 'Somewhere in maintenance. A bigger view, since maints all look alike.' },
   photo: { name: 'Photo from the station', desc: 'A spot in a room or hallway: real floor, not maintenance, not inside a window.' },
-  maints: { name: "Tider's memory", desc: 'Somewhere in maintenance. Starts at 5×5, since maints all look alike.' },
-  items: { name: 'Item search', desc: 'Centred on a random item lying around the station.' },
+  items: { name: 'Item search', desc: 'Centred on a random thing: an item, machine, locker or crate somewhere on the station.' },
   training: { name: 'Random training', desc: 'Any floor at all, outside the station too. No timer.' },
 };
-const START = 5000, GRACE = 3, ROUNDS = 12;                 // points at the start; seconds before they start to drop
+const START = 5000, GRACE = 3, ROUNDS = 12;
+// what counts for item search: things lying or standing around, not walls, floors, decals or pipes
+const ITEM_CATS = new Set(['items', 'machines', 'computers', 'fabrication', 'vending', 'storage']);                 // points at the start; seconds before they start to drop
 let starImg = null;
 
 export function openGuesser(ctx) {
   const opt = { rot: 'none', walls: true, mode: 'photo', ...load() };
   opt.minutes = 3;
-  opt.sizes = { photo: 3, maints: 5, items: 3, training: (opt.sizes && opt.sizes.training) || 5 };
+  opt.sizes = { maints: 7, photo: 5, items: 3, training: (opt.sizes && opt.sizes.training) || 5 };
   if (opt.rot !== 'none') opt.rot = '90';
   const { renderer: R, scene, grid, CHUNK, PX } = ctx;
   const gr = R.grids && R.grids.get(grid);
@@ -185,7 +187,8 @@ export function openGuesser(ctx) {
   {
     const seenTile = new Set();
     for (const it of scene.items) {
-      if (it.kind !== 'ent' || it.grid !== grid || it.cat !== 'items' || it.unknown || it.hiddenSprite) continue;
+      if (it.kind !== 'ent' || it.grid !== grid || !ITEM_CATS.has(it.cat) || it.unknown || it.hiddenSprite || it.marker || it.sub) continue;
+      if (!it.layers || !it.layers.some(l => l.res && !l.res.dev && !l.hidden && !l.runtimeHidden)) continue;   // something you can see
       const k = tileKey(it.tx, it.ty);
       if (seenTile.has(k) || !floorName.has(k) || opaque.has(k)) continue;
       const i = idx(it.tx, it.ty);
@@ -240,8 +243,21 @@ export function openGuesser(ctx) {
   let size = 3, hints = 0, t0 = 0, done = false, raf = 0, fogOn = true;
 
   // ---- mode picker
+  // a spot out in space close to the hull, for the Random training card
+  function spaceSpot() {
+    for (let tries = 0; tries < 400; tries++) {
+      const t = tiles[Math.floor(Math.random() * tiles.length)];
+      const a = Math.random() * Math.PI * 2, r = 2 + Math.random() * 3;
+      const x = Math.round(t.x + Math.cos(a) * r), y = Math.round(t.y + Math.sin(a) * r);
+      const i = idx(x, y);
+      if (x < bx0 || y < by0 || x >= bx1 || y >= by1 || !outside[i] || floorName.has(tileKey(x, y))) continue;
+      return { x, y };
+    }
+    return null;
+  }
   function showStart() {
     mode = null; cancelAnimationFrame(raf);
+    if (starImg && !starImg.complete) starImg.addEventListener('load', () => { if (!mode) showStart(); }, { once: true });
     el.classList.remove('ended');
     el.classList.add('starting');
     const box = $('.gmodes');
@@ -257,7 +273,7 @@ export function openGuesser(ctx) {
       if (n) {                                // a sample of what guessing in this mode looks like
         const dc = b.querySelector('canvas');
         dc.width = dc.height = Math.round(200 * dpr);
-        const t = pools[id][Math.floor(Math.random() * n)];
+        const t = id === 'training' ? spaceSpot() || pools[id][0] : pools[id][Math.floor(Math.random() * n)];
         try { renderSpot(dc, t, opt.sizes[id], 0, true); } catch (e) { /* ignore */ }
       } else b.querySelector('canvas').remove();
     }

@@ -59,7 +59,8 @@ cables, doors and everything placed on it.
   browser, and starts once the map has loaded.
 - **Station Guesser** (top bar): a view from a spot of the open map on the
   left, the station's outline on the right; click where you think it is. Pick a
-  mode first:
+  mode first (Tider's memory starts at 7×7, photo 5×5, item search 3×3;
+  the Random training card always shows a sample out in space):
   - *Photo from the station*: in the station proper: everything reached from
     the main hallway through doors that aren't maintenance doors (department
     and public airlocks, firelocks, windoors; doors side by side count as one
@@ -68,7 +69,9 @@ cables, doors and everything placed on it.
   - *Tider's memory*: plating in maintenance tunnels (narrow parts) and small
     closed-off maint rooms; an area is picked first, then a tile, so big areas
     don't come up all the time. Starts at 5×5.
-  - *Item search*: centred on a random item lying around the station; 3×3.
+  - *Item search*: centred on a random thing inside the station: an item,
+    machine, computer, fabricator, vending machine, locker or crate (not
+    walls, floors, decals or pipes); 3×3.
   - *Random training*: any floor, outside too; free view size, no timer.
 
   "Inside" is everything not reachable from the map's edge without passing a
@@ -96,7 +99,7 @@ cables, doors and everything placed on it.
   on the outline, random quarter-turn rotation. Esc closes it.
 - **Rotate the view** (*View* tab, or Q / R): quarter turns, random, north up.
   As in the game, directional sprites show the frame for that viewing
-  direction and stay upright.
+  direction and stay upright; items on the floor look the same as north up.
 - **Field of view** (*Area* tab): select a room or department and press
   **See from selection**. Straight sight lines are traced from every corner
   along the outline of the area past the edges of everything that blocks

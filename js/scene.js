@@ -571,6 +571,8 @@ export class SceneRenderer {
       dir = vr ? dirFor(FRAME_ANGLE[l.fixedDir] + vr, 4) : l.fixedDir;
     } else if (res.dirs >= 4) {
       dir = dirFor(it.rot + vr, res.dirs);
+    } else if (it.cat === 'items') {
+      rot = it.rot - vr;                      // things lying on the floor look the same however the view is turned
     } else if (!it.noRot && !(it.info && it.info.snap)) {
       rot = it.rot;                           // snap-to-cardinal sprites stay upright, as in the engine
     }
