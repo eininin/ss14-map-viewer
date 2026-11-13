@@ -64,7 +64,9 @@ cables, doors and everything placed on it.
 
   "Inside" is everything not reachable from the map's edge without passing a
   wall, window or door. Rooms are floor areas split by walls, windows and
-  doors; a room that is mostly plating is maintenance. A game is 10 rounds;
+  doors; a room that is mostly plating and has no department door around it
+  (only maintenance doors, firelocks, shutters or none at all, like hidden
+  rooms) is maintenance; plated work rooms such as engineering are left out. A game is 10 rounds;
   the end screen shows the total, the % of the maximum, and each round's view
   next to a small map with the guess and the real spot. Photo starts at a
   3×3 view; every round starts at 5000 points; after 3 seconds the points drain (fast at first)

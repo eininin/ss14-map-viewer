@@ -28,12 +28,17 @@ export function openGuesser(ctx) {
 
   // ---- what is where
   const floorName = new Map(tiles.map(t => [tileKey(t.x, t.y), t.name]));
-  const struct = new Set(), glass = new Set(), doors = new Set();   // walls/windows/doors; windows and grilles; doors
+  const struct = new Set(), glass = new Set(), doors = new Set(), doorKind = new Map();   // walls/windows/doors; windows and grilles; doors
   for (const it of scene.items) {
     if (it.kind !== 'ent' || it.grid !== grid || !it.info) continue;
     const k = tileKey(it.tx, it.ty);
     if (it.cat === 'walls' || it.cat === 'doors' || it.info.oc) struct.add(k);
-    if (it.cat === 'doors') doors.add(k);
+    if (it.cat === 'doors') {
+      doors.add(k);
+      // maintenance doors, neutral ones (firelocks, shutters, external), or department doors
+      const kind = /maint/i.test(it.proto) ? 1 : /firelock|shutter|blast|external|shuttle|docking|flap|podlock/i.test(it.proto) ? 0 : 2;
+      doorKind.set(k, Math.max(doorKind.get(k) || 0, kind));
+    }
     if (/window|grille/i.test(it.proto) || (it.cat === 'walls' && !it.info.oc)) glass.add(k);
   }
   const isPlating = (n) => /plating|lattice|catwalk/i.test(n || '');
@@ -55,22 +60,26 @@ export function openGuesser(ctx) {
       st.push(x + 1, y, x - 1, y, x, y + 1, x, y - 1);
     }
   }
-  // rooms: floor areas inside, split by walls, windows and doors; maints = mostly plating
-  const room = new Int32Array(BW * BH).fill(-1), roomPlating = [];
+  // rooms: floor areas inside, split by walls, windows and doors. Maintenance = mostly plating and
+  // no department door around it (maints and hidden rooms only have maintenance doors, or none;
+  // engineering, atmos and other plated work rooms always have a department airlock)
+  const room = new Int32Array(BW * BH).fill(-1), roomPlating = [], roomDept = [];
   for (const t of tiles) {
     const k = tileKey(t.x, t.y), i0 = idx(t.x, t.y);
     if (room[i0] >= 0 || outside[i0] || struct.has(k)) continue;
-    const id = roomPlating.length; let n = 0, p = 0;
+    const id = roomPlating.length; let n = 0, p = 0, dept = false;
     const st = [t.x, t.y];
     while (st.length) {
       const y = st.pop(), x = st.pop(), kk = tileKey(x, y);
       if (x < bx0 || y < by0 || x >= bx1 || y >= by1) continue;
       const i = idx(x, y);
+      if (doorKind.get(kk) === 2) dept = true;
       if (room[i] >= 0 || outside[i] || struct.has(kk) || !floorName.has(kk)) continue;
       room[i] = id; n++; if (isPlating(floorName.get(kk))) p++;
       st.push(x + 1, y, x - 1, y, x, y + 1, x, y - 1);
     }
     roomPlating.push(n ? p / n : 0);
+    roomDept.push(dept);
   }
   const solidAround = (x, y) => {             // floor or wall in the 3x3 (walls count as floor here)
     let c = 0;
@@ -93,8 +102,9 @@ export function openGuesser(ctx) {
       if (struct.has(k) || glass.has(k)) continue;
       const i = idx(t.x, t.y);
       if (outside[i] || room[i] < 0) continue;
-      const maintRoom = roomPlating[room[i]] >= 0.5;
-      if (!isPlating(t.name) && !maintRoom && solidAround(t.x, t.y) >= 7) pools.photo.push(t);
+      const maintRoom = roomPlating[room[i]] >= 0.5 && !roomDept[room[i]];
+      const workRoom = roomPlating[room[i]] >= 0.5 && roomDept[room[i]];
+      if (!isPlating(t.name) && !maintRoom && !workRoom && solidAround(t.x, t.y) >= 7) pools.photo.push(t);
       else if (maintRoom && isPlating(t.name) && !isLattice(t.name)) pools.maints.push(t);
     }
   }
