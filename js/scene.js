@@ -571,8 +571,8 @@ export class SceneRenderer {
       dir = vr ? dirFor(FRAME_ANGLE[l.fixedDir] + vr, 4) : l.fixedDir;
     } else if (res.dirs >= 4) {
       dir = dirFor(it.rot + vr, res.dirs);
-    } else if (!it.noRot) {
-      rot = it.rot;
+    } else if (!it.noRot && !(it.info && it.info.snap)) {
+      rot = it.rot;                           // snap-to-cardinal sprites stay upright, as in the engine
     }
     rot += l.lrot || 0;
     let ox = 0, oy = 0;

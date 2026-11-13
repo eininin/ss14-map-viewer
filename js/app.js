@@ -1,5 +1,5 @@
 import { Pack, SpriteStore, localPackFromFiles, texRel, DEV } from './packs.js';
-import { buildScene, SceneRenderer, PX, CHUNK, LAYER_KEYS, DEFAULT_OPTS } from './scene.js?v=29';
+import { buildScene, SceneRenderer, PX, CHUNK, LAYER_KEYS, DEFAULT_OPTS } from './scene.js?v=30';
 import { Annotations } from './annot.js';
 import { GitHub } from './github.js';
 import { openImageViewer } from './imageviewer.js';
