@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       replay_url:
-        description: "Direct download URL of the replay .zip (empty = list the Space Wizards replay CDN)"
+        description: "Direct download URL of the replay .zip (empty = only build, needs content_commit)"
         required: false
         default: ""
       fork:
@@ -70,34 +70,15 @@ jobs:
           fi
           cat "$GITHUB_OUTPUT"
 
-      - name: List replay CDN (no URL given)
-        if: steps.job.outputs.replay_url == ''
-        run: |
-          echo "No replay_url given. Directory listing of the Space Wizards replay CDN:"
-          base=https://cdn.centcomm.spacestation14.com/replays/
-          curl -sS -o list.html -w "HTTP %{http_code}\n" "$base" || true
-          head -c 3000 list.html; echo
-          # Walk down the newest folders (server/year/month/day) and print the replay files there.
-          url=$base
-          for level in 1 2 3 4 5; do
-            curl -fsS "$url" -o page.html || break
-            entries=$(grep -o 'href="[^"?]*"' page.html | cut -d'"' -f2 | grep -v '^\.\./\?$' | grep -v '^/' )
-            echo "== $url"; echo "$entries" | tail -15
-            zips=$(echo "$entries" | grep '\.zip$' || true)
-            if [ -n "$zips" ]; then echo "Newest replays:"; echo "$zips" | tail -5 | sed "s|^|$url|"; break; fi
-            next=$(echo "$entries" | grep '/$' | sort | tail -1)
-            [ -z "$next" ] && break
-            url="$url$next"
-          done
-          exit 1
-
       - name: Download replay
+        if: steps.job.outputs.replay_url != ''
         run: |
           mkdir -p work
           curl -fL --retry 3 -o work/replay.zip "${{ steps.job.outputs.replay_url }}"
           ls -la work/replay.zip
 
       - name: Read replay build info
+        if: steps.job.outputs.replay_url != ''
         id: info
         run: python3 viewer/replay-tools/replay_info.py work/replay.zip --github-output "$GITHUB_OUTPUT"
 
@@ -114,7 +95,7 @@ jobs:
           commit="${{ steps.job.outputs.content_commit }}"
           if [ -z "$commit" ]; then commit="${{ steps.info.outputs.fork_version }}"; fi
           if ! [[ "$commit" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "::error::buildForkVersion '$commit' is not a full commit hash. Set content_commit to the commit this server build was made from."
+            echo "::error::Commit '$commit' is not a full commit hash (no replay URL and no content_commit, or the replay's buildForkVersion is not a hash). Set content_commit to the commit this server build was made from."
             exit 1
           fi
           echo "repo=$repo" >> "$GITHUB_OUTPUT"
@@ -151,6 +132,7 @@ jobs:
         run: dotnet build fork/Content.Client/Content.Client.csproj -c Release -nologo -clp:ErrorsOnly
 
       - name: Run
+        if: steps.job.outputs.replay_url != ''
         shell: bash
         env:
           ROBUST_DISABLE_SANDBOX: "1"
