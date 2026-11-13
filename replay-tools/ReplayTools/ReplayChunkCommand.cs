@@ -44,7 +44,7 @@ public sealed class ReplayChunkCommand : IConsoleCommand
 
     public string Command => "replay_chunk";
     public string Description => "Split a replay into short replays that each start from a full state.";
-    public string Help => "replay_chunk <replay.zip> <outDir> [seconds=60]";
+    public string Help => "replay_chunk <replay.zip|-> <outDir|-> [seconds=60]   (- = from REPLAYTOOLS_REPLAY / REPLAYTOOLS_OUT)";
 
     public void Execute(IConsoleShell shell, string argStr, string[] args)
     {
@@ -61,7 +61,20 @@ public sealed class ReplayChunkCommand : IConsoleCommand
             return;
         }
 
-        _ = RunGuarded(shell, args[0], args[1], seconds);
+        string replay, outDir;
+        try
+        {
+            replay = ReplayToolsCommon.PathArg(args[0], ReplayToolsCommon.EnvReplay);
+            outDir = ReplayToolsCommon.PathArg(args[1], ReplayToolsCommon.EnvOut);
+        }
+        catch (ArgumentException e)
+        {
+            shell.WriteError(e.Message);
+            Console.WriteLine($"{ReplayToolsCommon.FailMarker}: {e.Message}");
+            return;
+        }
+
+        _ = RunGuarded(shell, replay, outDir, seconds);
     }
 
     private static async Task RunGuarded(IConsoleShell shell, string replayPath, string outDir, int seconds)

@@ -1,0 +1,58 @@
+name: Replay tools app
+
+# Builds the SS14 Replay Tools desktop program (a single file per OS, no .NET runtime needed to
+# start it) and publishes it as the "replay-tools-latest" pre-release on this repo's Releases page.
+
+on:
+  push:
+    paths:
+      - "replay-tools/app/**"
+      - "replay-tools/ReplayTools/**"
+      - ".github/workflows/replay-tools-app.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: replay-tools-app
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Publish for each OS
+        shell: bash
+        run: |
+          set -e
+          mkdir -p dist
+          for rid in win-x64 linux-x64 osx-arm64 osx-x64; do
+            dotnet publish replay-tools/app/SS14ReplayTools.csproj -c Release -r "$rid" --self-contained \
+              -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true \
+              -p:DebugType=none -o "out/$rid" -nologo
+            (cd "out/$rid" && zip -q -r "../../dist/SS14ReplayTools-$rid.zip" .)
+          done
+          ls -la dist
+
+      - name: Publish pre-release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=replay-tools-latest
+          notes="SS14 Replay Tools, built from ${GITHUB_REF_NAME} @ ${GITHUB_SHA::8}.
+
+          Download the zip for your system, unzip it and run SS14ReplayTools (Windows: SS14ReplayTools.exe).
+          It opens its page in your browser. You also need Git and the .NET SDK installed (the page tells you if they are missing).
+          Windows may warn that the program is from an unknown publisher (it is not code-signed): More info -> Run anyway."
+          gh release delete "$tag" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "$tag" dist/*.zip --prerelease --target "$GITHUB_SHA" \
+            --title "SS14 Replay Tools (latest build)" --notes "$notes"

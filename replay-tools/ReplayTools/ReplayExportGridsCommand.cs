@@ -31,7 +31,7 @@ public sealed class ReplayExportGridsCommand : IConsoleCommand
 {
     public string Command => "replay_export_grids";
     public string Description => "Save the grids of a replay at a given time as map .yml files.";
-    public string Help => "replay_export_grids <replay.zip> <seconds> <outDir> [gridNetEntity]";
+    public string Help => "replay_export_grids <replay.zip|-> <seconds> <outDir|-> [gridNetEntity]   (- = from REPLAYTOOLS_REPLAY / REPLAYTOOLS_OUT)";
 
     public void Execute(IConsoleShell shell, string argStr, string[] args)
     {
@@ -58,7 +58,20 @@ public sealed class ReplayExportGridsCommand : IConsoleCommand
             onlyGrid = id;
         }
 
-        _ = RunGuarded(args[0], seconds, args[2], onlyGrid);
+        string replay, outDir;
+        try
+        {
+            replay = ReplayToolsCommon.PathArg(args[0], ReplayToolsCommon.EnvReplay);
+            outDir = ReplayToolsCommon.PathArg(args[2], ReplayToolsCommon.EnvOut);
+        }
+        catch (ArgumentException e)
+        {
+            shell.WriteError(e.Message);
+            Console.WriteLine($"{ReplayToolsCommon.FailMarker}: {e.Message}");
+            return;
+        }
+
+        _ = RunGuarded(replay, seconds, outDir, onlyGrid);
     }
 
     private static async Task RunGuarded(string replayPath, double seconds, string outDir, int? onlyGrid)

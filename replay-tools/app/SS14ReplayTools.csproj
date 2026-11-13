@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>SS14ReplayTools</AssemblyName>
+    <RootNamespace>SS14ReplayTools</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <Version>0.1.0</Version>
+    <!-- No wwwroot static files: the page is embedded. -->
+    <EnableDefaultContentItems>false</EnableDefaultContentItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="ui/index.html" LogicalName="index.html" />
+    <!-- The console commands that get copied into each fork's Content.Client. -->
+    <EmbeddedResource Include="../ReplayTools/*.cs" LogicalName="tools/%(Filename)%(Extension)" />
+  </ItemGroup>
+
+</Project>

@@ -79,6 +79,21 @@ internal static class ReplayToolsCommon
         return reader.ReadToEnd();
     }
 
+    /// <summary>
+    /// A path argument of "-" means: take it from an environment variable. The desktop app passes
+    /// paths this way so spaces and backslashes never go through console argument parsing.
+    /// </summary>
+    public static string PathArg(string arg, string envVar)
+    {
+        if (arg != "-")
+            return arg;
+        return Environment.GetEnvironmentVariable(envVar)
+               ?? throw new ArgumentException($"Argument is '-' but {envVar} is not set");
+    }
+
+    public const string EnvReplay = "REPLAYTOOLS_REPLAY";
+    public const string EnvOut = "REPLAYTOOLS_OUT";
+
     public static bool IsUpload(object msg)
     {
         // ReplayResourceUploadMsg is internal to the engine, so match it by name.
