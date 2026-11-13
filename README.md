@@ -72,7 +72,11 @@ cables, doors and everything placed on it.
   3×3 view; every round starts at 5000 points; after 3 seconds the points drain (fast at first)
   over the timer (3 minutes by default). A hint (H) shows one more tile all
   around and costs 25% of the points left. Score = points left × closeness.
-  On the outline doors are a shade between walls and floor.
+  On the outline doors are a shade between walls and floor; scroll zooms it,
+  drag moves it, a click without dragging is the guess, *Fit* resets it.
+  The start size of each mode is a setting (3, 5 and 5 by default). The end
+  screen lists the settings and *Copy end screen* copies it as a picture
+  (or saves it if the browser won't allow copying).
   Options: timer, field of view (as in the game: walls are seen, not what is
   behind them; space shows as space), airlocks open, walls/windows/airlocks
   on the outline, random quarter-turn rotation. Esc closes it.

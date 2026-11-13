@@ -10,14 +10,15 @@ const load = () => { try { return JSON.parse(localStorage.getItem(LSK)) || {}; }
 const save = (o) => { try { localStorage.setItem(LSK, JSON.stringify(o)); } catch (e) { /* ignore */ } };
 const MODES = {
   photo: { name: 'Photo from the station', desc: 'A spot in a room or hallway: real floor, not maintenance, not inside a window.' },
-  maints: { name: "Tider's memory", desc: 'Somewhere in maintenance. Starts at 5×5, since maints all look alike.' },
+  maints: { name: "Tider's memory", desc: 'Somewhere in maintenance. Starts bigger (5×5) by default, since maints all look alike.' },
   training: { name: 'Random training', desc: 'Any floor at all, outside the station too. No timer.' },
 };
 const START = 5000, GRACE = 3, ROUNDS = 10;                 // points at the start; seconds before they start to drop
 let starImg = null;
 
 export function openGuesser(ctx) {
-  const opt = { size: 3, trainSize: 5, fog: true, rot: 'none', doorsOpen: false, walls: true, minutes: 3, mode: 'photo', ...load() };
+  const opt = { fog: true, rot: 'none', doorsOpen: false, walls: true, minutes: 3, mode: 'photo', ...load() };
+  opt.sizes = { photo: 3, maints: 5, training: opt.trainSize || 5, ...(opt.sizes || {}) };
   if (opt.rot !== 'none') opt.rot = '90';
   const { renderer: R, scene, grid, CHUNK, PX } = ctx;
   const gr = R.grids && R.grids.get(grid);
@@ -130,6 +131,8 @@ export function openGuesser(ctx) {
       <div class="gmodes"></div>
       <div class="gopts">
         <label>Timer <input type="number" class="gmin" min="0.5" max="30" step="0.5" value="${opt.minutes}"> min</label>
+        <span class="gsizes">Start size: ${Object.keys(MODES).map(id => `<label title="${MODES[id].name}">${id === 'photo' ? 'Photo' : id === 'maints' ? 'Tider' : 'Training'}
+          <input type="number" data-size="${id}" min="1" max="61" step="2" value="${opt.sizes[id]}"></label>`).join(' ')}</span>
         <label class="tglbtn" title="Black out everything the spot can't see"><input type="checkbox" class="gfog" ${opt.fog ? 'checked' : ''}> field of view</label>
         <label class="tglbtn" title="Solid airlocks don't block the field of view"><input type="checkbox" class="gdoor" ${opt.doorsOpen ? 'checked' : ''}> airlocks open</label>
         <label class="tglbtn" title="Walls, windows and airlocks on the station outline"><input type="checkbox" class="gwalls" ${opt.walls ? 'checked' : ''}> walls on map</label>
@@ -141,7 +144,8 @@ export function openGuesser(ctx) {
     <div class="gend"></div>
     <div class="gbody">
       <div class="gside"><canvas class="gview"></canvas><div class="gnote"></div></div>
-      <div class="gside"><canvas class="gout"></canvas><div class="gresult"></div></div>
+      <div class="gside"><div class="goutwrap"><canvas class="gout"></canvas></div>
+        <div class="gresult"></div><div class="gouthint">Scroll to zoom, drag to move · <button class="btn small gfit">Fit</button></div></div>
     </div>`;
   document.body.appendChild(el);
   const $ = (s) => el.querySelector(s);
@@ -177,27 +181,29 @@ export function openGuesser(ctx) {
     el.classList.remove('starting', 'ended');
     el.classList.toggle('training', id === 'training');
     $('.gmode').textContent = '· ' + MODES[id].name;
-    $('.gsize').value = opt.trainSize;
+    $('.gsize').value = opt.sizes.training;
     newSpot();
     sizeAll();
   }
 
   // ---- outline of the station (fixed, north up)
   const ox0 = bx0 + 1, oy1 = by1 - 1, oxw = BW - 2, oyh = BH - 2;
-  let ow = 0, oh = 0, os = 1;
+  let ow = 0, oh = 0, os = 1, oz = 1, opx = 0, opy = 0;   // fit scale, then zoom and pan of the outline
   function sizeAll() {
     const body = $('.gbody').getBoundingClientRect();
     if (!body.width) return;
     const side = Math.max(200, Math.min(body.width / 2 - 24, body.height - 40));
     cv.style.width = cv.style.height = side + 'px';
     cv.width = cv.height = Math.round(side * dpr);
-    os = Math.min((body.width / 2 - 24) / oxw, (body.height - 40) / oyh);
+    os = Math.min((body.width / 2 - 24) / oxw, (body.height - 70) / oyh);
     ow = Math.round(oxw * os); oh = Math.round(oyh * os);
+    oz = 1; opx = 0; opy = 0;
     co.style.width = ow + 'px'; co.style.height = oh + 'px';
     co.width = Math.round(ow * dpr); co.height = Math.round(oh * dpr);
     drawView(); drawOutline();
   }
-  const toOut = (x, y) => [(x - ox0) * os, (oy1 - y) * os];
+  const toOut = (x, y) => [(x - ox0) * os * oz + opx, (oy1 - y) * os * oz + opy];
+  const fromOut = (sx, sy) => [(sx - opx) / (os * oz) + ox0, oy1 - (sy - opy) / (os * oz)];
   // floor grey, walls/windows light, doors in between
   const outColor = (k, name) => opt.walls && doors.has(k) ? '#6d7787' : opt.walls && struct.has(k) ? '#9aa6b8'
     : isLattice(name) ? '#262c35' : '#424b58';
@@ -235,17 +241,17 @@ export function openGuesser(ctx) {
       const k = tileKey(t.x, t.y);
       g.fillStyle = outColor(k, t.name);
       const [x, y] = toOut(t.x, t.y + 1);
-      g.fillRect(x, y, os + 0.3, os + 0.3);
+      g.fillRect(x, y, os * oz + 0.3, os * oz + 0.3);
     }
     if (opt.walls) for (const k of struct) if (!floorName.has(k)) {
       const [sx, sy] = toOut(tileX(k), tileY(k) + 1);
       g.fillStyle = outColor(k);
-      g.fillRect(sx, sy, os + 0.3, os + 0.3);
+      g.fillRect(sx, sy, os * oz + 0.3, os * oz + 0.3);
     }
     if (localStorage.getItem('ss14mv.guessDebug')) {   // shows where each kind of spot can be
       for (const [id, c] of [['photo', 'rgba(123,216,143,.8)'], ['maints', 'rgba(242,184,75,.8)']]) {
         g.fillStyle = c;
-        for (const t of pools[id]) { const [x, y] = toOut(t.x, t.y + 1); g.fillRect(x, y, os, os); }
+        for (const t of pools[id]) { const [x, y] = toOut(t.x, t.y + 1); g.fillRect(x, y, os * oz, os * oz); }
       }
     }
     if (guess && spot) {
@@ -259,7 +265,7 @@ export function openGuesser(ctx) {
       const half = size / 2;
       g.strokeStyle = '#7bd88f'; g.lineWidth = 2;
       const [rx, ry] = toOut(spot.x + 0.5 - half, spot.y + 0.5 + half);
-      g.strokeRect(rx, ry, size * os, size * os);
+      g.strokeRect(rx, ry, size * os * oz, size * os * oz);
       dot(g, ax, ay, '#7bd88f');
     }
   }
@@ -356,7 +362,7 @@ export function openGuesser(ctx) {
     angle = opt.rot === '90' ? Math.floor(Math.random() * 4) * Math.PI / 2 : 0;
     R.setViewRot(angle);                      // sprites drawn as seen from that direction
     guess = null; done = false; hints = 0;
-    size = mode === 'training' ? opt.trainSize : mode === 'maints' ? 5 : 3;
+    size = opt.sizes[mode] || 3;
     res.textContent = 'Click the station where you think this is.';
     $('.ghint').disabled = false;
     t0 = performance.now();
@@ -375,7 +381,7 @@ export function openGuesser(ctx) {
     const shot = document.createElement('canvas');
     shot.width = shot.height = 160;
     shot.getContext('2d').drawImage(cv, 0, 0, 160, 160);
-    const rec = { spot, guess: Array.isArray(g) ? g : null, size, pts: 0, d: null, shot, why: Array.isArray(g) ? '' : g };
+    const rec = { spot, guess: Array.isArray(g) ? g : null, size, hints: (size - (opt.sizes[mode] || 3)) / 2, pts: 0, d: null, shot, why: Array.isArray(g) ? '' : g };
     log.push(rec);
     if (!Array.isArray(g)) {
       res.innerHTML = `<b>${g === 'timeout' ? "Time's up" : 'Skipped'}</b> · 0 points ${nextBtn}`;
@@ -402,8 +408,9 @@ export function openGuesser(ctx) {
     const box = $('.gend');
     box.innerHTML = `<h2>${MODES[mode].name}</h2>
       <div class="gtotal"><b>${total}</b> / ${max} points · <b>${(100 * total / max).toFixed(1)}%</b></div>
+      <div class="gsettings">${esc(settingsText())}</div>
       <div class="grounds"></div>
-      <div class="row gap"><button class="btn primary gagain">Play again</button><button class="btn gmodes2">Modes</button></div>`;
+      <div class="row gap"><button class="btn primary gagain">Play again</button><button class="btn gcopy">Copy end screen</button><button class="btn gmodes2">Modes</button></div>`;
     const list = box.querySelector('.grounds');
     log.forEach((r, i) => {
       const card = document.createElement('div');
@@ -416,13 +423,78 @@ export function openGuesser(ctx) {
       list.appendChild(card);
     });
     box.querySelector('.gagain').onclick = () => startMode(mode);
+    box.querySelector('.gcopy').onclick = (e) => copyEnd(e.target);
     box.querySelector('.gmodes2').onclick = showStart;
   }
-  co.addEventListener('click', (e) => {
-    if (!spot || done || !mode) return;
-    const r = co.getBoundingClientRect();
-    finish([(e.clientX - r.left) / os + ox0, oy1 - (e.clientY - r.top) / os]);
+  // outline: wheel zooms at the cursor, drag pans, a click without dragging is the guess
+  let drag = null;
+  const esc = (t) => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  function settingsText() {
+    const hintsUsed = log.reduce((a, r) => a + (r.hints || 0), 0);
+    return [ctx.mapName, `start ${opt.sizes[mode]}×${opt.sizes[mode]}`, mode === 'training' ? 'no timer' : `timer ${opt.minutes} min`,
+      `field of view ${opt.fog ? 'on' : 'off'}`, `airlocks ${opt.doorsOpen ? 'open' : 'closed'}`,
+      `rotation ${opt.rot === 'none' ? 'none' : 'quarter turns'}`, `${hintsUsed} hint${hintsUsed === 1 ? '' : 's'} used`].filter(Boolean).join(' · ');
+  }
+  // the end screen as one picture, copied to the clipboard (or downloaded if that is not allowed)
+  async function copyEnd(btn) {
+    const cols = 2, cw = 360, chh = 200, pad = 16, head = 96;
+    const rows = Math.ceil(log.length / cols);
+    const c = document.createElement('canvas');
+    c.width = pad + cols * (cw + pad); c.height = head + rows * (chh + pad) + pad;
+    const g = c.getContext('2d');
+    g.fillStyle = '#06080d'; g.fillRect(0, 0, c.width, c.height);
+    g.fillStyle = '#f2b84b'; g.font = '600 20px system-ui, sans-serif';
+    g.fillText(`Station Guesser · ${MODES[mode].name}`, pad, 32);
+    g.fillStyle = '#e6ebf2'; g.font = '600 17px system-ui, sans-serif';
+    const max = ROUNDS * START;
+    g.fillText(`${total} / ${max} points · ${(100 * total / max).toFixed(1)}%`, pad, 58);
+    g.fillStyle = '#8b96a7'; g.font = '13px system-ui, sans-serif';
+    g.fillText(settingsText(), pad, 80);
+    log.forEach((r, i) => {
+      const x = pad + (i % cols) * (cw + pad), y = head + Math.floor(i / cols) * (chh + pad);
+      g.fillStyle = '#11161e'; g.fillRect(x, y, cw, chh);
+      g.drawImage(r.shot, x + 12, y + 10, 160, 160);
+      g.drawImage(miniMap(r, 160), x + 188, y + 10, 160, 160);
+      g.fillStyle = '#aab4c3'; g.font = '13px system-ui, sans-serif';
+      g.fillText(`${i + 1}. ${r.guess ? (r.d < 1 ? 'spot on' : r.d.toFixed(1) + ' tiles') : (r.why === 'timeout' ? "time's up" : 'skipped')} · ${r.pts} pts`, x + 12, y + 190);
+    });
+    const blob = await new Promise(res2 => c.toBlob(res2, 'image/png'));
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      btn.textContent = 'Copied!';
+    } catch (e) {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = 'station-guesser.png'; a.click();
+      btn.textContent = 'Saved as a picture';
+    }
+    setTimeout(() => { btn.textContent = 'Copy end screen'; }, 2500);
+  }
+  co.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const r = co.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+    const [wx, wy] = fromOut(mx, my);
+    oz = Math.max(1, Math.min(40, oz * Math.pow(1.0015, -e.deltaY)));
+    if (oz === 1) { opx = 0; opy = 0; }
+    else { const [sx, sy] = toOut(wx, wy); opx += mx - sx; opy += my - sy; }
+    drawOutline();
+  }, { passive: false });
+  co.addEventListener('pointerdown', (e) => {
+    co.setPointerCapture(e.pointerId);
+    drag = { x: e.clientX, y: e.clientY, px: opx, py: opy, moved: false };
   });
+  co.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true;
+    if (drag.moved) { opx = drag.px + dx; opy = drag.py + dy; co.style.cursor = 'grabbing'; drawOutline(); }
+  });
+  co.addEventListener('pointerup', (e) => {
+    const d = drag; drag = null; co.style.cursor = '';
+    if (!d || d.moved || !spot || done || !mode) return;
+    const r = co.getBoundingClientRect();
+    finish(fromOut(e.clientX - r.left, e.clientY - r.top));
+  });
+  $('.gfit').onclick = () => { oz = 1; opx = 0; opy = 0; drawOutline(); };
 
   // ---- controls
   $('.ghint').onclick = () => {
@@ -433,7 +505,10 @@ export function openGuesser(ctx) {
   };
   $('.gskip').onclick = () => { if (!done && spot && mode) finish('skip'); };
   $('.gmenu').onclick = showStart;
-  $('.gsize').onchange = (e) => { opt.trainSize = Math.max(1, Math.min(61, Math.round(+e.target.value) || 5)); e.target.value = opt.trainSize; save(opt); if (mode === 'training') { size = opt.trainSize; drawView(); } };
+  $('.gsize').onchange = (e) => { opt.sizes.training = Math.max(1, Math.min(61, Math.round(+e.target.value) || 5)); e.target.value = opt.sizes.training; save(opt); if (mode === 'training') { size = opt.sizes.training; drawView(); } };
+  el.querySelectorAll('[data-size]').forEach(inp => { inp.onchange = () => {
+    opt.sizes[inp.dataset.size] = Math.max(1, Math.min(61, Math.round(+inp.value) || 3)); inp.value = opt.sizes[inp.dataset.size]; save(opt);
+  }; });
   $('.gmin').onchange = (e) => { opt.minutes = Math.max(0.5, Math.min(30, +e.target.value || 3)); e.target.value = opt.minutes; save(opt); };
   $('.gfog').onchange = (e) => { opt.fog = e.target.checked; save(opt); drawView(); };
   $('.gwalls').onchange = (e) => { opt.walls = e.target.checked; save(opt); drawOutline(); };

@@ -369,3 +369,9 @@ label.dimmed { opacity: .45; }
 .gpics canvas { width: 160px; height: 160px; border-radius: 6px; image-rendering: pixelated; }
 .gcap { font-size: 13px; color: #aab4c3; }
 .gcap b { color: #e6ebf2; }
+.goutwrap { overflow: hidden; border-radius: 6px; }
+.gout { touch-action: none; }
+.gouthint { color: #6f7b8c; font-size: 12px; display: flex; gap: 8px; align-items: center; }
+.gsizes { display: inline-flex; gap: 8px; align-items: center; }
+.gsizes input { width: 46px; }
+.gsettings { color: #8b96a7; font-size: 13px; text-align: center; max-width: 900px; }
