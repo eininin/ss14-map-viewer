@@ -293,9 +293,10 @@ export function openGuesser(ctx) {
       b.className = 'gmodebtn';
       b.disabled = !n;
       const dk = `DAILY|${londonDay()}|${ctx.mapName || ''}|${grid}|${id}`, dp = loadPlayed()[dk];
-      const daily = $('.gdaily') && $('.gdaily').checked;
-      b.innerHTML = `<canvas class="gdemo"></canvas><b>${m.name}</b><span>${m.desc}</span>`
-        + (daily && dp ? `<i class="gdone">Today's daily done${dp.pts != null ? ': ' + dp.pts + ' pts' : ''}</i>` : '')
+      // today's daily, once done: its score on top of the card
+      const done = dp ? `<div class="gdaily-done"><b>${dp.pts != null ? (100 * dp.pts / (ROUNDS * START)).toFixed(1) + '%' : '—'}</b>
+        <small>daily ${londonDay()}${dp.pts != null ? ' · ' + dp.pts + ' pts' : ' · unfinished'}</small></div>` : '';
+      b.innerHTML = `${done}<canvas class="gdemo"></canvas><b>${m.name}</b><span>${m.desc}</span>`
         + `<em>${n ? n + ' possible spots · starts ' + opt.sizes[id] + '×' + opt.sizes[id] : 'none on this map'}</em>`;
       b.onclick = () => startMode(id);
       box.appendChild(b);
