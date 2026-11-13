@@ -7,7 +7,7 @@ import { Parallax } from './parallax.js';
 import { exportSelection } from './exportsel.js';
 import { browse, pickServer } from './browse.js';
 import { viewPolygons, eyePolygon, seenTiles, tileX, tileY, grow, tileKey } from './fov.js?v=60';
-import { openGuesser } from './guess.js?v=61';
+import { openGuesser } from './guess.js?v=62';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
@@ -345,7 +345,7 @@ async function resolveAndRender(keepView, token = S.loadToken) {
   renderArea();
   draw();
   progress(null);
-  if (S.autoGuess && token === S.loadToken) { S.autoGuess = false; $('#landing').hidden = true; setTimeout(startGuesser, 50); }
+  if (S.autoGuess && token === S.loadToken) { S.autoGuess = false; $('#landing').hidden = true; setTimeout(() => startGuesser(true), 50); }
   backgroundFill(token);
 }
 
@@ -2342,6 +2342,11 @@ function setupUI() {
 // first screen: map viewer or Station Guesser (a grid of stations, or any map via Browse)
 const GUESS_STATIONS = [
   { fork: 'starlight', path: 'Maps/_Starlight/Stations/Elkridge.yml', title: 'Elkridge Depot', img: 'thumbs/starlight/_Starlight/Stations/Elkridge.lg.webp' },
+  { fork: 'starlight', path: 'Maps/_Starlight/Stations/Hotel.yml', title: 'Hotel', img: 'thumbs/starlight/_Starlight/Stations/Hotel.lg.webp' },
+  { fork: 'starlight', path: 'Maps/_Starlight/Stations/NovoLobster.yml', title: 'Novo Lobster', img: 'thumbs/starlight/_Starlight/Stations/NovoLobster.lg.webp' },
+  { fork: 'starlight', path: 'Maps/_Starlight/Stations/SpaceMall.yml', title: 'Space Mall', img: 'thumbs/starlight/_Starlight/Stations/SpaceMall.lg.webp' },
+  { fork: 'starlight', path: 'Maps/_Starlight/Stations/Sepultum.yml', title: 'Sepultum Station', img: 'thumbs/starlight/_Starlight/Stations/Sepultum.lg.webp' },
+  { fork: 'starlight', path: 'Maps/_Starlight/Stations/Box.yml', title: 'Box Station', img: 'thumbs/starlight/_Starlight/Stations/Box.lg.webp' },
 ];
 function landShow(which) {                    // 'main' | 'pick' | 'load'
   const el = $('#landing');
@@ -2357,10 +2362,11 @@ async function guessOn(st) {
   $('#landTitle').textContent = st.title;
   await S.bootReady;                          // the site's own start-up must be done first
   S.autoGuess = false;
-  await openFromParam(st.fork + ':' + st.path, null, st.title);
+  if (!(S.scene && S.mapSource && S.mapSource.param === st.fork + ':' + st.path))   // already open: no reload
+    await openFromParam(st.fork + ':' + st.path, null, st.title);
   if (S.scene && S.mapSource && S.mapSource.param === st.fork + ':' + st.path) {
     $('#landing').hidden = true;
-    startGuesser();
+    startGuesser(true);
   } else {
     $('#landText').textContent = 'Could not load this station.';
   }
@@ -2381,19 +2387,21 @@ function setupLanding() {
   el.hidden = true;                           // the site opens straight in the map viewer
   $('#landViewer').onclick = () => { el.hidden = true; };
   $('#landGuess').onclick = () => landShow('pick');
-  $('#landBack').onclick = () => landShow('main');
+  $('#landBack').onclick = () => { el.hidden = true; };   // back to the map viewer
   $('#landOther').onclick = () => {
     el.hidden = true;
     S.autoGuess = true;                       // whatever is picked in Browse starts the game once loaded
     browseMaps();
   };
 }
-function startGuesser() {
+function startGuesser(force) {
   {
-    if (!S.mapSource) { landShow('pick'); return; }
+    if (!force) { landShow('pick'); return; }   // the button always starts at the station choice
     if (!S.scene || !S.renderer.grids) { toast('The map is still loading, try again in a moment', true); return; }
     try {
-      const err = openGuesser({ renderer: S.renderer, scene: S.scene, grid: areaGrid(), CHUNK, PX, sightBlockers,
+      // the daily game exists only on the listed stations
+      const dailyOk = !!(S.mapSource && GUESS_STATIONS.some(st => S.mapSource.param === st.fork + ':' + st.path));
+      const err = openGuesser({ renderer: S.renderer, scene: S.scene, grid: areaGrid(), CHUNK, PX, sightBlockers, dailyOk,
         onClose: () => { S.renderer.viewRot = null; S.renderer.setViewRot(camRot()); S.renderer.invalidate(); draw(); },
         mapName: (S.mapSource && (S.mapSource.title || S.mapSource.name)) || '' });
       if (err) toast(err, true);

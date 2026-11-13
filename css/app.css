@@ -424,3 +424,8 @@ label.dimmed { opacity: .45; }
 .ghintbtn:hover:not(:disabled) { background: #7fd8e8; }
 .ghintbtn:disabled { background: #1a222d; border-color: #2a3340; color: #6f7b8c; box-shadow: none; cursor: default; }
 .gmodal.training .ghintbtn small { display: none; }
+.landing { overflow: auto; align-items: safe center; padding: 20px 0; }
+.landgrid { grid-template-columns: repeat(3, minmax(170px, 210px)); gap: 12px; width: auto; }
+.landst { padding: 8px 8px 10px; }
+.landst b { font-size: 15px; }
+@media (max-width: 760px) { .landgrid { grid-template-columns: repeat(2, minmax(140px, 1fr)); } }

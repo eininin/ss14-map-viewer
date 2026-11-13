@@ -290,7 +290,7 @@ export function openGuesser(ctx) {
       const b = document.createElement('button');
       b.className = 'gmodebtn';
       b.disabled = !n;
-      const dk = `DAILY|${londonDay()}|${ctx.mapName || ''}|${grid}|${id}`, dp = id === 'training' ? null : loadPlayed()[dk];
+      const dk = `DAILY|${londonDay()}|${ctx.mapName || ''}|${grid}|${id}`, dp = id === 'training' || !ctx.dailyOk ? null : loadPlayed()[dk];
       // today's daily, once done: its score on top of the card
       const done = dp ? `<div class="gdaily-done"><b>${dp.pts != null ? (100 * dp.pts / (ROUNDS * START)).toFixed(1) + '%' : '—'}</b>
         <small>daily ${londonDay()}${dp.pts != null ? ' · ' + dp.pts + ' pts' : ' · unfinished'}</small></div>` : '';
@@ -309,7 +309,7 @@ export function openGuesser(ctx) {
     }
   }
   function startMode(id) {
-    opt.daily = $('.gdaily').checked;
+    opt.daily = $('.gdaily').checked && !!ctx.dailyOk;
     opt.seed = $('.gseed').value.trim(); save(opt);
     const day = londonDay();
     const daily = opt.daily && id !== 'training';     // random training is endless: no daily, no record
@@ -757,7 +757,8 @@ export function openGuesser(ctx) {
   $('.grandseed').onclick = () => { $('.gdaily').checked = false; $('.gseed').disabled = false; $('.gseed').value = randomSeed(); };
   const syncDaily = () => { $('.gseed').disabled = $('.gdaily').checked; $('.gwarn').textContent = ''; showStart(); };
   $('.gdaily').onchange = syncDaily;
-  $('.gseed').disabled = !!opt.daily;
+  if (!ctx.dailyOk) { $('.gdaily').checked = false; $('.gdaily').closest('label').hidden = true; }   // no daily on this map
+  $('.gseed').disabled = !!opt.daily && !!ctx.dailyOk;
   const close = () => {
     cancelAnimationFrame(raf);
     el.remove(); if (ctx.onClose) ctx.onClose();
