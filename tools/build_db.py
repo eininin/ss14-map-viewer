@@ -446,7 +446,12 @@ def build(res):
         cv = comps.get("CableVisualizer")
         if cv and cv.get("statePrefix"):
             e["cab"] = [str(cv["statePrefix"]), str(cv.get("extraLayerPrefix") or "")]
+        occ = comps.get("Occluder")
+        if occ is not None and occ.get("enabled", True) is not False:
+            e["oc"] = 1                       # blocks sight (walls, closed airlocks, bookshelves…)
         door = comps.get("Door")
+        if door is not None and door.get("occludes", True) is False:
+            e.pop("oc", None)                 # glass airlocks, firelocks: see-through even when closed
         if door is not None:
             st = str(door.get("state", "Closed")).lower()
             e["door"] = "open" if st in ("open", "opening") else "closed"

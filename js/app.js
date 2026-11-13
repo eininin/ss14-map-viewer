@@ -6,6 +6,7 @@ import { openImageViewer } from './imageviewer.js';
 import { Parallax } from './parallax.js';
 import { exportSelection } from './exportsel.js';
 import { browse, pickServer } from './browse.js';
+import { fieldOfView, grow, tileKey } from './fov.js';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
@@ -254,6 +255,7 @@ async function openText(text, source) {
   S.selection = null;
   S.highlight = null;
   S.area = null;
+  S.fov = null;
   S.onlyMode = null;
   S.renderer.only = null;
   $('#empty').hidden = true;
@@ -603,6 +605,7 @@ function drawOverlay(cursor) {
     g.restore();
   }
   drawZones(g);
+  drawFov(g);
   // area selection
   if (S.area && S.area.tiles.size && r.grids) {
     const gr = r.grids.get(S.area.grid);
@@ -1385,6 +1388,114 @@ function drawZones(g) {
   g.restore();
 }
 
+// ---------------------------------------------------------------- field of view
+// Mark a room or department as the selection, then see everything visible from it.
+const FOV_DEF = { color: '#ff9f43', alpha: 0.35, range: 0, doorsOpen: false, withArea: false };
+function fovOpts() {
+  if (!S.fovOpts) S.fovOpts = { ...FOV_DEF, ...(LS.get('fov') || {}) };
+  return S.fovOpts;
+}
+function saveFovOpts() { LS.set('fov', S.fovOpts); }
+function computeFov() {
+  if (!S.area || !S.area.tiles.size || !S.scene) { toast('Select an area first', true); return; }
+  const o = fovOpts(), grid = S.area.grid, gr = S.renderer.grids && S.renderer.grids.get(grid);
+  if (!gr) return;
+  const opaque = new Set(), floor = new Set();
+  for (const t of (S.scene.tiles.get(grid) || [])) floor.add(tileKey(t.x, t.y));
+  let nOcc = 0;
+  for (const it of S.scene.items) {
+    if (it.kind !== 'ent' || it.grid !== grid || !it.info || !it.info.oc) continue;
+    if (it.info.door != null && (o.doorsOpen || it.door === 'open')) continue;
+    opaque.add(tileKey(it.tx, it.ty));
+    nOcc++;
+  }
+  const t0 = performance.now();
+  const res = fieldOfView({ source: S.area.tiles, opaque, floor,
+    bounds: [gr.minX, gr.minY, gr.maxX, gr.maxY], range: o.range });
+  const src = new Set(S.area.tiles);
+  S.fov = { grid, src, see: res.see, walls: res.walls,
+    paths: tilePaths(res.see), wallPaths: tilePaths(res.walls), srcPaths: tilePaths(src) };
+  if (!nOcc) toast('Nothing on this map blocks sight (no occluder data): rebuild the database', true);
+  else toast(`${res.see.size} tiles in view from ${res.sources} tiles (${Math.round(performance.now() - t0)} ms)`);
+  renderArea();
+  drawOverlay();
+}
+function clearFov() { S.fov = null; renderArea(); drawOverlay(); }
+function fovToSelection(expand) {
+  const F = S.fov;
+  if (!F) return;
+  let t = expand ? grow(F.see, 1) : new Set(F.see);
+  if (fovOpts().withArea) for (const k of F.src) t.add(k);
+  else for (const k of F.src) t.delete(k);
+  S.area = { grid: F.grid, tiles: t };
+  buildAreaPaths();
+  if (S.onlyMode === 'area') setOnly('area'); else renderArea();
+  drawOverlay();
+}
+function drawFov(g) {
+  const F = S.fov, r = S.renderer;
+  if (!F || !r.grids) return;
+  const gr = r.grids.get(F.grid);
+  if (!gr) return;
+  const o = fovOpts();
+  g.save();
+  setGridXf(g, gr);
+  g.fillStyle = o.color;
+  g.globalAlpha = o.alpha;
+  g.fill(F.paths.fill);
+  g.globalAlpha = o.alpha * 0.45;           // walls in view: lighter
+  g.fill(F.wallPaths.fill);
+  g.globalAlpha = 0.9;
+  g.strokeStyle = o.color;
+  g.lineWidth = 1.5 / S.cam.s;
+  g.stroke(F.paths.edges);
+  g.setLineDash([4 / S.cam.s, 3 / S.cam.s]);   // where it is seen from
+  g.strokeStyle = '#fff';
+  g.stroke(F.srcPaths.edges);
+  g.restore();
+}
+function renderFovSection(pane, hasArea) {
+  const o = fovOpts(), F = S.fov;
+  pane.insertAdjacentHTML('beforeend', `<h3>Field of view ${F ? `<span class="badge">${F.see.size} tiles</span>` : ''}</h3>
+    <p class="hint">Select a room or department, then <b>See from selection</b>: every tile visible from anywhere in it
+    gets coloured. Walls, closed solid doors and other things that block sight in the game stop it; windows and glass doors don't.</p>`);
+  const a = document.createElement('div');
+  a.className = 'row gap wrap';
+  a.innerHTML = `<button class="btn small primary" data-a="go" ${hasArea ? '' : 'disabled'}>See from selection</button>
+    <input type="color" value="${esc(o.color)}" title="Colour">
+    <label class="tglbtn" title="Fill strength">Fill <input type="range" min="0.05" max="0.8" step="0.05" value="${o.alpha}" style="width:60px"></label>
+    <button class="btn small" data-a="clr" ${F ? '' : 'disabled'}>Clear</button>`;
+  a.querySelector('[data-a=go]').onclick = computeFov;
+  a.querySelector('[data-a=clr]').onclick = clearFov;
+  a.querySelector('input[type=color]').oninput = (e) => { o.color = e.target.value; saveFovOpts(); drawOverlay(); };
+  a.querySelector('input[type=range]').oninput = (e) => { o.alpha = +e.target.value; saveFovOpts(); drawOverlay(); };
+  pane.appendChild(a);
+  const b = document.createElement('div');
+  b.className = 'row gap wrap';
+  b.innerHTML = `<label class="tglbtn" title="Treat every door as open"><input type="checkbox" data-o="doorsOpen" ${o.doorsOpen ? 'checked' : ''}> doors open</label>
+    <label class="tglbtn" title="How far you can see, in tiles. Empty = no limit">range <input type="number" min="0" step="1" value="${o.range || ''}" placeholder="∞" style="width:52px"></label>`;
+  b.querySelector('[data-o=doorsOpen]').onchange = (e) => { o.doorsOpen = e.target.checked; saveFovOpts(); if (S.fov) recomputeFovFrom(); };
+  b.querySelector('input[type=number]').onchange = (e) => { o.range = Math.max(0, +e.target.value || 0); saveFovOpts(); if (S.fov) recomputeFovFrom(); };
+  pane.appendChild(b);
+  const c = document.createElement('div');
+  c.className = 'row gap wrap';
+  c.innerHTML = `<button class="btn small" data-a="sel" ${F ? '' : 'disabled'} title="Select every tile in view">Select view</button>
+    <button class="btn small" data-a="sel1" ${F ? '' : 'disabled'} title="Select the view grown by one tile: its walls and one tile beyond">Select view +1</button>
+    <label class="tglbtn" title="Also select the tiles it is seen from"><input type="checkbox" ${o.withArea ? 'checked' : ''}> with the source area</label>`;
+  c.querySelector('[data-a=sel]').onclick = () => fovToSelection(false);
+  c.querySelector('[data-a=sel1]').onclick = () => fovToSelection(true);
+  c.querySelector('input').onchange = (e) => { o.withArea = e.target.checked; saveFovOpts(); };
+  pane.appendChild(c);
+}
+// option changed: recompute from the same source tiles, keeping the current selection
+function recomputeFovFrom() {
+  const keep = S.area;
+  S.area = { grid: S.fov.grid, tiles: S.fov.src };
+  computeFov();
+  S.area = keep;
+  renderArea();
+}
+
 function inArea(gridUid, lx, ly) {
   const r = S.renderer, a = S.area;
   let x = lx, y = ly;
@@ -1611,6 +1722,8 @@ function renderArea() {
     row.querySelector('input').onchange = () => setOnly(null);
     pane.appendChild(row);
   }
+  // ---- field of view
+  if (S.scene) renderFovSection(pane, hasArea);
   // ---- zones
   if (S.scene && S.zones) {
     const Z = S.zones;

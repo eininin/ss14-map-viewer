@@ -53,6 +53,14 @@ cables, doors and everything placed on it.
   (plus anything inside it), floor tiles, decals and tile atmospheres. With
   "only shown layers" on, hidden layers are left out. Coordinates stay as in
   the original map; custom `!type:` tags are kept.
+- **Field of view** (*Area* tab): select a room or department and press
+  **See from selection**: every tile visible from anywhere in it is coloured
+  (colour and fill adjustable), walls in view more lightly. Sight is blocked by
+  whatever has the game's `Occluder` component (walls, closed solid doors,
+  shutters, bookshelves…); windows, glass airlocks and firelocks let it through.
+  Options: all doors open, a range limit. **Select view** selects the tiles in
+  view, **Select view +1** grows it by one tile (its walls and one tile
+  beyond); optionally including the source area.
 - **Zones** (*Area* tab): turn the selection into a named, coloured zone,
   drawn tinted on the map with its name in the top-left corner. A new zone
   touching a zone of the same name joins it and takes its colour. Rename,
