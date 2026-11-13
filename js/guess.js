@@ -3,7 +3,7 @@
 //   photo    – "Photo from the station": inside, on a proper floor (not maints, not glass)
 //   maints   – "Tider's memory": inside, in maintenance
 //   training – "Random training": any floor, outside too; free view size, no timer
-import { eyePolygon, sightTargets, seenTiles, tileX, tileY, tileKey } from './fov.js?v=31';
+import { eyePolygon, sightTargets, seenTiles, tileX, tileY, tileKey } from './fov.js?v=60';
 
 const LSK = 'ss14mv.guess';
 const load = () => { try { return JSON.parse(localStorage.getItem(LSK)) || {}; } catch (e) { return {}; } };
@@ -42,7 +42,7 @@ export function openGuesser(ctx) {
   const opt = { rot: 'none', walls: true, mode: 'photo', ...load() };
   opt.minutes = 3;
   opt.sizes = { maints: 7, photo: 5, items: 3, training: (opt.sizes && opt.sizes.training) || 5 };
-  if (opt.rot !== 'none') opt.rot = '90';
+  opt.rot = '90';                             // always random quarter turns
   const { renderer: R, scene, grid, CHUNK, PX } = ctx;
   const gr = R.grids && R.grids.get(grid);
   if (!gr) return 'This map has no station grid to play on';
@@ -225,8 +225,6 @@ export function openGuesser(ctx) {
     <div class="gbar">
       <b>Station Guesser</b><span class="gmap"></span><span class="gmode"></span>
       <span class="gtimer"></span>
-      <button class="btn small ghint" title="Bigger view: one more tile all around (H). Costs 25% of your points.">⤢ Bigger −25%</button>
-      <button class="btn small gfoghint" title="No field of view: lift the shadows (F). Costs 25% of your points.">◐ No shadows −25%</button>
       <label class="tglbtn gwallsw" title="Walls, windows and airlocks on the station outline"><input type="checkbox" class="gwalls" ${opt.walls ? 'checked' : ''}> walls</label>
       <label class="gtrain">View <input type="number" class="gsize" min="1" max="61" step="1"> tiles</label>
       <span class="gscore"></span>
@@ -242,20 +240,22 @@ export function openGuesser(ctx) {
         <label class="tglbtn" title="Today's game: the same for everyone, once a day per mode"><input type="checkbox" class="gdaily" ${opt.daily ? 'checked' : ''}> Daily</label>
         <label>Seed <input class="gseed" placeholder="empty = random" maxlength="40" value="${esc0(opt.seed || '')}"></label>
         <button class="btn small grandseed" title="Fill in a random seed">Random seed</button>
-        <label>Rotation <select class="sel grot"><option value="none">north up</option><option value="90">random quarter turns</option></select></label>
       </div>
       <p class="gwarn"></p>
       <p class="hint">${ROUNDS} rounds · 3 min each · click where you think it is</p>
     </div>
     <div class="gend"></div>
     <div class="gbody">
-      <div class="gside"><canvas class="gview"></canvas><div class="gnote"></div></div>
+      <div class="gside"><canvas class="gview"></canvas><div class="gnote"></div>
+        <div class="ghints">
+          <button class="ghintbtn ghint" title="One more tile all around (H)"><b>⤢ Bigger view</b><small>−25% points</small></button>
+          <button class="ghintbtn gfoghint" title="Lift the shadows (F)"><b>👁 No shadows</b><small>−25% points</small></button>
+        </div></div>
       <div class="gside"><div class="goutwrap"><canvas class="gout"></canvas></div>
         <div class="gresult"></div><div class="gouthint"><button class="btn small gfit" title="Scroll to zoom, drag to move; this fits the whole station">Fit</button></div></div>
     </div>`;
   document.body.appendChild(el);
   const $ = (s) => el.querySelector(s);
-  $('.grot').value = opt.rot;
   $('.gmap').textContent = ctx.mapName || '';
   $('.gmapname').textContent = ctx.mapName || '';
   const cv = $('.gview'), co = $('.gout'), res = $('.gresult'), note = $('.gnote');
@@ -290,7 +290,7 @@ export function openGuesser(ctx) {
       const b = document.createElement('button');
       b.className = 'gmodebtn';
       b.disabled = !n;
-      const dk = `DAILY|${londonDay()}|${ctx.mapName || ''}|${grid}|${id}`, dp = loadPlayed()[dk];
+      const dk = `DAILY|${londonDay()}|${ctx.mapName || ''}|${grid}|${id}`, dp = id === 'training' ? null : loadPlayed()[dk];
       // today's daily, once done: its score on top of the card
       const done = dp ? `<div class="gdaily-done"><b>${dp.pts != null ? (100 * dp.pts / (ROUNDS * START)).toFixed(1) + '%' : '—'}</b>
         <small>daily ${londonDay()}${dp.pts != null ? ' · ' + dp.pts + ' pts' : ' · unfinished'}</small></div>` : '';
@@ -312,23 +312,22 @@ export function openGuesser(ctx) {
     opt.daily = $('.gdaily').checked;
     opt.seed = $('.gseed').value.trim(); save(opt);
     const day = londonDay();
-    const seed = opt.daily ? 'DAILY' : (opt.seed || randomSeed());
+    const daily = opt.daily && id !== 'training';     // random training is endless: no daily, no record
+    const seed = daily ? 'DAILY' : (opt.seed || randomSeed());
     const key = `${seed}|${day}|${ctx.mapName || ''}|${grid}|${id}`;
     const played = loadPlayed();
-    if (played[key]) {                        // a seed is played once
+    if (id !== 'training' && played[key]) {   // a seed is played once
       const p = played[key];
-      $('.gwarn').textContent = `${opt.daily ? "Today's daily" : 'Seed ' + seed} for ${MODES[id].name} is already played`
+      $('.gwarn').textContent = `${daily ? "Today's daily" : 'Seed ' + seed} for ${MODES[id].name} is already played`
         + (p.pts != null ? ` (${p.pts} points, ${(100 * p.pts / (ROUNDS * START)).toFixed(1)}%).` : ' (left unfinished).')
-        + (opt.daily ? ' A new one comes at midnight, London time.' : ' Pick another seed.');
+        + (daily ? ' A new one comes at midnight, London time.' : ' Pick another seed.');
       if (!el.classList.contains('starting')) showStart();
       return;
     }
-    played[key] = { pts: null, at: Date.now() };
-    savePlayed(played);
-    playKey = key;
+    if (id !== 'training') { played[key] = { pts: null, at: Date.now() }; savePlayed(played); playKey = key; } else playKey = '';
     $('.gwarn').textContent = '';
     mode = id; opt.mode = id;
-    seedTyped = opt.daily || !!opt.seed;
+    seedTyped = daily || !!opt.seed;
     seedUsed = seed;
     seedDay = day;
     rng = mulberry32(hashStr(`${seedUsed}|${seedDay}|${ctx.mapName || ''}|${grid}|${id}`));
@@ -469,7 +468,7 @@ export function openGuesser(ctx) {
   function drawView() {
     if (!spot || !cv.width) return;
     renderSpot(cv, spot, size, angle, fogOn);
-    note.textContent = `${size}×${size}` + (opt.rot === 'none' ? '' : ' · turned')
+    note.textContent = `${size}×${size}`
       + (fogOn ? '' : ' · no shadows');
   }
   // the view from a spot: map, stars where there is space, shadows where it can't see
@@ -668,7 +667,7 @@ export function openGuesser(ctx) {
   function settingsText() {
     const hintsUsed = log.reduce((a, r) => a + (r.hints || 0), 0);
     return [ctx.mapName, seedUsed === 'DAILY' ? `daily ${seedDay}` : `seed ${seedUsed} (${seedDay})`, `start ${opt.sizes[mode]}×${opt.sizes[mode]}`, mode === 'training' ? 'no timer' : `timer ${opt.minutes} min`,
-      `rotation ${opt.rot === 'none' ? 'north up' : 'quarter turns'}`, `${hintsUsed} hint${hintsUsed === 1 ? '' : 's'} used`].filter(Boolean).join(' · ');
+      `${hintsUsed} hint${hintsUsed === 1 ? '' : 's'} used`].filter(Boolean).join(' · ');
   }
   // the end screen as one picture, copied to the clipboard (or downloaded if that is not allowed)
   async function copyEnd(btn) {
@@ -755,7 +754,6 @@ export function openGuesser(ctx) {
 
   $('.gwalls').onchange = (e) => { opt.walls = e.target.checked; save(opt); drawOutline(); };
 
-  $('.grot').onchange = (e) => { opt.rot = e.target.value; save(opt); };
   $('.grandseed').onclick = () => { $('.gdaily').checked = false; $('.gseed').disabled = false; $('.gseed').value = randomSeed(); };
   const syncDaily = () => { $('.gseed').disabled = $('.gdaily').checked; $('.gwarn').textContent = ''; showStart(); };
   $('.gdaily').onchange = syncDaily;

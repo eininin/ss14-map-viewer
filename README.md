@@ -87,8 +87,8 @@ cables, doors and everything placed on it.
   3×3 view; every round starts at 5000 points; after 3 seconds the points drain (fast at first)
   over the timer (3 minutes by default). Two hints, each costing 25% of the
   points left: *bigger view* (H) shows one more tile all around, *no field of
-  view* (F) lifts the shadows. Settings: rotation (north up or random quarter
-  turns) and a *seed*: the seed, today's date in London (changes at London
+  view* (F) lifts the shadows; both are big buttons under the view. The view
+  is always turned by a random quarter turn. Setting: a *seed*: the seed, today's date in London (changes at London
   midnight), the map and the mode pick the spots and turns, so the same seed
   is the same game for everyone that day (empty = a random seed, shown on the
   end screen; *Random seed* fills one in). *Daily* plays today's game: the

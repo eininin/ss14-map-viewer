@@ -6,8 +6,8 @@ import { openImageViewer } from './imageviewer.js';
 import { Parallax } from './parallax.js';
 import { exportSelection } from './exportsel.js';
 import { browse, pickServer } from './browse.js';
-import { viewPolygons, eyePolygon, seenTiles, tileX, tileY, grow, tileKey } from './fov.js?v=31';
-import { openGuesser } from './guess.js?v=58';
+import { viewPolygons, eyePolygon, seenTiles, tileX, tileY, grow, tileKey } from './fov.js?v=60';
+import { openGuesser } from './guess.js?v=61';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));

@@ -250,6 +250,7 @@ export function seenTiles(polys, opaque, P = 8) {
   g.stroke(path);
   const d = g.getImageData(0, 0, cw, ch).data;
   const Z = Math.max(1, P / 4);              // size of a tile's corner zone in pixels
+  const cornerOnly = [];                     // [x, y, corner bits] for tiles reached only at corners
   for (let ty = 0; ty < h; ty++) for (let tx = 0; tx < w; tx++) {
     let inner = false, corners = 0;
     for (let py = 0; py < P && !inner; py++) for (let px = 0; px < P; px++) {
@@ -259,20 +260,23 @@ export function seenTiles(polys, opaque, P = 8) {
       else { inner = true; break; }
     }
     const x = bx0 + tx, y = by0 + ty;
-    if (!inner) {
-      if (!corners) continue;
-      // a wall or door touched at a corner is seen (room corners show in the game); open tiles
-      // behind a corner where two of them meet are not
-      // reached only at corners: not through a corner where two sight-blocking tiles meet
-      let ok = opaque.has(K(x, y));
-      for (let q = 0; q < 4 && !ok; q++) {
-        if (!(corners & (1 << q))) continue;
-        const dx = q & 1 ? 1 : -1, dy = q & 2 ? 1 : -1;
-        if (!(opaque.has(K(x + dx, y)) && opaque.has(K(x, y + dy)))) ok = true;
-      }
-      if (!ok) continue;
+    if (inner) out.add(K(x, y));
+    else if (corners) cornerOnly.push([x, y, corners]);
+  }
+  // reached only at a corner:
+  //  - an open tile counts unless that corner is between two sight-blocking tiles (no seeing through it);
+  //  - a wall or door counts only as a room corner: both walls beside that corner are themselves in view.
+  //    A wall past the corner of the first wall stays in its shadow.
+  for (const [x, y, corners] of cornerOnly) {
+    const wall = opaque.has(K(x, y));
+    for (let q = 0; q < 4; q++) {
+      if (!(corners & (1 << q))) continue;
+      const dx = q & 1 ? 1 : -1, dy = q & 2 ? 1 : -1;
+      const a = K(x + dx, y), b = K(x, y + dy);
+      const ok = wall ? (opaque.has(a) && opaque.has(b) && out.has(a) && out.has(b))
+        : !(opaque.has(a) && opaque.has(b));
+      if (ok) { out.add(K(x, y)); break; }
     }
-    out.add(K(x, y));
   }
   return out;
 }
