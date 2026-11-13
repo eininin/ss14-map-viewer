@@ -57,9 +57,12 @@ cables, doors and everything placed on it.
   the left, the station's outline on the right; click where you think it is to
   get the distance and points, then *Next* (Enter). Options: view size in
   tiles (5 by default), field of view (blacks out what the spot can't see; as
-  in the game, walls are seen but not what is behind them), airlocks open,
-  rotation (none, random 90° steps, random any angle). Esc closes it.
+  in the game, walls are seen but not what is behind them), walls on the
+  outline on/off, airlocks open, rotation (none or random quarter turns).
+  Esc closes it.
 - **Rotate the view** (*View* tab, or Q / R): quarter turns, random, north up.
+  As in the game, directional sprites show the frame for that viewing
+  direction and stay upright.
 - **Field of view** (*Area* tab): select a room or department and press
   **See from selection**. Straight sight lines are traced from every corner
   along the outline of the area past the edges of everything that blocks

@@ -1,6 +1,6 @@
 // Station Guesser: a view from a random spot of the map on the left, the outline of the
 // station on the right; click the outline where you think the view is.
-import { eyePolygon, sightTargets, tileKey } from './fov.js?v=25';
+import { eyePolygon, sightTargets, seenTiles, tileX, tileY, tileKey } from './fov.js?v=27';
 
 const LSK = 'ss14mv.guess';
 const load = () => { try { return JSON.parse(localStorage.getItem(LSK)) || {}; } catch (e) { return {}; } };
@@ -11,7 +11,8 @@ const save = (o) => { try { localStorage.setItem(LSK, JSON.stringify(o)); } catc
  *   renderer, scene, grid (uid), CHUNK, PX, sightBlockers(grid, doorsOpen) -> Set, mapName
  */
 export function openGuesser(ctx) {
-  const opt = { size: 5, fog: true, rot: 'none', doorsOpen: false, ...load() };
+  const opt = { size: 5, fog: true, rot: 'none', doorsOpen: false, walls: true, ...load() };
+  if (opt.rot !== 'none') opt.rot = '90';
   const { renderer: R, scene, grid, CHUNK, PX } = ctx;
   const gr = R.grids && R.grids.get(grid);
   if (!gr) return 'This map has no station grid to play on';
@@ -29,9 +30,10 @@ export function openGuesser(ctx) {
       <b>Station Guesser</b><span class="gmap"></span>
       <label>View <input type="number" class="gsize" min="1" max="61" step="1" value="${opt.size}"> tiles</label>
       <label class="tglbtn" title="Black out everything the spot cannot see"><input type="checkbox" class="gfog" ${opt.fog ? 'checked' : ''}> field of view</label>
+      <label class="tglbtn" title="Show walls on the station outline"><input type="checkbox" class="gwalls" ${opt.walls ? 'checked' : ''}> walls on map</label>
       <label class="tglbtn" title="Solid airlocks count as open for the field of view"><input type="checkbox" class="gdoor" ${opt.doorsOpen ? 'checked' : ''}> airlocks open</label>
       <label>Rotation <select class="sel grot">
-        <option value="none">none</option><option value="90">random, 90° steps</option><option value="any">random, any angle</option>
+        <option value="none">none</option><option value="90">random quarter turns</option>
       </select></label>
       <span class="gscore"></span>
       <button class="btn small gnew">New spot</button>
@@ -71,11 +73,11 @@ export function openGuesser(ctx) {
     g.clearRect(0, 0, ow, oh);
     for (const t of tiles) {
       const k = tileKey(t.x, t.y);
-      g.fillStyle = opaque.has(k) ? '#9aa6b8' : /lattice/i.test(t.name) ? '#262c35' : '#424b58';
+      g.fillStyle = opaque.has(k) && opt.walls ? '#9aa6b8' : /lattice/i.test(t.name) ? '#262c35' : '#424b58';
       const [x, y] = toOut(t.x, t.y + 1);
       g.fillRect(x, y, os + 0.3, os + 0.3);
     }
-    for (const k of opaque) if (!floor.has(k)) {   // walls on lattice etc.
+    if (opt.walls) for (const k of opaque) if (!floor.has(k)) {   // walls on lattice etc.
       const x = Math.floor(k / 65536) - 32768, y = (k % 65536) - 32768;
       const [sx, sy] = toOut(x, y + 1);
       g.fillStyle = '#9aa6b8';
@@ -103,7 +105,7 @@ export function openGuesser(ctx) {
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.fillStyle = '#000';
     g.fillRect(0, 0, S, S);
-    const xf = () => { g.setTransform(1, 0, 0, 1, 0, 0); g.translate(S / 2, S / 2); g.rotate(angle); g.scale(pt, -pt); g.translate(-px, -py); };
+    const xf = () => { g.setTransform(1, 0, 0, 1, 0, 0); g.translate(S / 2, S / 2); g.rotate(-angle); g.scale(pt, -pt); g.translate(-px, -py); };
     xf();
     g.imageSmoothingEnabled = n > 12;
     const reach = n * 0.75 + 1;
@@ -121,14 +123,24 @@ export function openGuesser(ctx) {
       g.restore();
     }
     if (opt.fog) {
+      // black out what the spot can't see; walls it touches are seen whole
       const p = eyePolygon(opaque, targets, px, py, reach + 2);
-      const m = new Path2D();
-      m.rect(px - reach - 5, py - reach - 5, 2 * reach + 10, 2 * reach + 10);
-      m.moveTo(p[0], p[1]);
-      for (let i = 2; i < p.length; i += 2) m.lineTo(p[i], p[i + 1]);
-      m.closePath();
-      g.fillStyle = '#000';
-      g.fill(m, 'evenodd');
+      const seen = seenTiles([p], opaque, 8);
+      const m = document.createElement('canvas');
+      m.width = S; m.height = S;
+      const mg = m.getContext('2d');
+      mg.fillStyle = '#000';
+      mg.fillRect(0, 0, S, S);
+      mg.setTransform(g.getTransform());
+      mg.globalCompositeOperation = 'destination-out';
+      const vis = new Path2D();
+      vis.moveTo(p[0], p[1]);
+      for (let i = 2; i < p.length; i += 2) vis.lineTo(p[i], p[i + 1]);
+      vis.closePath();
+      for (const k of seen) if (opaque.has(k)) vis.rect(tileX(k), tileY(k), 1, 1);
+      mg.fill(vis);
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.drawImage(m, 0, 0);
     }
     // the spot itself
     g.setTransform(1, 0, 0, 1, 0, 0);
@@ -141,7 +153,8 @@ export function openGuesser(ctx) {
 
   function newSpot() {
     spot = pool[Math.floor(Math.random() * pool.length)];
-    angle = opt.rot === '90' ? Math.floor(Math.random() * 4) * Math.PI / 2 : opt.rot === 'any' ? Math.random() * Math.PI * 2 : 0;
+    angle = opt.rot === '90' ? Math.floor(Math.random() * 4) * Math.PI / 2 : 0;
+    R.setViewRot(angle);                      // sprites drawn as seen from that direction
     guess = null;
     res.textContent = 'Click the station where you think this is.';
     drawView(); drawOutline();
@@ -169,10 +182,11 @@ export function openGuesser(ctx) {
   };
   el.querySelector('.gsize').onchange = (e) => { opt.size = Math.max(1, Math.min(61, Math.round(+e.target.value) || 5)); e.target.value = opt.size; reopts(); if (guess) drawOutline(); };
   el.querySelector('.gfog').onchange = (e) => { opt.fog = e.target.checked; reopts(); };
+  el.querySelector('.gwalls').onchange = (e) => { opt.walls = e.target.checked; save(opt); drawOutline(); };
   el.querySelector('.gdoor').onchange = (e) => { opt.doorsOpen = e.target.checked; reopts(true); };
   el.querySelector('.grot').onchange = (e) => { opt.rot = e.target.value; save(opt); newSpot(); };
   el.querySelector('.gnew').onclick = newSpot;
-  const close = () => { el.remove(); window.removeEventListener('resize', sizeAll); window.removeEventListener('keydown', onKey, true); };
+  const close = () => { el.remove(); if (ctx.onClose) ctx.onClose(); window.removeEventListener('resize', sizeAll); window.removeEventListener('keydown', onKey, true); };
   const onKey = (e) => {
     if (e.target.matches && e.target.matches('input, select')) return;
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }

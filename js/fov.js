@@ -109,8 +109,7 @@ export function castRay(opaque, px, py, dx, dy, maxT) {
       tx += tdx; ty += tdy; x += sx; y += sy;
     } else if (tx < ty) { t = tx; tx += tdx; x += sx; } else { t = ty; ty += tdy; y += sy; }
     if (t >= maxT) return maxT;
-    // as in the game, the wall itself is seen: the line ends where it leaves the first wall
-    if (opaque.has(K(x, y))) return Math.min(maxT, tx, ty);
+    if (opaque.has(K(x, y))) return t;      // stops on the wall's face (the wall itself counts as seen, see seenTiles)
   }
 }
 
@@ -216,3 +215,63 @@ function simplify(p) {
 export function sightTargets(opaque) {
   return turningCorners((x, y) => opaque.has(K(x, y)) ? 1 : 0, opaque).map(c => [c[0], c[1]]);
 }
+
+// Which tiles the view shapes touch. A tile counts when the view covers any of it, even only a
+// corner; but a corner where two sight-blocking tiles meet does not let the view reach the tile
+// behind them. Walls and doors the view touches count as seen (as in the game: the wall is seen,
+// what is behind it is not). Returns a Set of K(x, y).
+export function seenTiles(polys, opaque, P = 8) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const p of polys) for (let i = 0; i < p.length; i += 2) {
+    if (p[i] < x0) x0 = p[i]; if (p[i] > x1) x1 = p[i];
+    if (p[i + 1] < y0) y0 = p[i + 1]; if (p[i + 1] > y1) y1 = p[i + 1];
+  }
+  const out = new Set();
+  if (!isFinite(x0)) return out;
+  const bx0 = Math.floor(x0) - 1, by0 = Math.floor(y0) - 1;
+  const w = Math.ceil(x1) - bx0 + 1, h = Math.ceil(y1) - by0 + 1;
+  while (P > 2 && w * h * P * P > 3e7) P /= 2;
+  const cw = w * P, ch = h * P;
+  const c = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(cw, ch)
+    : Object.assign(document.createElement('canvas'), { width: cw, height: ch });
+  const g = c.getContext('2d');
+  g.setTransform(P, 0, 0, P, -bx0 * P, -by0 * P);
+  const path = new Path2D();
+  for (const p of polys) {
+    if (p.length < 6) continue;
+    path.moveTo(p[0], p[1]);
+    for (let i = 2; i < p.length; i += 2) path.lineTo(p[i], p[i + 1]);
+    path.closePath();
+  }
+  g.fillStyle = g.strokeStyle = '#fff';
+  g.fill(path);
+  g.lineWidth = 0.1;                         // so a line that only grazes a tile still touches it
+  g.lineJoin = 'round';
+  g.stroke(path);
+  const d = g.getImageData(0, 0, cw, ch).data;
+  const Z = Math.max(1, P / 4);              // size of a tile's corner zone in pixels
+  for (let ty = 0; ty < h; ty++) for (let tx = 0; tx < w; tx++) {
+    let inner = false, corners = 0;
+    for (let py = 0; py < P && !inner; py++) for (let px = 0; px < P; px++) {
+      if (d[((ty * P + py) * cw + tx * P + px) * 4 + 3] <= 40) continue;
+      const cx = px < Z ? -1 : px >= P - Z ? 1 : 0, cy = py < Z ? -1 : py >= P - Z ? 1 : 0;
+      if (cx && cy) corners |= 1 << ((cx > 0 ? 1 : 0) + (cy > 0 ? 2 : 0));
+      else { inner = true; break; }
+    }
+    const x = bx0 + tx, y = by0 + ty;
+    if (!inner) {
+      if (!corners) continue;
+      // reached only at corners: not through a corner where two sight-blocking tiles meet
+      let ok = false;
+      for (let q = 0; q < 4 && !ok; q++) {
+        if (!(corners & (1 << q))) continue;
+        const dx = q & 1 ? 1 : -1, dy = q & 2 ? 1 : -1;
+        if (!(opaque.has(K(x + dx, y)) && opaque.has(K(x, y + dy)))) ok = true;
+      }
+      if (!ok) continue;
+    }
+    out.add(K(x, y));
+  }
+  return out;
+}
+export { KX as tileX, KY as tileY };

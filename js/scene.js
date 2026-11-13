@@ -22,6 +22,7 @@ const HIDE_LAYER = /Welded|Bolted|Emergency|MaintenancePanel|Emag|Electrified|Pa
 const DIR4 = [0, 2, 1, 3];                 // quarter turn index (S,E,N,W) -> RSI dir index
 const DIR8 = [0, 4, 2, 6, 1, 7, 3, 5];     // eighth turn (S,SE,E,NE,N,NW,W,SW) -> RSI dir index
 const TAU = Math.PI * 2;
+const FRAME_ANGLE = [0, Math.PI, Math.PI / 2, Math.PI * 1.5];   // RSI dir index (S,N,E,W) -> angle
 
 const tkey = (g, x, y) => g + ':' + x + ',' + y;
 
@@ -480,6 +481,14 @@ export class SceneRenderer {
     }
   }
 
+  setViewRot(r) {
+    const q = Math.round((r || 0) / (Math.PI / 2)) * (Math.PI / 2);
+    if (q === (this.viewRot || 0)) return false;
+    this.viewRot = q;
+    if (this.grids) this.invalidate();
+    return true;
+  }
+
   invalidate() {
     for (const gr of this.grids.values()) {
       for (const c of gr.chunks.values()) c.canvas = null;
@@ -552,14 +561,16 @@ export class SceneRenderer {
   // where a layer is drawn: centre (grid-local tiles), rotation, frame rect, scale
   placement(it, l) {
     const res = l.res;
-    let dir = 0, rot = 0;
+    // a turned view (quarter turns, CCW): as in the game, directional sprites show the frame for
+    // that viewing direction and stay upright on screen; the rest turn with the world
+    const vr = this.viewRot || 0;
+    let dir = 0, rot = -vr;
     if (l.dev || !res) {
-      rot = 0;
+      rot = -vr;
     } else if (l.fixedDir != null) {
-      dir = l.fixedDir;
+      dir = vr ? dirFor(FRAME_ANGLE[l.fixedDir] + vr, 4) : l.fixedDir;
     } else if (res.dirs >= 4) {
-      dir = dirFor(it.rot, res.dirs);
-      rot = 0;
+      dir = dirFor(it.rot + vr, res.dirs);
     } else if (!it.noRot) {
       rot = it.rot;
     }
