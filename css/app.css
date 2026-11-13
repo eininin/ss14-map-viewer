@@ -389,3 +389,6 @@ label.dimmed { opacity: .45; }
 .landmore { color: #aab4c3; font-size: 13px; }
 .landmore summary { cursor: pointer; }
 .landmore[open] { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.gmodebtn { width: 240px; min-height: 380px; }
+.gmodebtn .gdemo { width: 200px; height: 200px; align-self: center; border-radius: 8px; border: 1px solid #2a3340; image-rendering: pixelated; background: #000; }
+.landelk { width: 300px; height: 300px; object-fit: contain; background: #000; border-radius: 12px; border: 1px solid #2a3340; }

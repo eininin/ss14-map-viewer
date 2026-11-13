@@ -68,6 +68,7 @@ cables, doors and everything placed on it.
   - *Tider's memory*: plating in maintenance tunnels (narrow parts) and small
     closed-off maint rooms; an area is picked first, then a tile, so big areas
     don't come up all the time. Starts at 5×5.
+  - *Item search*: centred on a random item lying around the station; 3×3.
   - *Random training*: any floor, outside too; free view size, no timer.
 
   "Inside" is everything not reachable from the map's edge without passing a
@@ -79,8 +80,10 @@ cables, doors and everything placed on it.
   next to a picture of the station zoomed onto the guess and the real spot
   (black-edged dots joined by a red-to-green line). Photo starts at a
   3×3 view; every round starts at 5000 points; after 3 seconds the points drain (fast at first)
-  over the timer (3 minutes by default). A hint (H) shows one more tile all
-  around and costs 25% of the points left. Score = points left × closeness.
+  over the timer (3 minutes by default). Two hints, each costing 25% of the
+  points left: *bigger view* (H) shows one more tile all around, *no field of
+  view* (F) lifts the shadows. Rotation (north up or random quarter turns) is
+  the only setting; each mode card shows a sample view. Score = points left × closeness.
   On the outline doors are a shade between walls and floor, thin glass panes
   and windoors are quarter-tile strips on their edge and pane corners small
   corner squares (panes seal only their edge for the room detection); scroll zooms it,
