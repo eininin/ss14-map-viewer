@@ -161,7 +161,7 @@ jobs:
             echo "### Replay tools: ${{ steps.job.outputs.mode }}"
             echo "- replay: ${{ steps.info.outputs.name }} (${{ steps.info.outputs.duration }})"
             echo "- engine ${{ steps.info.outputs.engine_version }}, fork ${{ steps.info.outputs.fork_id }} @ ${{ steps.src.outputs.commit }}"
-            grep -E "Maximum resident set size" out/run.log | sed 's/^\s*/- /' || true
+            if [ -f out/run.log ]; then grep -E "Maximum resident set size" out/run.log | sed 's/^\s*/- /' || true; fi
             echo
             echo '```'
             ls -la out 2>/dev/null | head -50
