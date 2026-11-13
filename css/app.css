@@ -357,3 +357,15 @@ label.dimmed { opacity: .45; }
 .gbar .gtimer { font-family: "IBM Plex Mono", monospace; color: #e6ebf2; }
 .gbar .gtimer b { color: #f2b84b; }
 .gbar .gmode { color: #8b96a7; }
+.gend { display: none; flex: 1; flex-direction: column; align-items: center; gap: 14px; padding: 18px; overflow: auto; }
+.gmodal.ended .gend { display: flex; }
+.gmodal.ended .gbody, .gmodal.ended .gbar .ghint, .gmodal.ended .gbar .gskip, .gmodal.ended .gbar .gtimer { display: none; }
+.gend h2 { margin: 0; font-size: 20px; }
+.gtotal { font-size: 18px; color: #d6dde8; }
+.gtotal b { color: #f2b84b; }
+.grounds { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; width: 100%; max-width: 1500px; }
+.ground { background: #11161e; border: 1px solid #222a35; border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 6px; align-items: center; }
+.gpics { display: flex; gap: 8px; }
+.gpics canvas { width: 160px; height: 160px; border-radius: 6px; image-rendering: pixelated; }
+.gcap { font-size: 13px; color: #aab4c3; }
+.gcap b { color: #e6ebf2; }

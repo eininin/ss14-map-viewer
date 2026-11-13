@@ -10,10 +10,10 @@ const load = () => { try { return JSON.parse(localStorage.getItem(LSK)) || {}; }
 const save = (o) => { try { localStorage.setItem(LSK, JSON.stringify(o)); } catch (e) { /* ignore */ } };
 const MODES = {
   photo: { name: 'Photo from the station', desc: 'A spot in a room or hallway: real floor, not maintenance, not inside a window.' },
-  maints: { name: "Tider's memory", desc: 'Somewhere in maintenance.' },
+  maints: { name: "Tider's memory", desc: 'Somewhere in maintenance. Starts at 5×5, since maints all look alike.' },
   training: { name: 'Random training', desc: 'Any floor at all, outside the station too. No timer.' },
 };
-const START = 5000, GRACE = 3;                 // points at the start; seconds before they start to drop
+const START = 5000, GRACE = 3, ROUNDS = 10;                 // points at the start; seconds before they start to drop
 let starImg = null;
 
 export function openGuesser(ctx) {
@@ -28,11 +28,12 @@ export function openGuesser(ctx) {
 
   // ---- what is where
   const floorName = new Map(tiles.map(t => [tileKey(t.x, t.y), t.name]));
-  const struct = new Set(), glass = new Set();           // walls/windows/doors; windows and grilles
+  const struct = new Set(), glass = new Set(), doors = new Set();   // walls/windows/doors; windows and grilles; doors
   for (const it of scene.items) {
     if (it.kind !== 'ent' || it.grid !== grid || !it.info) continue;
     const k = tileKey(it.tx, it.ty);
     if (it.cat === 'walls' || it.cat === 'doors' || it.info.oc) struct.add(k);
+    if (it.cat === 'doors') doors.add(k);
     if (/window|grille/i.test(it.proto) || (it.cat === 'walls' && !it.info.oc)) glass.add(k);
   }
   const isPlating = (n) => /plating|lattice|catwalk/i.test(n || '');
@@ -127,6 +128,7 @@ export function openGuesser(ctx) {
       <p class="hint">Points start at ${START} and, after ${GRACE} seconds, drain over the timer. A hint (H) shows one more tile all
         around and costs 25% of the points left. You get the points left × how close you clicked.</p>
     </div>
+    <div class="gend"></div>
     <div class="gbody">
       <div class="gside"><canvas class="gview"></canvas><div class="gnote"></div></div>
       <div class="gside"><canvas class="gout"></canvas><div class="gresult"></div></div>
@@ -139,12 +141,13 @@ export function openGuesser(ctx) {
   const cv = $('.gview'), co = $('.gout'), res = $('.gresult'), note = $('.gnote');
   const dpr = window.devicePixelRatio || 1;
 
-  let mode = null, spot = null, angle = 0, guess = null, rounds = 0, total = 0;
+  let mode = null, spot = null, angle = 0, guess = null, rounds = 0, total = 0, log = [];
   let size = 3, hints = 0, t0 = 0, done = false, raf = 0;
 
   // ---- mode picker
   function showStart() {
     mode = null; cancelAnimationFrame(raf);
+    el.classList.remove('ended');
     el.classList.add('starting');
     const box = $('.gmodes');
     box.innerHTML = '';
@@ -160,8 +163,8 @@ export function openGuesser(ctx) {
   }
   function startMode(id) {
     mode = id; opt.mode = id; save(opt);
-    rounds = 0; total = 0; showScore();
-    el.classList.remove('starting');
+    rounds = 0; total = 0; log = []; showScore();
+    el.classList.remove('starting', 'ended');
     el.classList.toggle('training', id === 'training');
     $('.gmode').textContent = '· ' + MODES[id].name;
     $('.gsize').value = opt.trainSize;
@@ -185,19 +188,48 @@ export function openGuesser(ctx) {
     drawView(); drawOutline();
   }
   const toOut = (x, y) => [(x - ox0) * os, (oy1 - y) * os];
+  // floor grey, walls/windows light, doors in between
+  const outColor = (k, name) => opt.walls && doors.has(k) ? '#6d7787' : opt.walls && struct.has(k) ? '#9aa6b8'
+    : isLattice(name) ? '#262c35' : '#424b58';
+  // small map of the whole station with the real spot and the guess, for the end screen
+  function miniMap(r, side) {
+    const c = document.createElement('canvas');
+    c.width = c.height = side * dpr;
+    const g = c.getContext('2d');
+    const sc = Math.min(side / oxw, side / oyh), offx = (side - oxw * sc) / 2, offy = (side - oyh * sc) / 2;
+    const at = (x, y) => [offx + (x - ox0) * sc, offy + (oy1 - y) * sc];
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.fillStyle = '#0b0f15'; g.fillRect(0, 0, side, side);
+    for (const t of tiles) {
+      g.fillStyle = outColor(tileKey(t.x, t.y), t.name);
+      const [x, y] = at(t.x, t.y + 1);
+      g.fillRect(x, y, sc + 0.2, sc + 0.2);
+    }
+    const [ax, ay] = at(r.spot.x + 0.5, r.spot.y + 0.5);
+    if (r.guess) {
+      const [gx, gy] = at(r.guess[0], r.guess[1]);
+      g.strokeStyle = '#fff'; g.setLineDash([3, 3]); g.lineWidth = 1;
+      g.beginPath(); g.moveTo(gx, gy); g.lineTo(ax, ay); g.stroke(); g.setLineDash([]);
+      mdot(g, gx, gy, '#ff5c8a');
+    }
+    mdot(g, ax, ay, '#7bd88f');
+    c.style.width = c.style.height = side + 'px';
+    return c;
+  }
+  const mdot = (g, x, y, c) => { g.fillStyle = c; g.beginPath(); g.arc(x, y, 3.5, 0, Math.PI * 2); g.fill(); g.strokeStyle = '#000'; g.lineWidth = 1; g.stroke(); };
   function drawOutline() {
     const g = co.getContext('2d');
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, ow, oh);
     for (const t of tiles) {
       const k = tileKey(t.x, t.y);
-      g.fillStyle = struct.has(k) && opt.walls ? '#9aa6b8' : isLattice(t.name) ? '#262c35' : '#424b58';
+      g.fillStyle = outColor(k, t.name);
       const [x, y] = toOut(t.x, t.y + 1);
       g.fillRect(x, y, os + 0.3, os + 0.3);
     }
     if (opt.walls) for (const k of struct) if (!floorName.has(k)) {
       const [sx, sy] = toOut(tileX(k), tileY(k) + 1);
-      g.fillStyle = '#9aa6b8';
+      g.fillStyle = outColor(k);
       g.fillRect(sx, sy, os + 0.3, os + 0.3);
     }
     if (localStorage.getItem('ss14mv.guessDebug')) {   // shows where each kind of spot can be
@@ -302,7 +334,10 @@ export function openGuesser(ctx) {
     } else $('.gtimer').textContent = '';
     raf = requestAnimationFrame(tick);
   }
-  function showScore() { $('.gscore').textContent = rounds ? `${total} pts · ${rounds} round${rounds > 1 ? 's' : ''}` : ''; }
+  function showScore() {
+    $('.gscore').textContent = !mode ? '' : mode === 'training' ? (rounds ? `${total} pts · ${rounds} rounds` : '')
+      : `Round ${Math.min(ROUNDS, rounds + (done ? 0 : 1))}/${ROUNDS} · ${total} pts`;
+  }
 
   function newSpot() {
     const pool = pools[mode];
@@ -311,11 +346,12 @@ export function openGuesser(ctx) {
     angle = opt.rot === '90' ? Math.floor(Math.random() * 4) * Math.PI / 2 : 0;
     R.setViewRot(angle);                      // sprites drawn as seen from that direction
     guess = null; done = false; hints = 0;
-    size = mode === 'training' ? opt.trainSize : 3;
+    size = mode === 'training' ? opt.trainSize : mode === 'maints' ? 5 : 3;
     res.textContent = 'Click the station where you think this is.';
     $('.ghint').disabled = false;
     t0 = performance.now();
     drawView(); drawOutline();
+    showScore();
     cancelAnimationFrame(raf); raf = requestAnimationFrame(tick);
   }
   function finish(g) {
@@ -323,8 +359,16 @@ export function openGuesser(ctx) {
     done = true; guess = g; cancelAnimationFrame(raf);
     $('.ghint').disabled = true;
     rounds++;
+    const last = rounds >= ROUNDS && mode !== 'training';
+    const nextBtn = `<button class="btn small primary gnext">${last ? 'See results' : 'Next'}</button>`;
+    // keep a small copy of the view for the end screen
+    const shot = document.createElement('canvas');
+    shot.width = shot.height = 160;
+    shot.getContext('2d').drawImage(cv, 0, 0, 160, 160);
+    const rec = { spot, guess: Array.isArray(g) ? g : null, size, pts: 0, d: null, shot, why: Array.isArray(g) ? '' : g };
+    log.push(rec);
     if (!Array.isArray(g)) {
-      res.innerHTML = `<b>${g === 'timeout' ? "Time's up" : 'Skipped'}</b> · 0 points <button class="btn small primary gnext">Next</button>`;
+      res.innerHTML = `<b>${g === 'timeout' ? "Time's up" : 'Skipped'}</b> · 0 points ${nextBtn}`;
       $('.gtimer').textContent = '';
     } else {
       const pts0 = available(performance.now());
@@ -333,13 +377,36 @@ export function openGuesser(ctx) {
       const close = Math.exp(-Math.max(0, d - 0.7) / scale);
       const pts = Math.round(pts0 * close);
       total += pts;
+      rec.pts = pts; rec.d = d;
       res.innerHTML = `<b>${d < 1 ? 'Spot on!' : d.toFixed(1) + ' tiles away'}</b> · ${pts} points
-        <span class="hint">(${Math.round(pts0)} left × ${Math.round(close * 100)}% close)</span>
-        <button class="btn small primary gnext">Next</button>`;
+        <span class="hint">(${Math.round(pts0)} left × ${Math.round(close * 100)}% close)</span> ${nextBtn}`;
     }
-    res.querySelector('.gnext').onclick = newSpot;
+    res.querySelector('.gnext').onclick = last ? showEnd : newSpot;
     showScore();
     drawOutline();
+  }
+  function showEnd() {
+    cancelAnimationFrame(raf);
+    el.classList.add('ended');
+    const max = ROUNDS * START;
+    const box = $('.gend');
+    box.innerHTML = `<h2>${MODES[mode].name}</h2>
+      <div class="gtotal"><b>${total}</b> / ${max} points · <b>${(100 * total / max).toFixed(1)}%</b></div>
+      <div class="grounds"></div>
+      <div class="row gap"><button class="btn primary gagain">Play again</button><button class="btn gmodes2">Modes</button></div>`;
+    const list = box.querySelector('.grounds');
+    log.forEach((r, i) => {
+      const card = document.createElement('div');
+      card.className = 'ground';
+      card.innerHTML = `<div class="gpics"></div><div class="gcap"><b>${i + 1}.</b> ${r.guess ? (r.d < 1 ? 'spot on' : r.d.toFixed(1) + ' tiles') : (r.why === 'timeout' ? "time's up" : 'skipped')} · <b>${r.pts}</b></div>`;
+      const pics = card.querySelector('.gpics');
+      r.shot.className = 'gshot';
+      pics.appendChild(r.shot);
+      pics.appendChild(miniMap(r, 160));
+      list.appendChild(card);
+    });
+    box.querySelector('.gagain').onclick = () => startMode(mode);
+    box.querySelector('.gmodes2').onclick = showStart;
   }
   co.addEventListener('click', (e) => {
     if (!spot || done || !mode) return;
@@ -370,7 +437,7 @@ export function openGuesser(ctx) {
   const onKey = (e) => {
     if (e.target.matches && e.target.matches('input, select')) return;
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
-    else if ((e.key === 'Enter' || e.key === ' ') && done && mode) { e.preventDefault(); e.stopPropagation(); newSpot(); }
+    else if ((e.key === 'Enter' || e.key === ' ') && done && mode && !el.classList.contains('ended')) { e.preventDefault(); e.stopPropagation(); res.querySelector('.gnext') && res.querySelector('.gnext').click(); }
     else if (e.key.toLowerCase() === 'h' && mode && !done) { e.stopPropagation(); $('.ghint').click(); }
     else e.stopPropagation();                 // keep the map's shortcuts out of the game
   };

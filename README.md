@@ -59,15 +59,18 @@ cables, doors and everything placed on it.
   - *Photo from the station*: inside the station, on real floor (not plating,
     not maintenance, not in a window), with at least 7 of the 3×3 around it
     floor or wall.
-  - *Tider's memory*: plating in maintenance.
+  - *Tider's memory*: plating in maintenance; starts at 5×5.
   - *Random training*: any floor, outside too; free view size, no timer.
 
   "Inside" is everything not reachable from the map's edge without passing a
   wall, window or door. Rooms are floor areas split by walls, windows and
-  doors; a room that is mostly plating is maintenance. Timed modes start at a
-  3×3 view and 5000 points; after 3 seconds the points drain (fast at first)
+  doors; a room that is mostly plating is maintenance. A game is 10 rounds;
+  the end screen shows the total, the % of the maximum, and each round's view
+  next to a small map with the guess and the real spot. Photo starts at a
+  3×3 view; every round starts at 5000 points; after 3 seconds the points drain (fast at first)
   over the timer (3 minutes by default). A hint (H) shows one more tile all
   around and costs 25% of the points left. Score = points left × closeness.
+  On the outline doors are a shade between walls and floor.
   Options: timer, field of view (as in the game: walls are seen, not what is
   behind them; space shows as space), airlocks open, walls/windows/airlocks
   on the outline, random quarter-turn rotation. Esc closes it.
