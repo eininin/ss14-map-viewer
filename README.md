@@ -63,7 +63,10 @@ cables, doors and everything placed on it.
   unless **airlocks open** is ticked. Optional range limit. Nothing is selected
   until you press **Select view** (every floor tile the view touches, even at
   a corner) or **Select view +1** (grown by one tile: its walls and one tile
-  beyond); optionally including the source area.
+  beyond); optionally including the source area. With **hover to trace** on,
+  hovering inside the area keeps what that spot sees strong and fades the rest;
+  hovering in the view lights up, in a second colour, the part of the area
+  that can see that spot.
 - **Zones** (*Area* tab): turn the selection into a named, coloured zone,
   drawn tinted on the map with its name in the top-left corner. A new zone
   touching a zone of the same name joins it and takes its colour. Rename,

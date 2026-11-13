@@ -6,7 +6,7 @@ import { openImageViewer } from './imageviewer.js';
 import { Parallax } from './parallax.js';
 import { exportSelection } from './exportsel.js';
 import { browse, pickServer } from './browse.js';
-import { viewPolygons, grow, tileKey } from './fov.js';
+import { viewPolygons, eyePolygon, grow, tileKey } from './fov.js';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
@@ -255,7 +255,7 @@ async function openText(text, source) {
   S.selection = null;
   S.highlight = null;
   S.area = null;
-  S.fov = null;
+  S.fov = null; S.fovHover = null;
   S.onlyMode = null;
   S.renderer.only = null;
   $('#empty').hidden = true;
@@ -733,6 +733,7 @@ function setupInput() {
       return;
     }
     drawOverlay.lastCursor = [e.offsetX, e.offsetY];
+    if (S.fov && S.fovOpts && S.fovOpts.hover) fovHoverAt(wx, wy);
     if (!drag) { if (S.tool === 'eraser' || S.tool === 'pen') drawOverlay(); return; }
     if (drag.kind === 'pick') {
       if (Math.abs(e.offsetX - drag.x) + Math.abs(e.offsetY - drag.y) > 4) drag.moved = true;
@@ -769,7 +770,7 @@ function setupInput() {
   };
   overlay.addEventListener('pointerup', end);
   overlay.addEventListener('pointercancel', end);
-  overlay.addEventListener('pointerleave', () => { drawOverlay.lastCursor = null; drawOverlay(); });
+  overlay.addEventListener('pointerleave', () => { drawOverlay.lastCursor = null; if (S.fovHover) fovHoverAt(null); drawOverlay(); });
   overlay.addEventListener('contextmenu', (e) => e.preventDefault());
   overlay.addEventListener('wheel', (e) => {
     e.preventDefault();
@@ -1390,7 +1391,7 @@ function drawZones(g) {
 
 // ---------------------------------------------------------------- field of view
 // Mark a room or department as the selection, then see everything visible from it.
-const FOV_DEF = { color: '#ff9f43', alpha: 0.35, range: 0, doorsOpen: false, withArea: false };
+const FOV_DEF = { color: '#ff9f43', color2: '#7bd88f', alpha: 0.35, range: 0, doorsOpen: false, withArea: false, hover: false };
 function fovOpts() {
   if (!S.fovOpts) S.fovOpts = { ...FOV_DEF, ...(LS.get('fov') || {}) };
   return S.fovOpts;
@@ -1425,6 +1426,7 @@ function computeFov() {
   }
   const src = new Set(S.area.tiles);
   S.fov = { grid, src, path, polys: res.polys, opaque, floor, srcPaths: tilePaths(src),
+    targets: res.targets, maxT: res.maxT, srcKeys: new Set([...src].map(k => { const i = k.indexOf(','); return tileKey(+k.slice(0, i), +k.slice(i + 1)); })),
     bounds: [gr.minX, gr.minY, gr.maxX, gr.maxY] };
   toast(`View from ${res.viewpoints} points along the outline (${Math.round(performance.now() - t0)} ms)`);
   renderArea();
@@ -1458,7 +1460,41 @@ function fovTiles(F) {
   for (const k of F.src) out.delete(k);
   return out;
 }
-function clearFov() { S.fov = null; renderArea(); drawOverlay(); }
+function clearFov() { S.fov = null; S.fovHover = null; renderArea(); drawOverlay(); }
+// hover: from a spot in the area, what it sees; from a spot in the view, what part of the area sees it
+let fovHoverPending = null, fovHoverRaf = 0, fovTestCtx = null;
+function fovHoverAt(wx, wy) {
+  if (!S.fov || !fovOpts().hover) { if (S.fovHover) { S.fovHover = null; drawOverlay(); } return; }
+  fovHoverPending = wx == null ? null : [wx, wy];
+  if (fovHoverRaf) return;
+  fovHoverRaf = requestAnimationFrame(() => {
+    fovHoverRaf = 0;
+    const F = S.fov, gr = F && S.renderer.grids && S.renderer.grids.get(F.grid);
+    let H = null;
+    if (F && gr && fovHoverPending) {
+      const [lx, ly] = gridLocal(gr, ...fovHoverPending);
+      const k = tileKey(Math.floor(lx), Math.floor(ly));
+      if (!F.opaque.has(k)) {
+        let mode = null;
+        if (F.srcKeys.has(k)) mode = 'src';
+        else {
+          if (!fovTestCtx) fovTestCtx = document.createElement('canvas').getContext('2d');
+          if (fovTestCtx.isPointInPath(F.path, lx, ly)) mode = 'view';
+        }
+        if (mode) {
+          const p = eyePolygon(F.opaque, F.targets, lx, ly, F.maxT);
+          const path = new Path2D();
+          path.moveTo(p[0], p[1]);
+          for (let i = 2; i < p.length; i += 2) path.lineTo(p[i], p[i + 1]);
+          path.closePath();
+          H = { mode, path };
+        }
+      }
+    }
+    S.fovHover = H;
+    drawOverlay();
+  });
+}
 function fovToSelection(expand) {
   const F = S.fov;
   if (!F) return;
@@ -1484,10 +1520,24 @@ function drawFov(g) {
   clip.rect(F.bounds[0] - 1e4, F.bounds[1] - 1e4, 2e4 + F.bounds[2] - F.bounds[0], 2e4 + F.bounds[3] - F.bounds[1]);
   clip.addPath(F.srcPaths.fill);
   g.clip(clip, 'evenodd');
+  const H = S.fovHover;
   g.fillStyle = o.color;
-  g.globalAlpha = o.alpha;
+  g.globalAlpha = H && H.mode === 'src' ? o.alpha * 0.35 : o.alpha;
   g.fill(F.path);
+  if (H && H.mode === 'src') {                // what the cursor's spot sees, at full strength
+    g.globalAlpha = Math.max(o.alpha, 0.45);
+    g.fill(H.path);
+  }
   g.restore();
+  if (H && H.mode === 'view') {               // the part of the area that sees the cursor
+    g.save();
+    setGridXf(g, gr);
+    g.clip(F.srcPaths.fill);
+    g.fillStyle = o.color2;
+    g.globalAlpha = Math.max(o.alpha, 0.5);
+    g.fill(H.path);
+    g.restore();
+  }
   g.save();
   setGridXf(g, gr);
   g.globalAlpha = 0.9;
@@ -1517,8 +1567,12 @@ function renderFovSection(pane, hasArea) {
   const b = document.createElement('div');
   b.className = 'row gap wrap';
   b.innerHTML = `<label class="tglbtn" title="Solid airlocks and doors count as open (glass airlocks are always see-through)"><input type="checkbox" data-o="doorsOpen" ${o.doorsOpen ? 'checked' : ''}> airlocks open</label>
+    <label class="tglbtn" title="Hover inside the area: what that spot sees stays strong, the rest fades. Hover in the view: the part of the area that sees that spot lights up in the second colour"><input type="checkbox" data-o="hover" ${o.hover ? 'checked' : ''}> hover to trace</label>
+    <input type="color" data-o="color2" value="${esc(o.color2)}" title="Colour for the part of the area that sees the cursor">
     <label class="tglbtn" title="How far you can see, in tiles. Empty = no limit">range <input type="number" min="0" step="1" value="${o.range || ''}" placeholder="∞" style="width:52px"></label>`;
   b.querySelector('[data-o=doorsOpen]').onchange = (e) => { o.doorsOpen = e.target.checked; saveFovOpts(); if (S.fov) recomputeFovFrom(); };
+  b.querySelector('[data-o=hover]').onchange = (e) => { o.hover = e.target.checked; saveFovOpts(); if (!o.hover) fovHoverAt(null); };
+  b.querySelector('[data-o=color2]').oninput = (e) => { o.color2 = e.target.value; saveFovOpts(); drawOverlay(); };
   b.querySelector('input[type=number]').onchange = (e) => { o.range = Math.max(0, +e.target.value || 0); saveFovOpts(); if (S.fov) recomputeFovFrom(); };
   pane.appendChild(b);
   const c = document.createElement('div');

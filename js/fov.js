@@ -163,26 +163,28 @@ export function viewPolygons(o) {
   const targets = turningCorners(isOpq, opaque).map(c => [c[0], c[1]]);
   const span = Math.hypot(bx1 - bx0, by1 - by0) + 4;
   const maxT = o.range > 0 ? Math.min(o.range, span) : span;
-  const polys = [];
-  for (const [px, py] of eyes) {
-    const angles = [];
-    for (const [tx, ty] of targets) {
-      const ddx = tx - px, ddy = ty - py;
-      if (ddx * ddx + ddy * ddy > maxT * maxT) continue;
-      const a = Math.atan2(ddy, ddx);
-      angles.push(a - EPS, a, a + EPS);
-    }
-    for (let i = 0; i < 720; i++) angles.push(-Math.PI + i * Math.PI / 360);
-    angles.sort((p, q) => p - q);
-    const pts = [];
-    for (const a of angles) {
-      const dx = Math.cos(a), dy = Math.sin(a);
-      const t = castRay(opaque, px, py, dx, dy, maxT);
-      pts.push(px + dx * t, py + dy * t);
-    }
-    polys.push(simplify(pts));
+  const polys = eyes.map(([px, py]) => eyePolygon(opaque, targets, px, py, maxT));
+  return { polys, viewpoints: eyes.length, targets, maxT };
+}
+
+// what one point sees: a star-shaped polygon (flat x,y list, grid tile units)
+export function eyePolygon(opaque, targets, px, py, maxT) {
+  const angles = [];
+  for (const [tx, ty] of targets) {
+    const ddx = tx - px, ddy = ty - py;
+    if (ddx * ddx + ddy * ddy > maxT * maxT) continue;
+    const a = Math.atan2(ddy, ddx);
+    angles.push(a - EPS, a, a + EPS);
   }
-  return { polys, viewpoints: eyes.length };
+  for (let i = 0; i < 720; i++) angles.push(-Math.PI + i * Math.PI / 360);
+  angles.sort((p, q) => p - q);
+  const pts = [];
+  for (const a of angles) {
+    const dx = Math.cos(a), dy = Math.sin(a);
+    const t = castRay(opaque, px, py, dx, dy, maxT);
+    pts.push(px + dx * t, py + dy * t);
+  }
+  return simplify(pts);
 }
 
 // drop points lying on a straight line between their neighbours
