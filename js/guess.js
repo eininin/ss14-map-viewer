@@ -422,27 +422,42 @@ export function openGuesser(ctx) {
   }
 
   // a spot not near the earlier ones of this game; maints: an area first (gently weighted by size), then a tile in it
+  // recent spots on this map, kept across games (and reloads) so the same places don't come back
+  const histKey = 'ss14mv.guessSeen.' + (ctx.mapName || '') + '.' + grid;
+  let hist = [];
+  try { hist = JSON.parse(localStorage.getItem(histKey)) || []; } catch (e) { hist = []; }
+  const remember = (t) => {
+    hist.push([t.x, t.y]); if (hist.length > 48) hist = hist.slice(-48);
+    try { localStorage.setItem(histKey, JSON.stringify(hist)); } catch (e) { /* ignore */ }
+  };
   function pickSpot(pool) {
-    const far = (t) => log.every(r => Math.hypot(r.spot.x - t.x, r.spot.y - t.y) >= 8);
+    const nearGame = (t) => log.some(r => Math.hypot(r.spot.x - t.x, r.spot.y - t.y) < 8);
+    const nearHist = (t) => hist.some(([x, y]) => Math.hypot(x - t.x, y - t.y) < 8);
     const areas = mode === 'maints' ? [...byRoom.values()] : null;
-    const wsum = areas ? areas.reduce((a, l) => a + Math.sqrt(l.length), 0) : 0;
-    let best = null;
-    for (let tries = 0; tries < 60; tries++) {
-      let t;
+    const wt = (l) => Math.pow(l.length, 0.7);          // big areas a bit more often, small ones not favoured
+    const wsum = areas ? areas.reduce((a, l) => a + wt(l), 0) : 0;
+    const draw = () => {
       if (areas && areas.length) {
         let r = Math.random() * wsum, l = areas[0];
-        for (const a of areas) { r -= Math.sqrt(a.length); if (r <= 0) { l = a; break; } }
-        t = l[Math.floor(Math.random() * l.length)];
-      } else t = pool[Math.floor(Math.random() * pool.length)];
-      best = t;
-      if (far(t)) break;
+        for (const a of areas) { r -= wt(a); if (r <= 0) { l = a; break; } }
+        return l[Math.floor(Math.random() * l.length)];
+      }
+      return pool[Math.floor(Math.random() * pool.length)];
+    };
+    let fallback = null;
+    for (let tries = 0; tries < 400; tries++) {
+      const t = draw();
+      if (nearGame(t)) continue;
+      if (!fallback) fallback = t;
+      if (!nearHist(t)) return t;
     }
-    return best;
+    return fallback || draw();                // small maps: at least not near this game's spots
   }
   function newSpot() {
     const pool = pools[mode];
     if (!pool || !pool.length) { showStart(); return; }
     spot = pickSpot(pool);
+    remember(spot);
     angle = opt.rot === '90' ? Math.floor(Math.random() * 4) * Math.PI / 2 : 0;
     R.setViewRot(angle);                      // sprites drawn as seen from that direction
     guess = null; done = false; hints = 0;
