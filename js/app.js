@@ -65,6 +65,12 @@ function progress(frac, text) {
   p.hidden = false;
   $('#progBar').style.width = Math.round(Math.max(0, Math.min(1, frac)) * 100) + '%';
   $('#progText').textContent = text || '';
+  // while a guesser map loads, the first screen shows a big bar too
+  if (S.autoGuess && $('#landing') && $('#landing').hidden) landShow('load');
+  if ($('#landLoad') && !$('#landLoad').hidden) {
+    $('#landBar').style.width = Math.round(Math.max(0, Math.min(1, frac)) * 100) + '%';
+    $('#landText').textContent = text || '';
+  }
 }
 function status(msg) { $('#stMsg').textContent = msg || ''; }
 async function copyText(t) {
@@ -97,6 +103,7 @@ function guessRepo() {
 }
 
 // ---------------------------------------------------------------- startup
+S.bootReady = new Promise(r => { S.bootDone = r; });
 async function boot() {
   try { Object.assign(S.config, await (await fetch('config.json', { cache: 'no-cache' })).json()); } catch (e) { /* defaults */ }
   if (!S.config.repo) S.config.repo = guessRepo();
@@ -110,6 +117,7 @@ async function boot() {
   const want = q.get('map') && q.get('map').split(':')[0];
   await useFork(S.forks.some(f => f.id === want) ? want : LS.get('fork', 'starlight'));
   renderRepoInfo();
+  S.bootDone();
   if (q.get('map')) openFromParam(q.get('map'), q);
 }
 
@@ -337,7 +345,7 @@ async function resolveAndRender(keepView, token = S.loadToken) {
   renderArea();
   draw();
   progress(null);
-  if (S.autoGuess && token === S.loadToken) { S.autoGuess = false; setTimeout(startGuesser, 50); }
+  if (S.autoGuess && token === S.loadToken) { S.autoGuess = false; $('#landing').hidden = true; setTimeout(startGuesser, 50); }
   backgroundFill(token);
 }
 
@@ -2331,22 +2339,50 @@ function setupUI() {
   setupUIRest();
   setupLanding();
 }
-// first screen: map viewer or Station Guesser (Elkridge by default, or any map via Browse)
-const GUESS_DEFAULT = { fork: 'starlight', path: 'Maps/_Starlight/Stations/Elkridge.yml', title: 'Elkridge Depot' };
+// first screen: map viewer or Station Guesser (a grid of stations, or any map via Browse)
+const GUESS_STATIONS = [
+  { fork: 'starlight', path: 'Maps/_Starlight/Stations/Elkridge.yml', title: 'Elkridge Depot', img: 'thumbs/starlight/_Starlight/Stations/Elkridge.lg.webp' },
+];
+function landShow(which) {                    // 'main' | 'pick' | 'load'
+  const el = $('#landing');
+  el.hidden = false;
+  $('#landMain').hidden = which !== 'main';
+  $('#landPick').hidden = which !== 'pick';
+  $('#landLoad').hidden = which !== 'load';
+}
+async function guessOn(st) {
+  landShow('load');
+  $('#landBar').style.width = '2%';
+  $('#landText').textContent = 'Getting ready…';
+  $('#landTitle').textContent = st.title;
+  await S.bootReady;                          // the site's own start-up must be done first
+  S.autoGuess = false;
+  await openFromParam(st.fork + ':' + st.path, null, st.title);
+  if (S.scene && S.mapSource && S.mapSource.param === st.fork + ':' + st.path) {
+    $('#landing').hidden = true;
+    startGuesser();
+  } else {
+    $('#landText').textContent = 'Could not load this station.';
+  }
+}
 function setupLanding() {
   const el = $('#landing');
   if (!el) return;
+  const grid = $('#landGrid');
+  grid.innerHTML = '';
+  for (const st of GUESS_STATIONS) {
+    const b = document.createElement('button');
+    b.className = 'landst';
+    const f = S.forks.find(x => x.id === st.fork);
+    b.innerHTML = `<img src="${st.img}" alt=""><b>${esc(st.title)}</b><span>${esc(f ? f.name : st.fork)}</span>`;
+    b.onclick = () => guessOn(st);
+    grid.appendChild(b);
+  }
   const q = new URLSearchParams(location.search);
-  if (q.get('map')) { el.hidden = true; return; }
-  el.hidden = false;
+  if (q.get('map')) { el.hidden = true; } else landShow('main');
   $('#landViewer').onclick = () => { el.hidden = true; };
-  $('#landGuess').onclick = () => { $('#landPick').hidden = false; $('#landMain').hidden = true; };
-  $('#landBack').onclick = () => { $('#landPick').hidden = true; $('#landMain').hidden = false; };
-  $('#landElk').onclick = () => {
-    el.hidden = true;
-    S.autoGuess = true;
-    openFromParam(GUESS_DEFAULT.fork + ':' + GUESS_DEFAULT.path, null, GUESS_DEFAULT.title);
-  };
+  $('#landGuess').onclick = () => landShow('pick');
+  $('#landBack').onclick = () => landShow('main');
   $('#landOther').onclick = () => {
     el.hidden = true;
     S.autoGuess = true;                       // whatever is picked in Browse starts the game once loaded
@@ -2355,7 +2391,7 @@ function setupLanding() {
 }
 function startGuesser() {
   {
-    if (!S.mapSource) { $('#landing').hidden = false; $('#landMain').hidden = true; $('#landPick').hidden = false; return; }
+    if (!S.mapSource) { landShow('pick'); return; }
     if (!S.scene || !S.renderer.grids) { toast('The map is still loading, try again in a moment', true); return; }
     try {
       const err = openGuesser({ renderer: S.renderer, scene: S.scene, grid: areaGrid(), CHUNK, PX, sightBlockers,

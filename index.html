@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/app.css?v=46">
+<link rel="stylesheet" href="css/app.css?v=47">
 </head>
 <body>
 <header id="top">
@@ -38,13 +38,18 @@
     <div id="landPick" class="landbox" hidden>
       <h1>Station Guesser</h1>
       <p class="hint">Choose a station to play on.</p>
-      <img class="landelk" src="thumbs/starlight/_Starlight/Stations/Elkridge.lg.webp" alt="Elkridge Depot">
-      <button id="landElk" class="landcard big"><b>Elkridge Depot</b><span>Starlight · the default station</span></button>
+      <div id="landGrid" class="landgrid"></div>
       <details class="landmore"><summary>Another map…</summary>
         <p class="hint">Pick a server, then the kind of map, then the map; the game starts once it has loaded.</p>
         <button id="landOther" class="btn">Choose a map</button>
       </details>
       <button id="landBack" class="btn small">← Back</button>
+    </div>
+    <div id="landLoad" class="landbox" hidden>
+      <h1>Station Guesser</h1>
+      <p id="landTitle" class="hint"></p>
+      <div class="landbarbox"><div id="landBar" class="landbar"></div></div>
+      <p id="landText" class="hint"></p>
     </div>
   </div>
 
@@ -202,6 +207,6 @@
 </div>
 <div id="toast" class="toast" hidden></div>
 
-<script type="module" src="js/app.js?v=46"></script>
+<script type="module" src="js/app.js?v=47"></script>
 </body>
 </html>
