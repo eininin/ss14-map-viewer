@@ -87,7 +87,7 @@ export function openGuesser(ctx) {
   // rooms: floor areas inside, split by walls, windows and doors. Maintenance = mostly plating and
   // no department door around it (maints and hidden rooms only have maintenance doors, or none;
   // engineering, atmos and other plated work rooms always have a department airlock)
-  const room = new Int32Array(BW * BH).fill(-1), roomPlating = [], roomDept = [];
+  const room = new Int32Array(BW * BH).fill(-1), roomPlating = [], roomDept = [], roomSize = [];
   for (const t of tiles) {
     const k = tileKey(t.x, t.y), i0 = idx(t.x, t.y);
     if (room[i0] >= 0 || outside[i0] || struct.has(k)) continue;
@@ -104,6 +104,7 @@ export function openGuesser(ctx) {
     }
     roomPlating.push(n ? p / n : 0);
     roomDept.push(dept);
+    roomSize.push(n);
   }
   const solidAround = (x, y) => {             // floor or wall in the 3x3 (walls count as floor here)
     let c = 0;
@@ -113,12 +114,21 @@ export function openGuesser(ctx) {
     }
     return c;
   };
+  // how open it is around a tile: floor tiles of the same room in the 5x5
+  const openAround = (x, y, id) => {
+    let c = 0;
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+      const xx = x + dx, yy = y + dy;
+      if (xx >= bx0 && yy >= by0 && xx < bx1 && yy < by1 && room[idx(xx, yy)] === id) c++;
+    }
+    return c;
+  };
   let opaque, targets;
-  const pools = {};
+  const pools = {}, byRoom = new Map();       // maints spots grouped by area, so one big area isn't picked all the time
   function buildPools() {
     opaque = ctx.sightBlockers(grid, opt.doorsOpen);
     targets = sightTargets(opaque);
-    pools.photo = []; pools.maints = []; pools.training = [];
+    pools.photo = []; pools.maints = []; pools.training = []; byRoom.clear();
     for (const t of tiles) {
       const k = tileKey(t.x, t.y);
       if (opaque.has(k)) continue;
@@ -129,7 +139,10 @@ export function openGuesser(ctx) {
       const maintRoom = roomPlating[room[i]] >= 0.5 && !roomDept[room[i]];
       const workRoom = roomPlating[room[i]] >= 0.5 && roomDept[room[i]];
       if (!isPlating(t.name) && !maintRoom && !workRoom && solidAround(t.x, t.y) >= 7) pools.photo.push(t);
-      else if (maintRoom && isPlating(t.name) && !isLattice(t.name)) pools.maints.push(t);
+      else if (maintRoom && isPlating(t.name) && !isLattice(t.name) && (roomSize[room[i]] <= 40 || openAround(t.x, t.y, room[i]) <= 13)) {
+        pools.maints.push(t);                 // tunnels (narrow) and small hidden rooms, not big open plated halls
+        (byRoom.get(room[i]) || byRoom.set(room[i], []).get(room[i])).push(t);
+      }
     }
   }
   buildPools();
@@ -408,10 +421,28 @@ export function openGuesser(ctx) {
       : `Round ${Math.min(ROUNDS, rounds + (done ? 0 : 1))}/${ROUNDS} · ${total} pts`;
   }
 
+  // a spot not near the earlier ones of this game; maints: an area first (gently weighted by size), then a tile in it
+  function pickSpot(pool) {
+    const far = (t) => log.every(r => Math.hypot(r.spot.x - t.x, r.spot.y - t.y) >= 8);
+    const areas = mode === 'maints' ? [...byRoom.values()] : null;
+    const wsum = areas ? areas.reduce((a, l) => a + Math.sqrt(l.length), 0) : 0;
+    let best = null;
+    for (let tries = 0; tries < 60; tries++) {
+      let t;
+      if (areas && areas.length) {
+        let r = Math.random() * wsum, l = areas[0];
+        for (const a of areas) { r -= Math.sqrt(a.length); if (r <= 0) { l = a; break; } }
+        t = l[Math.floor(Math.random() * l.length)];
+      } else t = pool[Math.floor(Math.random() * pool.length)];
+      best = t;
+      if (far(t)) break;
+    }
+    return best;
+  }
   function newSpot() {
     const pool = pools[mode];
     if (!pool || !pool.length) { showStart(); return; }
-    spot = pool[Math.floor(Math.random() * pool.length)];
+    spot = pickSpot(pool);
     angle = opt.rot === '90' ? Math.floor(Math.random() * 4) * Math.PI / 2 : 0;
     R.setViewRot(angle);                      // sprites drawn as seen from that direction
     guess = null; done = false; hints = 0;

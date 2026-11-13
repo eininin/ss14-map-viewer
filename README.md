@@ -59,7 +59,9 @@ cables, doors and everything placed on it.
   - *Photo from the station*: inside the station, on real floor (not plating,
     not maintenance, not in a window), with at least 7 of the 3×3 around it
     floor or wall.
-  - *Tider's memory*: plating in maintenance; starts at 5×5.
+  - *Tider's memory*: plating in maintenance tunnels (narrow parts) and small
+    closed-off maint rooms; an area is picked first, then a tile, so big areas
+    don't come up all the time. Starts at 5×5.
   - *Random training*: any floor, outside too; free view size, no timer.
 
   "Inside" is everything not reachable from the map's edge without passing a
