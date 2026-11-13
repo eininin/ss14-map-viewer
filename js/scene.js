@@ -191,6 +191,27 @@ export function buildScene(model, db, opts) {
       map: l.m || null, shader: l.sh || null,
     }));
 
+    // looks that visualizers set in the game, as on a normal running station: closed, powered, filled
+    const byMap = (key) => layers.find(l => l.map && l.map.includes(key));
+    const setLayer = (key, st, vis) => {
+      const l = byMap(key);
+      if (!l) return;
+      if (st != null) { l.state = st; l.tex = null; }
+      if (vis != null) { l.hidden = !vis; if (vis) l.runtimeHidden = false; }
+    };
+    if (info.esv) {                           // lockers, closets, crates: their own body and closed door
+      if (info.esv[0]) setLayer('enum.StorageVisualLayers.Base', info.esv[0]);
+      if (info.esv[1]) setLayer('enum.StorageVisualLayers.Door', info.esv[1], true);
+      else setLayer('enum.StorageVisualLayers.Door', null, false);
+    }
+    if (info.vend) {                          // vending machines, powered: lit front and screen
+      if (info.vend[0]) setLayer('enum.VendingMachineVisualLayers.Base', info.vend[0]);
+      if (info.vend[1]) setLayer('enum.VendingMachineVisualLayers.BaseUnshaded', info.vend[1], true);
+      if (info.vend[2]) setLayer('enum.VendingMachineVisualLayers.Screen', info.vend[2], true);
+    }
+    if (info.fill) setLayer('enum.StorageFillLayers.Fill', info.fill[0] + '-' + info.fill[1], true);   // shelves with books
+    if (info.gv) for (const [key, d] of info.gv) setLayer(key, d.st, d.v == null ? null : !!d.v);
+
     // doors: the map can override the prototype's open/closed state
     const doorState = e.door || info.door;
     if (doorState === 'open') {

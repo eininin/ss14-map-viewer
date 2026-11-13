@@ -401,3 +401,5 @@ label.dimmed { opacity: .45; }
 .landst span { font-size: 12px; color: #8b96a7; }
 .landbarbox { width: min(520px, 80vw); height: 14px; border-radius: 7px; background: #11161e; border: 1px solid #2a3340; overflow: hidden; }
 .landbar { height: 100%; width: 0; background: linear-gradient(90deg, #f2b84b, #ffd27a); transition: width .2s; }
+.gopts input:not([type=number]):not([type=checkbox]) { background: #11161e; color: #e6ebf2; border: 1px solid #2a3340; border-radius: 6px; padding: 4px 8px; font: inherit; width: 130px; }
+.gopts input::placeholder { color: #6f7b8c; }

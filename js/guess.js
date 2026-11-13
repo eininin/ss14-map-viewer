@@ -227,7 +227,7 @@ export function openGuesser(ctx) {
       <span class="gscore"></span>
       <button class="btn small gskip">Skip</button>
       <button class="btn small gmenu">Modes</button>
-      <button class="btn small gclose" title="Esc">Close</button>
+      <button class="btn small gclose" title="Back to the map viewer (Esc)">Map viewer</button>
     </div>
     <div class="gstart">
       <h2>Station Guesser</h2>

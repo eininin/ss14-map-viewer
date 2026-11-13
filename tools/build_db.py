@@ -231,6 +231,18 @@ MACHINE_HINT = {"Machine", "MachineBoard_", "UpgradePowerDraw", "WiresPanel", "A
                 "BlockGameArcade", "Jukebox", "Charger", "PowerCellSlot_"}
 
 
+# appearance values assumed for GenericVisualizer: a powered, closed, normal station
+GV_ASSUME = {
+    "enum.PowerDeviceVisuals.Powered": "True",
+    "enum.ComputerVisuals.Powered": "True",
+    "enum.OpenableVisuals.Opened": "False",
+    "enum.StorageVisuals.Open": "False",
+    "enum.PaperLabelVisuals.HasLabel": "False",
+    "enum.GeneratorVisuals.Running": "False",
+    "enum.ElectrifiedVisuals.ShowSparks": "False",
+}
+
+
 def categorize(pid, d, comps, e):
     """Layer group for the viewer. The first rule that matches wins.
     Networks: atmos (pipes), atmosdev (vents, scrubbers, pumps, canisters…), hv / mv / lv (cables),
@@ -443,6 +455,38 @@ def build(res):
             else:
                 e["sm"] = [str(ism.get("key")), str(ism.get("base", "")), str(ism.get("mode", "Corners")),
                            [str(x) for x in (ism.get("additionalKeys") or [])]]
+        # looks set by visualizers at runtime, as on a normal running station (closed, powered, filled)
+        esv = comps.get("EntityStorageVisuals")
+        if isinstance(esv, dict):
+            e["esv"] = [esv.get("stateBaseClosed"), esv.get("stateDoorClosed")]
+        vm = comps.get("VendingMachine")
+        if isinstance(vm, dict) and (vm.get("normalState") or vm.get("offState") or vm.get("screenState")):
+            e["vend"] = [vm.get("offState"), vm.get("normalState"), vm.get("screenState")]
+        sfv = comps.get("StorageFillVisualizer")
+        if isinstance(sfv, dict) and sfv.get("fillBaseName"):
+            filled = any(k in comps for k in ("StorageFill", "EntityTableContainerFill", "ContainerFill"))
+            mx = int(sfv.get("maxFillLevels") or 1)
+            e["fill"] = [str(sfv["fillBaseName"]), max(0, mx - 1) if filled else 0]
+        gv = comps.get("GenericVisualizer")
+        if isinstance(gv, dict) and isinstance(gv.get("visuals"), dict):
+            out = []
+            for key, layers in gv["visuals"].items():
+                want = GV_ASSUME.get(str(key))
+                if want is None or not isinstance(layers, dict):
+                    continue
+                for lk, vals in layers.items():
+                    if not isinstance(vals, dict):
+                        continue
+                    dv = vals.get(want, vals.get(want.lower()) if isinstance(want, str) else None)
+                    if dv is None:
+                        dv = vals.get(True if want == "True" else False if want == "False" else want)
+                    if isinstance(dv, dict):
+                        rec = {}
+                        if dv.get("state") is not None: rec["st"] = str(dv["state"])
+                        if dv.get("visible") is not None: rec["v"] = 1 if dv["visible"] in (True, "true", "True") else 0
+                        if rec: out.append([str(lk), rec])
+            if out:
+                e["gv"] = out
         cv = comps.get("CableVisualizer")
         if cv and cv.get("statePrefix"):
             e["cab"] = [str(cv["statePrefix"]), str(cv.get("extraLayerPrefix") or "")]
