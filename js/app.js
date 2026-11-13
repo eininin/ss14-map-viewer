@@ -6,7 +6,7 @@ import { openImageViewer } from './imageviewer.js';
 import { Parallax } from './parallax.js';
 import { exportSelection } from './exportsel.js';
 import { browse, pickServer } from './browse.js';
-import { viewPolygons, eyePolygon, grow, tileKey } from './fov.js';
+import { viewPolygons, eyePolygon, grow, tileKey } from './fov.js?v=21';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
