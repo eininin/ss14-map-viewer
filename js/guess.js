@@ -106,6 +106,40 @@ export function openGuesser(ctx) {
     roomDept.push(dept);
     roomSize.push(n);
   }
+  // the station proper: from the main hallway (the biggest area with almost no plating), through
+  // every door that isn't a maintenance door (department and public airlocks, firelocks, windoors).
+  // Maints and hidden rooms are what this never reaches.
+  const links = roomSize.map(() => []);
+  const roomAt = (x, y) => (x < bx0 || y < by0 || x >= bx1 || y >= by1) ? -1 : room[idx(x, y)];
+  // doors next to each other (airlock + firelock, double doors) work as one doorway
+  const doorDone = new Set();
+  for (const [k0, kind0] of doorKind) {
+    if (kind0 === 1 || doorDone.has(k0)) continue;
+    const ids = new Set(), st = [k0];
+    doorDone.add(k0);
+    while (st.length) {
+      const k = st.pop(), x = tileX(k), y = tileY(k);
+      for (const [nx, ny] of [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]]) {
+        const nk = tileKey(nx, ny), r = roomAt(nx, ny);
+        if (r >= 0) ids.add(r);
+        const nkind = doorKind.get(nk);
+        if (nkind != null && nkind !== 1 && !doorDone.has(nk)) { doorDone.add(nk); st.push(nk); }
+      }
+    }
+    for (const a of ids) for (const b of ids) if (a !== b) links[a].push(b);
+  }
+  for (const [k, list] of thin) for (const [dx, dy, isDoor, corner] of list) {
+    if (!isDoor || corner) continue;
+    const a = roomAt(tileX(k), tileY(k)), b = roomAt(tileX(k) + dx, tileY(k) + dy);
+    if (a >= 0 && b >= 0 && a !== b) { links[a].push(b); links[b].push(a); }
+  }
+  let seed = -1;
+  roomSize.forEach((n, i) => { if (roomPlating[i] < 0.3 && (seed < 0 || n > roomSize[seed])) seed = i; });
+  const proper = new Uint8Array(roomSize.length);
+  if (seed >= 0) {
+    const q = [seed]; proper[seed] = 1;
+    while (q.length) for (const b of links[q.pop()]) if (!proper[b]) { proper[b] = 1; q.push(b); }
+  }
   const solidAround = (x, y) => {             // floor or wall in the 3x3 (walls count as floor here)
     let c = 0;
     for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
@@ -136,9 +170,8 @@ export function openGuesser(ctx) {
       if (struct.has(k) || glass.has(k)) continue;
       const i = idx(t.x, t.y);
       if (outside[i] || room[i] < 0) continue;
-      const maintRoom = roomPlating[room[i]] >= 0.5 && !roomDept[room[i]];
-      const workRoom = roomPlating[room[i]] >= 0.5 && roomDept[room[i]];
-      if (!isPlating(t.name) && !maintRoom && !workRoom && solidAround(t.x, t.y) >= 7) pools.photo.push(t);
+      const maintRoom = !proper[room[i]] && roomPlating[room[i]] >= 0.5;
+      if (proper[room[i]] && !isPlating(t.name) && roomPlating[room[i]] < 0.5 && solidAround(t.x, t.y) >= 7) pools.photo.push(t);
       else if (maintRoom && isPlating(t.name) && !isLattice(t.name) && (roomSize[room[i]] <= 40 || openAround(t.x, t.y, room[i]) <= 13)) {
         pools.maints.push(t);                 // tunnels (narrow) and small hidden rooms, not big open plated halls
         (byRoom.get(room[i]) || byRoom.set(room[i], []).get(room[i])).push(t);
@@ -545,7 +578,7 @@ export function openGuesser(ctx) {
   }
   // the end screen as one picture, copied to the clipboard (or downloaded if that is not allowed)
   async function copyEnd(btn) {
-    const cols = 2, cw = 360, chh = 200, pad = 16, head = 96;
+    const cols = 3, cw = 360, chh = 200, pad = 16, head = 96;
     const rows = Math.ceil(log.length / cols);
     const c = document.createElement('canvas');
     c.width = pad + cols * (cw + pad); c.height = head + rows * (chh + pad) + pad;

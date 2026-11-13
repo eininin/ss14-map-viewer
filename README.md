@@ -56,9 +56,11 @@ cables, doors and everything placed on it.
 - **Station Guesser** (top bar): a view from a spot of the open map on the
   left, the station's outline on the right; click where you think it is. Pick a
   mode first:
-  - *Photo from the station*: inside the station, on real floor (not plating,
-    not maintenance, not in a window), with at least 7 of the 3×3 around it
-    floor or wall.
+  - *Photo from the station*: in the station proper: everything reached from
+    the main hallway through doors that aren't maintenance doors (department
+    and public airlocks, firelocks, windoors; doors side by side count as one
+    doorway). On real floor (not plating, not in a window), with at least 7 of
+    the 3×3 around it floor or wall.
   - *Tider's memory*: plating in maintenance tunnels (narrow parts) and small
     closed-off maint rooms; an area is picked first, then a tile, so big areas
     don't come up all the time. Starts at 5×5.
@@ -66,9 +68,9 @@ cables, doors and everything placed on it.
 
   "Inside" is everything not reachable from the map's edge without passing a
   wall, window or door. Rooms are floor areas split by walls, windows and
-  doors; a room that is mostly plating and has no department door around it
-  (only maintenance doors, firelocks, shutters or none at all, like hidden
-  rooms) is maintenance; plated work rooms such as engineering are left out. A game is 12 rounds;
+  doors; maintenance is the mostly-plating areas the station proper never
+  reaches (behind maintenance doors, or hidden rooms); plated work rooms such
+  as engineering are reached and so left out. A game is 12 rounds;
   the end screen shows the total, the % of the maximum, and each round's view
   next to a picture of the station zoomed onto the guess and the real spot
   (black-edged dots joined by a red-to-green line). Photo starts at a
@@ -80,7 +82,7 @@ cables, doors and everything placed on it.
   corner squares (panes seal only their edge for the room detection); scroll zooms it,
   drag moves it, a click without dragging is the guess, *Fit* resets it.
   The start size of each mode is a setting (3, 5 and 5 by default). The end
-  screen lists the settings and *Copy end screen* copies it as a picture
+  screen lists the settings and *Copy end screen* copies it as a picture (3 × 4 rounds)
   (or saves it if the browser won't allow copying).
   Options: timer, field of view (as in the game: walls are seen, not what is
   behind them; space shows as space), airlocks open, walls/windows/airlocks
