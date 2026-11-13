@@ -69,7 +69,8 @@ cables, doors and everything placed on it.
   - *Tider's memory*: plating in maintenance tunnels (narrow parts) and small
     closed-off maint rooms; an area is picked first, then a tile, so big areas
     don't come up all the time. Starts at 5×5.
-  - *Item search*: centred on a random thing inside the station: an item,
+  - *Item search*: centred on a random thing in the station proper (not
+    maintenance): an item,
     machine, computer, fabricator, vending machine, locker or crate (not
     walls, floors, decals or pipes); 3×3.
   - *Random training*: any floor, outside too; free view size, no timer.

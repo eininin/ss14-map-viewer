@@ -11,7 +11,7 @@ const save = (o) => { try { localStorage.setItem(LSK, JSON.stringify(o)); } catc
 const MODES = {
   maints: { name: "Tider's memory", desc: 'Somewhere in maintenance. A bigger view, since maints all look alike.' },
   photo: { name: 'Photo from the station', desc: 'A spot in a room or hallway: real floor, not maintenance, not inside a window.' },
-  items: { name: 'Item search', desc: 'Centred on a random thing: an item, machine, locker or crate somewhere on the station.' },
+  items: { name: 'Item search', desc: 'Centred on a random thing: an item, machine, locker or crate in the station (not maintenance).' },
   training: { name: 'Random training', desc: 'Any floor at all, outside the station too. No timer.' },
 };
 const esc0 = (t) => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -212,6 +212,7 @@ export function openGuesser(ctx) {
       if (seenTile.has(k) || !floorName.has(k) || opaque.has(k)) continue;
       const i = idx(it.tx, it.ty);
       if (i < 0 || i >= outside.length || outside[i]) continue;
+      if (room[i] < 0 || !proper[room[i]] || roomPlating[room[i]] >= 0.5) continue;   // the station proper, not maints
       seenTile.add(k);
       pools.items.push({ x: it.tx, y: it.ty, item: it.name || it.proto });
     }
