@@ -13,7 +13,7 @@ const MODES = {
   maints: { name: "Tider's memory", desc: 'Somewhere in maintenance. Starts bigger (5×5) by default, since maints all look alike.' },
   training: { name: 'Random training', desc: 'Any floor at all, outside the station too. No timer.' },
 };
-const START = 5000, GRACE = 3, ROUNDS = 10;                 // points at the start; seconds before they start to drop
+const START = 5000, GRACE = 3, ROUNDS = 12;                 // points at the start; seconds before they start to drop
 let starImg = null;
 
 export function openGuesser(ctx) {
@@ -214,19 +214,30 @@ export function openGuesser(ctx) {
     const c = document.createElement('canvas');
     c.width = c.height = side * dpr;
     const g = c.getContext('2d');
-    const sc = Math.min(side / oxw, side / oyh), offx = (side - oxw * sc) / 2, offy = (side - oyh * sc) / 2;
-    const at = (x, y) => [offx + (x - ox0) * sc, offy + (oy1 - y) * sc];
+    // zoomed so the guess and the real spot sit near the edges (at least 8 tiles across)
+    const sx0 = r.spot.x + 0.5, sy0 = r.spot.y + 0.5;
+    const gx0 = r.guess ? r.guess[0] : sx0, gy0 = r.guess ? r.guess[1] : sy0;
+    const span = Math.max(8, Math.abs(gx0 - sx0) * 1.18, Math.abs(gy0 - sy0) * 1.18, r.guess ? 0 : 20);
+    const cxm = (sx0 + gx0) / 2, cym = (sy0 + gy0) / 2, sc = side / span;
+    const at = (x, y) => [side / 2 + (x - cxm) * sc, side / 2 - (y - cym) * sc];
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.fillStyle = '#0b0f15'; g.fillRect(0, 0, side, side);
     for (const t of tiles) {
-      g.fillStyle = outColor(tileKey(t.x, t.y), t.name);
       const [x, y] = at(t.x, t.y + 1);
+      if (x < -sc || y < -sc || x > side || y > side) continue;
+      g.fillStyle = outColor(tileKey(t.x, t.y), t.name);
+      g.fillRect(x, y, sc + 0.2, sc + 0.2);
+    }
+    if (opt.walls) for (const k of struct) if (!floorName.has(k)) {
+      const [x, y] = at(tileX(k), tileY(k) + 1);
+      if (x < -sc || y < -sc || x > side || y > side) continue;
+      g.fillStyle = outColor(k);
       g.fillRect(x, y, sc + 0.2, sc + 0.2);
     }
     const [ax, ay] = at(r.spot.x + 0.5, r.spot.y + 0.5);
     if (r.guess) {
       const [gx, gy] = at(r.guess[0], r.guess[1]);
-      g.strokeStyle = '#fff'; g.setLineDash([3, 3]); g.lineWidth = 1;
+      g.strokeStyle = '#fff'; g.setLineDash([4, 3]); g.lineWidth = 1.5;
       g.beginPath(); g.moveTo(gx, gy); g.lineTo(ax, ay); g.stroke(); g.setLineDash([]);
       mdot(g, gx, gy, '#ff5c8a');
     }
@@ -234,7 +245,7 @@ export function openGuesser(ctx) {
     c.style.width = c.style.height = side + 'px';
     return c;
   }
-  const mdot = (g, x, y, c) => { g.fillStyle = c; g.beginPath(); g.arc(x, y, 3.5, 0, Math.PI * 2); g.fill(); g.strokeStyle = '#000'; g.lineWidth = 1; g.stroke(); };
+  const mdot = (g, x, y, c) => { g.fillStyle = c; g.beginPath(); g.arc(x, y, 5, 0, Math.PI * 2); g.fill(); g.strokeStyle = '#000'; g.lineWidth = 1; g.stroke(); };
   function drawOutline() {
     const g = co.getContext('2d');
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
