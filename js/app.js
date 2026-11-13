@@ -6,8 +6,8 @@ import { openImageViewer } from './imageviewer.js';
 import { Parallax } from './parallax.js';
 import { exportSelection } from './exportsel.js';
 import { browse, pickServer } from './browse.js';
-import { viewPolygons, eyePolygon, grow, tileKey } from './fov.js?v=24';
-import { openGuesser } from './guess.js?v=24';
+import { viewPolygons, eyePolygon, grow, tileKey } from './fov.js?v=25';
+import { openGuesser } from './guess.js?v=25';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
@@ -2339,9 +2339,16 @@ function setupUI() {
   $('#fileInput').onchange = (e) => { const f = e.target.files[0]; if (f) openFile(f); e.target.value = ''; };
   $('#btnBrowse').onclick = () => browseMaps();
   $('#btnGuess').onclick = () => {
-    if (!S.scene || !S.renderer.grids) { toast('Open a station first', true); return; }
-    openGuesser({ renderer: S.renderer, scene: S.scene, grid: areaGrid(), CHUNK, PX, sightBlockers,
-      mapName: (S.mapSource && (S.mapSource.title || S.mapSource.name)) || '' });
+    if (!S.mapSource) { toast('Open a station first (Browse maps or Open .yml)', true); return; }
+    if (!S.scene || !S.renderer.grids) { toast('The map is still loading, try again in a moment', true); return; }
+    try {
+      const err = openGuesser({ renderer: S.renderer, scene: S.scene, grid: areaGrid(), CHUNK, PX, sightBlockers,
+        mapName: (S.mapSource && (S.mapSource.title || S.mapSource.name)) || '' });
+      if (err) toast(err, true);
+    } catch (e) {
+      console.error(e);
+      toast('Station Guesser failed: ' + e.message, true);
+    }
   };
   $('#rotL').onclick = () => rotateView(Math.PI / 2);
   $('#rotR').onclick = () => rotateView(-Math.PI / 2);

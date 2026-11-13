@@ -1,6 +1,6 @@
 // Station Guesser: a view from a random spot of the map on the left, the outline of the
 // station on the right; click the outline where you think the view is.
-import { eyePolygon, sightTargets, tileKey } from './fov.js?v=24';
+import { eyePolygon, sightTargets, tileKey } from './fov.js?v=25';
 
 const LSK = 'ss14mv.guess';
 const load = () => { try { return JSON.parse(localStorage.getItem(LSK)) || {}; } catch (e) { return {}; } };
@@ -14,13 +14,13 @@ export function openGuesser(ctx) {
   const opt = { size: 5, fog: true, rot: 'none', doorsOpen: false, ...load() };
   const { renderer: R, scene, grid, CHUNK, PX } = ctx;
   const gr = R.grids && R.grids.get(grid);
-  if (!gr) return;
+  if (!gr) return 'This map has no station grid to play on';
   const tiles = (scene.tiles.get(grid) || []);
   const floor = new Set(tiles.map(t => tileKey(t.x, t.y)));
   let opaque = ctx.sightBlockers(grid, opt.doorsOpen), targets = sightTargets(opaque);
   const spots = () => tiles.filter(t => !/lattice/i.test(t.name) && !opaque.has(tileKey(t.x, t.y)));
   let pool = spots();
-  if (!pool.length) return;
+  if (!pool.length) return 'No floor on this map to pick a spot from';
 
   const el = document.createElement('div');
   el.className = 'gmodal';

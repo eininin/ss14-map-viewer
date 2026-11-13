@@ -100,7 +100,14 @@ export function castRay(opaque, px, py, dx, dy, maxT) {
   let ty = dy !== 0 ? (dy > 0 ? y + 1 - py : py - y) * tdy : Infinity;
   for (;;) {
     let t;
-    if (tx < ty) { t = tx; tx += tdx; x += sx; } else { t = ty; ty += tdy; y += sy; }
+    if (Math.abs(tx - ty) < 1e-9 * Math.max(1, tx)) {
+      // through a tile corner: two walls touching only at that corner still block
+      t = tx;
+      if (t >= maxT) return maxT;
+      const a = opaque.has(K(x + sx, y)), b = opaque.has(K(x, y + sy));
+      if (a && b) return t;
+      tx += tdx; ty += tdy; x += sx; y += sy;
+    } else if (tx < ty) { t = tx; tx += tdx; x += sx; } else { t = ty; ty += tdy; y += sy; }
     if (t >= maxT) return maxT;
     // as in the game, the wall itself is seen: the line ends where it leaves the first wall
     if (opaque.has(K(x, y))) return Math.min(maxT, tx, ty);
