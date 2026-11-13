@@ -38,6 +38,10 @@ namespace Content.Client._ReplayTools;
 
 public sealed class ReplayChunkCommand : IConsoleCommand
 {
+    private static readonly Regex TickrateLine = new(@"^tickrate\s*=\s*(\d+)");
+    private static readonly Regex DottedTickrateLine = new(@"^net\.tickrate\s*=\s*(\d+)");
+    private static readonly Regex NameLine = new($@"^{ReplayConstants.MetaKeyName}:[ \t]*(.*)$", RegexOptions.Multiline);
+
     public string Command => "replay_chunk";
     public string Description => "Split a replay into short replays that each start from a full state.";
     public string Help => "replay_chunk <replay.zip> <outDir> [seconds=60]";
@@ -249,12 +253,12 @@ public sealed class ReplayChunkCommand : IConsoleCommand
 
             if (inNet && line.StartsWith("tickrate"))
             {
-                var m = Regex.Match(line, @"^tickrate\s*=\s*(\d+)");
+                var m = TickrateLine.Match(line);
                 if (m.Success)
                     return int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture);
             }
 
-            var dotted = Regex.Match(line, @"^net\.tickrate\s*=\s*(\d+)");
+            var dotted = DottedTickrateLine.Match(line);
             if (dotted.Success)
                 return int.Parse(dotted.Groups[1].Value, CultureInfo.InvariantCulture);
         }
@@ -280,7 +284,7 @@ public sealed class ReplayChunkCommand : IConsoleCommand
         meta = SetKey(meta, ReplayConstants.MetaKeyBaseTime, baseTime.Ticks.ToString(CultureInfo.InvariantCulture));
         meta = SetKey(meta, ReplayConstants.MetaKeyStartTime, startTime.ToString("c", CultureInfo.InvariantCulture));
 
-        var name = Regex.Match(meta, $@"^{ReplayConstants.MetaKeyName}:[ \t]*(.*)$", RegexOptions.Multiline);
+        var name = NameLine.Match(meta);
         var oldName = name.Success ? name.Groups[1].Value.Trim().Trim('\'', '"') : "replay";
         meta = SetKey(meta, ReplayConstants.MetaKeyName, $"'{oldName.Replace("'", "''")} [chunk {chunk}]'");
         return meta;
