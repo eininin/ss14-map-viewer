@@ -6,7 +6,7 @@ import { openImageViewer } from './imageviewer.js';
 import { Parallax } from './parallax.js';
 import { exportSelection } from './exportsel.js';
 import { browse, pickServer } from './browse.js';
-import { fieldOfView, grow, tileKey } from './fov.js';
+import { viewPolygons, grow, tileKey } from './fov.js';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
@@ -1414,20 +1414,56 @@ function computeFov() {
     return;
   }
   const t0 = performance.now();
-  const res = fieldOfView({ source: S.area.tiles, opaque, floor,
+  const res = viewPolygons({ source: S.area.tiles, opaque,
     bounds: [gr.minX, gr.minY, gr.maxX, gr.maxY], range: o.range });
+  const path = new Path2D();
+  for (const p of res.polys) {
+    if (p.length < 6) continue;
+    path.moveTo(p[0], p[1]);
+    for (let i = 2; i < p.length; i += 2) path.lineTo(p[i], p[i + 1]);
+    path.closePath();
+  }
   const src = new Set(S.area.tiles);
-  S.fov = { grid, src, see: res.see, walls: res.walls,
-    paths: tilePaths(res.see), wallPaths: tilePaths(res.walls), srcPaths: tilePaths(src) };
-  toast(`${res.see.size} tiles in view from ${res.sources} tiles (${Math.round(performance.now() - t0)} ms)`);
+  S.fov = { grid, src, path, polys: res.polys, opaque, floor, srcPaths: tilePaths(src),
+    bounds: [gr.minX, gr.minY, gr.maxX, gr.maxY] };
+  toast(`View from ${res.viewpoints} points along the outline (${Math.round(performance.now() - t0)} ms)`);
   renderArea();
   drawOverlay();
+}
+// tiles the view covers: draw it small on a hidden canvas and read which tiles got paint
+function fovTiles(F) {
+  const P = 8, [x0, y0, x1, y1] = F.bounds;
+  const bx0 = Math.floor(x0) - 2, by0 = Math.floor(y0) - 2, w = Math.ceil(x1) - bx0 + 2, h = Math.ceil(y1) - by0 + 2;
+  const c = document.createElement('canvas');
+  c.width = w * P; c.height = h * P;
+  const g = c.getContext('2d');
+  g.setTransform(P, 0, 0, P, -bx0 * P, -by0 * P);
+  g.fillStyle = g.strokeStyle = '#fff';
+  g.fill(F.path);
+  g.lineWidth = 0.12;                         // a sight line that only grazes a tile corner still counts
+  g.lineJoin = 'round';
+  g.stroke(F.path);
+  const d = g.getImageData(0, 0, c.width, c.height).data;
+  const out = new Set();
+  for (let ty = 0; ty < h; ty++) for (let tx = 0; tx < w; tx++) {
+    let hit = 0;
+    for (let py = 0; py < P && !hit; py++) for (let px = 0; px < P; px++) {
+      if (d[((ty * P + py) * c.width + tx * P + px) * 4 + 3] > 40) { hit = 1; break; }
+    }
+    if (!hit) continue;
+    const x = bx0 + tx, y = by0 + ty, k = tileKey(x, y);
+    if (F.opaque.has(k) || !F.floor.has(k)) continue;
+    out.add(x + ',' + y);
+  }
+  for (const k of F.src) out.delete(k);
+  return out;
 }
 function clearFov() { S.fov = null; renderArea(); drawOverlay(); }
 function fovToSelection(expand) {
   const F = S.fov;
   if (!F) return;
-  let t = expand ? grow(F.see, 1) : new Set(F.see);
+  const see = fovTiles(F);
+  let t = expand ? grow(see, 1) : see;
   if (fovOpts().withArea) for (const k of F.src) t.add(k);
   else for (const k of F.src) t.delete(k);
   S.area = { grid: F.grid, tiles: t };
@@ -1443,23 +1479,27 @@ function drawFov(g) {
   const o = fovOpts();
   g.save();
   setGridXf(g, gr);
+  // not over the area it is seen from
+  const clip = new Path2D();
+  clip.rect(F.bounds[0] - 1e4, F.bounds[1] - 1e4, 2e4 + F.bounds[2] - F.bounds[0], 2e4 + F.bounds[3] - F.bounds[1]);
+  clip.addPath(F.srcPaths.fill);
+  g.clip(clip, 'evenodd');
   g.fillStyle = o.color;
   g.globalAlpha = o.alpha;
-  g.fill(F.paths.fill);
-  g.globalAlpha = o.alpha * 0.45;           // walls in view: lighter
-  g.fill(F.wallPaths.fill);
+  g.fill(F.path);
+  g.restore();
+  g.save();
+  setGridXf(g, gr);
   g.globalAlpha = 0.9;
-  g.strokeStyle = o.color;
-  g.lineWidth = 1.5 / S.cam.s;
-  g.stroke(F.paths.edges);
   g.setLineDash([4 / S.cam.s, 3 / S.cam.s]);   // where it is seen from
   g.strokeStyle = '#fff';
+  g.lineWidth = 1.5 / S.cam.s;
   g.stroke(F.srcPaths.edges);
   g.restore();
 }
 function renderFovSection(pane, hasArea) {
   const o = fovOpts(), F = S.fov;
-  pane.insertAdjacentHTML('beforeend', `<h3>Field of view ${F ? `<span class="badge">${F.see.size} tiles</span>` : ''}</h3>
+  pane.insertAdjacentHTML('beforeend', `<h3>Field of view</h3>
     <p class="hint">Select a room or department, then <b>See from selection</b>: every tile visible from anywhere in it
     gets coloured, in straight lines out through windows and openings. Walls and other opaque things stop it;
     windows and glass airlocks never do; solid airlocks do unless <b>airlocks open</b> is ticked.</p>`);
@@ -1483,7 +1523,7 @@ function renderFovSection(pane, hasArea) {
   pane.appendChild(b);
   const c = document.createElement('div');
   c.className = 'row gap wrap';
-  c.innerHTML = `<button class="btn small" data-a="sel" ${F ? '' : 'disabled'} title="Select every tile in view">Select view</button>
+  c.innerHTML = `<button class="btn small" data-a="sel" ${F ? '' : 'disabled'} title="Select every floor tile the view covers">Select view</button>
     <button class="btn small" data-a="sel1" ${F ? '' : 'disabled'} title="Select the view grown by one tile: its walls and one tile beyond">Select view +1</button>
     <label class="tglbtn" title="Also select the tiles it is seen from"><input type="checkbox" ${o.withArea ? 'checked' : ''}> with the source area</label>`;
   c.querySelector('[data-a=sel]').onclick = () => fovToSelection(false);

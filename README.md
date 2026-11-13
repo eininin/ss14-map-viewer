@@ -54,12 +54,15 @@ cables, doors and everything placed on it.
   "only shown layers" on, hidden layers are left out. Coordinates stay as in
   the original map; custom `!type:` tags are kept.
 - **Field of view** (*Area* tab): select a room or department and press
-  **See from selection**: every tile visible from anywhere in it is coloured
-  (colour and fill adjustable), walls in view more lightly. Sight is blocked by
-  whatever has the game's `Occluder` component (walls, closed solid doors,
-  shutters, bookshelves…); windows, glass airlocks and firelocks let it through.
-  Options: all doors open, a range limit. **Select view** selects the tiles in
-  view, **Select view +1** grows it by one tile (its walls and one tile
+  **See from selection**. Straight sight lines are traced from every corner
+  along the outline of the area past the edges of everything that blocks
+  sight, so each window and opening shows its widest possible cone; the view
+  is drawn as one coloured shape (colour and fill adjustable). Sight is
+  blocked by whatever has the game's `Occluder` component (walls, shutters,
+  bookshelves…); windows and glass airlocks never block it; solid airlocks do
+  unless **airlocks open** is ticked. Optional range limit. Nothing is selected
+  until you press **Select view** (every floor tile the view touches, even at
+  a corner) or **Select view +1** (grown by one tile: its walls and one tile
   beyond); optionally including the source area.
 - **Zones** (*Area* tab): turn the selection into a named, coloured zone,
   drawn tinted on the map with its name in the top-left corner. A new zone
