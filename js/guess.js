@@ -30,9 +30,22 @@ export function openGuesser(ctx) {
   // ---- what is where
   const floorName = new Map(tiles.map(t => [tileKey(t.x, t.y), t.name]));
   const struct = new Set(), glass = new Set(), doors = new Set(), doorKind = new Map();   // walls/windows/doors; windows and grilles; doors
+  // thin glass (directional windows, windoors): a barrier on one edge of the tile, not a full wall.
+  // At rotation 0 it sits on the south edge; the edge turns with the entity.
+  const thin = new Map();                     // tile -> [[dx, dy, isDoor], ...]
   for (const it of scene.items) {
     if (it.kind !== 'ent' || it.grid !== grid || !it.info) continue;
     const k = tileKey(it.tx, it.ty);
+    if (/directional|windoor/i.test(it.proto) && !it.info.oc) {
+      if (!thin.has(k)) thin.set(k, []);
+      const c = Math.cos(it.rot), sn = Math.sin(it.rot);
+      if (/corner/i.test(it.proto)) {         // corner piece: south-west corner at rotation 0; seals nothing
+        thin.get(k).push([Math.round(-c + sn), Math.round(-sn - c), false, true]);
+        continue;
+      }
+      thin.get(k).push([Math.round(sn), Math.round(-c), it.cat === 'doors', false]);
+      continue;
+    }
     if (it.cat === 'walls' || it.cat === 'doors' || it.info.oc) struct.add(k);
     if (it.cat === 'doors') {
       doors.add(k);
@@ -46,6 +59,16 @@ export function openGuesser(ctx) {
   const isLattice = (n) => /lattice/i.test(n || '');
   const [bx0, by0, bx1, by1] = [Math.floor(gr.minX) - 2, Math.floor(gr.minY) - 2, Math.ceil(gr.maxX) + 2, Math.ceil(gr.maxY) + 2];
   const BW = bx1 - bx0, BH = by1 - by0, idx = (x, y) => (y - by0) * BW + (x - bx0);
+  const sealed = (x, y, dx, dy) => {         // is the edge between (x, y) and its neighbour closed by thin glass?
+    const a = thin.get(tileKey(x, y)), b = thin.get(tileKey(x + dx, y + dy));
+    return !!((a && a.some(e => !e[3] && e[0] === dx && e[1] === dy)) || (b && b.some(e => !e[3] && e[0] === -dx && e[1] === -dy)));
+  };
+  const step = (st, x, y) => {               // push the neighbours that are not sealed off
+    if (!sealed(x, y, 1, 0)) st.push(x + 1, y);
+    if (!sealed(x, y, -1, 0)) st.push(x - 1, y);
+    if (!sealed(x, y, 0, 1)) st.push(x, y + 1);
+    if (!sealed(x, y, 0, -1)) st.push(x, y - 1);
+  };
   // outside: everything reachable from the map's edge without passing a wall, window or door
   const outside = new Uint8Array(BW * BH);
   {
@@ -58,7 +81,7 @@ export function openGuesser(ctx) {
       const i = idx(x, y);
       if (outside[i] || struct.has(tileKey(x, y))) continue;
       outside[i] = 1;
-      st.push(x + 1, y, x - 1, y, x, y + 1, x, y - 1);
+      step(st, x, y);
     }
   }
   // rooms: floor areas inside, split by walls, windows and doors. Maintenance = mostly plating and
@@ -77,7 +100,7 @@ export function openGuesser(ctx) {
       if (doorKind.get(kk) === 2) dept = true;
       if (room[i] >= 0 || outside[i] || struct.has(kk) || !floorName.has(kk)) continue;
       room[i] = id; n++; if (isPlating(floorName.get(kk))) p++;
-      st.push(x + 1, y, x - 1, y, x, y + 1, x, y - 1);
+      step(st, x, y);
     }
     roomPlating.push(n ? p / n : 0);
     roomDept.push(dept);
@@ -209,6 +232,21 @@ export function openGuesser(ctx) {
   // floor grey, walls/windows light, doors in between
   const outColor = (k, name) => opt.walls && doors.has(k) ? '#6d7787' : opt.walls && struct.has(k) ? '#9aa6b8'
     : isLattice(name) ? '#262c35' : '#424b58';
+  // thin glass as a quarter-tile strip on its edge
+  function drawThin(g, at, tsz) {
+    const w = tsz / 4;
+    for (const [k, list] of thin) {
+      const [sx, sy] = at(tileX(k), tileY(k) + 1);
+      for (const [dx, dy, isDoor, corner] of list) {
+        g.fillStyle = isDoor ? '#6d7787' : '#9aa6b8';
+        if (corner) { g.fillRect(dx > 0 ? sx + tsz - w : sx, dy > 0 ? sy : sy + tsz - w, w, w); continue; }
+        if (dy < 0) g.fillRect(sx, sy + tsz - w, tsz, w);
+        else if (dy > 0) g.fillRect(sx, sy, tsz, w);
+        else if (dx > 0) g.fillRect(sx + tsz - w, sy, w, tsz);
+        else g.fillRect(sx, sy, w, tsz);
+      }
+    }
+  }
   // small map of the whole station with the real spot and the guess, for the end screen
   function miniMap(r, side) {
     const c = document.createElement('canvas');
@@ -234,6 +272,7 @@ export function openGuesser(ctx) {
       g.fillStyle = outColor(k);
       g.fillRect(x, y, sc + 0.2, sc + 0.2);
     }
+    if (opt.walls) drawThin(g, at, sc);
     const [ax, ay] = at(r.spot.x + 0.5, r.spot.y + 0.5);
     if (r.guess) {
       const [gx, gy] = at(r.guess[0], r.guess[1]);
@@ -261,6 +300,7 @@ export function openGuesser(ctx) {
       g.fillStyle = outColor(k);
       g.fillRect(sx, sy, os * oz + 0.3, os * oz + 0.3);
     }
+    if (opt.walls) drawThin(g, toOut, os * oz);
     if (localStorage.getItem('ss14mv.guessDebug')) {   // shows where each kind of spot can be
       for (const [id, c] of [['photo', 'rgba(123,216,143,.8)'], ['maints', 'rgba(242,184,75,.8)']]) {
         g.fillStyle = c;
