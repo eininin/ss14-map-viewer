@@ -29,7 +29,8 @@ internal static class ReplayToolsCommon
     /// Reads every (state, messages) pair from the replay's data files in tick order, one data file at a
     /// time. Messages are returned untouched (prototype and resource uploads included).
     /// </summary>
-    public static IEnumerable<(GameState State, ReplayMessage Messages)> ReadRaw(ZipArchive zip, IRobustSerializer ser)
+    public static IEnumerable<(GameState State, ReplayMessage Messages)> ReadRaw(ZipArchive zip, IRobustSerializer ser,
+        Action<int>? onFile = null)
     {
         var lenBuf = new byte[4];
         for (var i = 0; ; i++)
@@ -37,6 +38,7 @@ internal static class ReplayToolsCommon
             var entry = zip.GetEntry($"{Folder}{ReplayConstants.DataFilePrefix}{i}.{ReplayConstants.Ext}");
             if (entry == null)
                 yield break;
+            onFile?.Invoke(i);
 
             MemoryStream ms;
             using (var stream = entry.Open())
@@ -93,6 +95,33 @@ internal static class ReplayToolsCommon
 
     public const string EnvReplay = "REPLAYTOOLS_REPLAY";
     public const string EnvOut = "REPLAYTOOLS_OUT";
+    public const string EnvSaveDir = "REPLAYTOOLS_SAVE_DIR";
+    public const string ProgressMarker = "REPLAYTOOLS_PROGRESS";
+
+    private static string? _lastProgress;
+
+    /// <summary>
+    /// Prints "REPLAYTOOLS_PROGRESS phase current total" for the desktop app, at most once per percent.
+    /// </summary>
+    public static void Progress(string phase, double current, double total)
+    {
+        if (total <= 0)
+            return;
+        var pct = (int) Math.Floor(Math.Clamp(current / total, 0, 1) * 100);
+        var key = $"{phase}:{pct}";
+        if (key == _lastProgress)
+            return;
+        _lastProgress = key;
+        Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"{ProgressMarker} {phase} {current:0.##} {total:0.##}"));
+    }
+
+    public static int CountDataFiles(ZipArchive zip)
+    {
+        var n = 0;
+        while (zip.GetEntry($"{Folder}{ReplayConstants.DataFilePrefix}{n}.{ReplayConstants.Ext}") != null)
+            n++;
+        return n;
+    }
 
     public static bool IsUpload(object msg)
     {

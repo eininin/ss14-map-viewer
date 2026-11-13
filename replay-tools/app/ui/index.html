@@ -94,6 +94,13 @@ tr.old td { opacity: .78; }
 td.num { text-align: right; font-family: var(--mono); font-size: 12.5px; white-space: nowrap; }
 .tags { display: flex; gap: 5px; flex-wrap: wrap; }
 
+/* parts list */
+.parts-set + .parts-set { margin-top: 14px; }
+.parts-head { color: var(--dim); font-size: 12.5px; margin-bottom: 6px; overflow-wrap: anywhere; }
+tr.cur td { background: #1b2433; }
+tr.cur td:first-child { box-shadow: inset 3px 0 0 var(--acc); }
+.partnote { margin: 10px 0 0; padding: 8px 10px; border: 1px solid #23505a; border-radius: 6px; color: var(--acc2); font-size: 12.5px; }
+
 /* folder browser */
 #browser { position: fixed; inset: 0; background: #000a; display: flex; align-items: center; justify-content: center; z-index: 10; }
 #browser .box { width: min(760px, 94vw); max-height: 84vh; display: flex; flex-direction: column; background: var(--panel);
@@ -129,6 +136,7 @@ td.num { text-align: right; font-family: var(--mono); font-size: 12.5px; white-s
       <button class="btn primary" id="inspectBtn">Open</button>
     </div>
     <div id="replayErr" class="err small" hidden></div>
+    <div id="partNote" class="partnote" hidden></div>
     <div id="replayInfo" hidden>
       <dl class="info" id="infoList"></dl>
       <div id="repoAsk" hidden class="row" style="margin-top:10px">
@@ -143,12 +151,12 @@ td.num { text-align: right; font-family: var(--mono); font-size: 12.5px; white-s
 
       <div class="actions">
         <div class="action">
-          <div class="label">Split into short replays</div>
+          <div class="label">Split into parts</div>
           <div class="row">
-            <input type="number" id="chunkSeconds" class="w80" value="60" min="5" step="5"> <span class="dim small">seconds each</span>
+            <input type="number" id="chunkMinutes" class="w80" value="30" min="1" step="1"> <span class="dim small">minutes each</span>
             <button class="btn primary" data-kind="chunk">Split</button>
           </div>
-          <div class="desc">Each part starts from a full state and opens in the normal SS14 replay player, using only that part's memory.</div>
+          <div class="desc">Each part starts from a full state and plays on its own, using only that part's memory. They show up under Parts below.</div>
         </div>
         <div class="action">
           <div class="label">Export grids at a time</div>
@@ -158,6 +166,11 @@ td.num { text-align: right; font-family: var(--mono); font-size: 12.5px; white-s
             <button class="btn primary" data-kind="export">Export</button>
           </div>
           <div class="desc">Saves map .yml files at that exact moment (works on full replays and on split parts). Open them in the map viewer.</div>
+        </div>
+        <div class="action">
+          <div class="label">Open in game</div>
+          <div class="row"><button class="btn primary" data-kind="game">Open in game</button></div>
+          <div class="desc">Plays it in the matching game version. Pause anywhere, open the console (key left of 1) and type <code>savegrids</code> to save every grid at that moment. Best with a part rather than a whole long replay.</div>
         </div>
         <div class="action">
           <div class="label">Only prepare the build</div>
@@ -176,6 +189,12 @@ td.num { text-align: right; font-family: var(--mono); font-size: 12.5px; white-s
   <section class="card">
     <h2>Jobs <span class="right"><button class="btn small" id="clearDone" title="Hide finished jobs">Hide finished</button></span></h2>
     <div id="jobs"><div class="empty">No jobs yet.</div></div>
+  </section>
+
+  <!-- Parts -->
+  <section class="card full" id="partsCard" hidden>
+    <h2>Parts <span class="right"><span class="dim small" id="partsInfo"></span></span></h2>
+    <div id="parts"></div>
   </section>
 
   <!-- Builds -->
@@ -232,6 +251,10 @@ function fmtDate(s) { if (!s) return "–"; const d = new Date(s); return d.toLo
 function fmtDay(s) { return s ? new Date(s).toLocaleDateString() : "–"; }
 function fmtDur(ms) { const s = Math.max(0, Math.round(ms / 1000)); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60;
   return h ? `${h}h ${m}m` : m ? `${m}m ${x}s` : `${x}s`; }
+function fmtClock(sec) { sec = Math.max(0, Math.round(sec)); const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), x = sec % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(x).padStart(2, "0")}`; }
+function fmtEta(sec) { if (sec == null) return null; sec = Math.round(sec); if (sec < 60) return "under a minute left";
+  const m = Math.round(sec / 60); return m < 60 ? `about ${m} min left` : `about ${Math.floor(m / 60)} h ${m % 60} min left`; }
 function parseTime(t) {
   const p = String(t).trim().split(":").map(Number);
   if (p.some(isNaN)) return null;
@@ -278,9 +301,12 @@ async function inspect() {
     $("#repoAsk").hidden = !!r.repo;
     $("#repoFork").textContent = i.forkId;
     $("#commitAsk").hidden = r.commitIsHash;
+    await loadParts();
   } catch (e) {
     current = null;
     $("#replayInfo").hidden = true;
+    $("#partsCard").hidden = true;
+    $("#partNote").hidden = true;
     $("#replayErr").textContent = e.message;
     $("#replayErr").hidden = false;
   }
@@ -299,7 +325,7 @@ document.querySelectorAll("[data-kind]").forEach(btn => btn.onclick = async () =
   if (!current) return;
   const kind = btn.dataset.kind;
   const body = { kind, replay: current.info.path, outDir: $("#outDir").value.trim() || null, commit: $("#commitInput").value.trim() || null };
-  if (kind === "chunk") body.seconds = Number($("#chunkSeconds").value) || 60;
+  if (kind === "chunk") body.seconds = Math.round((Number($("#chunkMinutes").value) || 30) * 60);
   if (kind === "export") {
     const t = parseTime($("#exportTime").value);
     if (t == null) { alert("Time must look like hh:mm:ss"); return; }
@@ -316,6 +342,46 @@ document.querySelectorAll("[data-kind]").forEach(btn => btn.onclick = async () =
     alert(e.message);
   }
 });
+
+// ---------------------------------------------------------------- parts
+async function loadParts() {
+  if (!current) return;
+  const r = await api("GET", "/api/chunks?replay=" + encodeURIComponent(current.info.path));
+  const card = $("#partsCard"), el = $("#parts");
+  // Is the open replay itself a part?
+  let me = null;
+  for (const set of r.sets) for (const c of set.chunks) if (c.current) me = { set, c };
+  const note = $("#partNote");
+  if (me) {
+    note.innerHTML = `This is <b>part ${me.c.chunk + 1}</b> of ${me.set.chunks.length} (round time ${fmtClock(me.c.startSeconds)} – ${fmtClock(me.c.endSeconds)}). ` +
+      `Times you enter here count from the start of this part.`;
+    note.hidden = false;
+  } else note.hidden = true;
+
+  if (!r.sets.length) { card.hidden = true; return; }
+  card.hidden = false;
+  const total = r.sets.reduce((a, x) => a + x.chunks.length, 0);
+  $("#partsInfo").textContent = `${total} part${total > 1 ? "s" : ""} in ${r.sets.length} split${r.sets.length > 1 ? "s" : ""}`;
+  el.innerHTML = r.sets.map((set, si) => `<div class="parts-set">
+    <div class="parts-head">${esc(set.dir)}</div>
+    <table><thead><tr><th>Part</th><th>Round time</th><th>Length</th><th style="text-align:right">Size</th><th></th></tr></thead>
+    <tbody>${set.chunks.map((c, ci) => `<tr class="${c.current ? "cur" : ""}">
+      <td>${c.chunk + 1}</td>
+      <td class="mono">${fmtClock(c.startSeconds)} – ${fmtClock(c.endSeconds)}</td>
+      <td>${fmtDur((c.endSeconds - c.startSeconds) * 1000)}</td>
+      <td class="num">${c.exists ? fmtBytes(c.size) : `<span class="err">missing</span>`}</td>
+      <td style="text-align:right"><div class="row" style="justify-content:flex-end">
+        <button class="btn small" data-pgame="${si}:${ci}" ${c.exists ? "" : "disabled"}>Open in game</button>
+        <button class="btn small" data-puse="${si}:${ci}" ${c.exists && !c.current ? "" : "disabled"}>${c.current ? "Selected" : "Select"}</button>
+      </div></td></tr>`).join("")}</tbody></table></div>`).join("");
+  const pick = v => { const [a, b] = v.split(":").map(Number); return r.sets[a].chunks[b]; };
+  el.querySelectorAll("[data-puse]").forEach(b => b.onclick = () => { $("#replayPath").value = pick(b.dataset.puse).path; inspect(); window.scrollTo({ top: 0, behavior: "smooth" }); });
+  el.querySelectorAll("[data-pgame]").forEach(b => b.onclick = async () => {
+    const c = pick(b.dataset.pgame);
+    try { const job = await api("POST", "/api/jobs", { kind: "game", replay: c.path }); openLogs.add(job.id); refreshJobs(); }
+    catch (e) { alert(e.message); }
+  });
+}
 
 // ---------------------------------------------------------------- folder browser
 let bDir = null, bParent = null;
@@ -388,7 +454,7 @@ async function refreshJobs() {
       return `<div class="job">
         <div class="head"><span class="title" title="${esc(j.title)}">${esc(j.title)}</span>${pillFor(j.status)}</div>
         <div class="meta">
-          ${j.step && running ? `<span>${esc(j.step)}</span>` : ""}
+          ${j.step && running ? `<span>${esc(j.step)}${j.stepProgress != null ? ` · ${Math.floor(j.stepProgress * 100)}%` : ""}${j.stepEtaSeconds != null ? ` · ${fmtEta(j.stepEtaSeconds)}` : ""}</span>` : ""}
           ${started ? `<span>${fmtDur(ended - started)}</span>` : "<span>waiting for the previous job</span>"}
           ${j.peakMemoryBytes ? `<span title="Peak memory of the game client">peak RAM ${fmtBytes(j.peakMemoryBytes)}</span>` : ""}
           ${j.buildId ? `<span class="mono">${esc(j.buildId)}</span>` : ""}
@@ -397,7 +463,7 @@ async function refreshJobs() {
         ${bar}
         <div class="row" style="margin-top:8px">
           <button class="btn small" data-log="${j.id}">${openLogs.has(j.id) ? "Hide log" : "Show log"}</button>
-          ${j.outDir && j.status === "done" ? `<button class="btn small" data-open="${esc(j.outDir)}">Open output folder</button>` : ""}
+          ${j.outDir && j.status === "done" ? `<button class="btn small" data-open="${esc(j.outDir)}">${j.kind === "game" ? "Open saves folder" : "Open output folder"}</button>` : ""}
           ${running ? `<button class="btn small danger" data-cancel="${j.id}">Cancel</button>` : ""}
         </div>
         ${openLogs.has(j.id) ? `<pre class="log" data-id="${j.id}">${esc(logState[j.id]?.text ?? "")}</pre>` : ""}

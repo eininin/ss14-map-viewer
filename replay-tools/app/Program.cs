@@ -257,7 +257,7 @@ app.MapPost("/api/jobs", (JobRequest req) =>
 
     var replayName = Path.GetFileNameWithoutExtension(req.Replay);
     var replayDir = Path.GetDirectoryName(Path.GetFullPath(req.Replay))!;
-    var seconds = req.Seconds ?? 60;
+    var seconds = req.Seconds ?? 1800;
     var durationSeconds = TimeSpan.TryParse(info.Duration, out var dur) ? dur.TotalSeconds : 0;
 
     Job job;
@@ -273,12 +273,11 @@ app.MapPost("/api/jobs", (JobRequest req) =>
             if (seconds < 5)
                 return Results.BadRequest(new { error = "Chunks must be at least 5 seconds." });
             var outDir = string.IsNullOrWhiteSpace(req.OutDir) ? Path.Combine(replayDir, $"{replayName}_chunks_{(int) seconds}s") : req.OutDir;
-            var expected = durationSeconds > 0 ? (int) Math.Ceiling(durationSeconds / seconds) : (int?) null;
-            job = jobs.Start(new Job { Kind = "chunk", Title = $"Split {replayName} into {(int) seconds}s replays", OutDir = outDir },
+            job = jobs.Start(new Job { Kind = "chunk", Title = $"Split {replayName} into {FmtLen(seconds)} parts", OutDir = outDir, ReplayPath = req.Replay },
                 async j =>
                 {
                     var b = await jobs.EnsureBuild(j, info.ForkId, repo, commit);
-                    await jobs.RunTool(j, b, req.Replay, outDir, $"replay_chunk - - {(int) seconds}", expected);
+                    await jobs.RunTool(j, b, req.Replay, outDir, $"replay_chunk - - {(int) seconds}", 0.5);
                 });
             break;
         }
@@ -292,20 +291,81 @@ app.MapPost("/api/jobs", (JobRequest req) =>
                 : req.OutDir;
             var grid = req.Grid is { } g ? $" {g}" : "";
             var secs = t.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            job = jobs.Start(new Job { Kind = "export", Title = $"Export grids of {replayName} at {stamp:hh\\:mm\\:ss}", OutDir = outDir },
+            job = jobs.Start(new Job { Kind = "export", Title = $"Export grids of {replayName} at {stamp:hh\\:mm\\:ss}", OutDir = outDir, ReplayPath = req.Replay },
                 async j =>
                 {
                     var b = await jobs.EnsureBuild(j, info.ForkId, repo, commit);
-                    await jobs.RunTool(j, b, req.Replay, outDir, $"replay_export_grids - {secs} -{grid}", null);
+                    await jobs.RunTool(j, b, req.Replay, outDir, $"replay_export_grids - {secs} -{grid}", 0.95);
+                });
+            break;
+        }
+
+        case "game":
+        {
+            var saveDir = string.IsNullOrWhiteSpace(req.OutDir) ? Path.Combine(replayDir, $"{replayName}_saved") : req.OutDir;
+            job = jobs.Start(new Job { Kind = "game", Title = $"Open {replayName} in game", OutDir = saveDir, ReplayPath = req.Replay },
+                async j =>
+                {
+                    var b = await jobs.EnsureBuild(j, info.ForkId, repo, commit);
+                    jobs.LaunchGame(j, b, req.Replay, saveDir);
                 });
             break;
         }
 
         default:
-            return Results.BadRequest(new { error = "kind must be build, chunk or export" });
+            return Results.BadRequest(new { error = "kind must be build, chunk, export or game" });
     }
 
     return Results.Json(job.Summary());
+});
+
+// Parts made by "Split": folders next to the replay named <replay>_chunks_*, each with a chunks.json.
+// If the opened replay is itself a part, its own folder is listed too.
+app.MapGet("/api/chunks", (string replay) =>
+{
+    try
+    {
+        var full = Path.GetFullPath(replay);
+        var dir = Path.GetDirectoryName(full)!;
+        var name = Path.GetFileNameWithoutExtension(full);
+        var sets = new List<object>();
+
+        void AddSet(string setDir, string? source)
+        {
+            var index = Path.Combine(setDir, "chunks.json");
+            if (!File.Exists(index))
+                return;
+            using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(index));
+            var chunks = new List<object>();
+            foreach (var c in doc.RootElement.EnumerateArray())
+            {
+                var file = c.GetProperty("file").GetString() ?? "";
+                var path = Path.Combine(setDir, file);
+                chunks.Add(new
+                {
+                    file,
+                    path,
+                    exists = File.Exists(path),
+                    size = File.Exists(path) ? new FileInfo(path).Length : 0,
+                    chunk = c.GetProperty("chunk").GetInt32(),
+                    startSeconds = c.GetProperty("startSeconds").GetDouble(),
+                    endSeconds = c.GetProperty("endSeconds").GetDouble(),
+                    current = string.Equals(path, full, StringComparison.OrdinalIgnoreCase),
+                });
+            }
+            sets.Add(new { dir = setDir, source, chunks });
+        }
+
+        foreach (var d in Directory.EnumerateDirectories(dir, name + "_chunks_*").OrderBy(d => d))
+            AddSet(d, full);
+        if (File.Exists(Path.Combine(dir, "chunks.json")))
+            AddSet(dir, null);
+        return Results.Json(new { sets });
+    }
+    catch (Exception e)
+    {
+        return Results.BadRequest(new { error = e.Message });
+    }
 });
 
 app.MapGet("/api/jobs", () => Results.Json(jobs.All().Select(j => j.Summary())));
@@ -370,6 +430,12 @@ if (!noBrowser)
 }
 
 app.Run();
+
+static string FmtLen(double seconds)
+{
+    var t = TimeSpan.FromSeconds(seconds);
+    return t.TotalMinutes >= 1 && t.Seconds == 0 ? (t.TotalHours >= 1 && t.Minutes == 0 ? $"{(int) t.TotalHours} h" : $"{(int) t.TotalMinutes} min") : $"{(int) seconds} s";
+}
 
 static bool PortFree(int port)
 {

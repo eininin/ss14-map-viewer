@@ -7,7 +7,7 @@
     <AssemblyName>SS14ReplayTools</AssemblyName>
     <RootNamespace>SS14ReplayTools</RootNamespace>
     <InvariantGlobalization>true</InvariantGlobalization>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <!-- No wwwroot static files: the page is embedded. -->
     <EnableDefaultContentItems>false</EnableDefaultContentItems>
   </PropertyGroup>

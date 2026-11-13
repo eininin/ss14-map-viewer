@@ -118,7 +118,11 @@ public sealed class ReplayChunkCommand : IConsoleCommand
         var loadZip = new ZipArchive(File.OpenRead(replayPath), ZipArchiveMode.Read);
         var reader = new ReplayFileReaderZip(loadZip, ReplayConstants.ReplayZipFolder);
         log.Info("Loading replay and building checkpoints...");
-        var data = await loadMan.LoadReplayAsync(reader, (_, _, _, _) => Task.CompletedTask);
+        var data = await loadMan.LoadReplayAsync(reader, (current, max, _, _) =>
+        {
+            ReplayToolsCommon.Progress("load", current, max);
+            return Task.CompletedTask;
+        });
         var checkpoints = data.Checkpoints.OrderBy(c => c.Index).ToArray();
         log.Info($"Loaded. {checkpoints.Length} checkpoints, ticks from {data.TickOffset}.");
 
@@ -209,8 +213,10 @@ public sealed class ReplayChunkCommand : IConsoleCommand
             writer.AddTick(checkpoint.FullState, new ReplayMessage { Messages = new List<object>() });
         }
 
+        var totalFiles = ReplayToolsCommon.CountDataFiles(srcZip);
         var i = -1;
-        foreach (var (state, messages) in ReplayToolsCommon.ReadRaw(srcZip, ser))
+        foreach (var (state, messages) in ReplayToolsCommon.ReadRaw(srcZip, ser,
+                     f => ReplayToolsCommon.Progress("write", f, totalFiles)))
         {
             i++;
             lastTick = state.ToSequence;

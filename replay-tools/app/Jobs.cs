@@ -19,7 +19,10 @@ public sealed class Job
     public string? Step { get; set; }
     public string? BuildId { get; set; }
     public string? OutDir { get; set; }
-    public double? Progress { get; set; }             // 0..1 when known
+    public double? Progress { get; set; }             // 0..1 when known, whole job
+    public double? StepProgress { get; set; }         // 0..1 within the current step
+    public double? StepEtaSeconds { get; set; }       // estimated time left in the current step
+    public string? ReplayPath { get; set; }
     public long? PeakMemoryBytes { get; set; }
     public string? Error { get; set; }
     public DateTime CreatedUtc { get; } = DateTime.UtcNow;
@@ -49,7 +52,7 @@ public sealed class Job
 
     public object Summary() => new
     {
-        Id, Kind, Title, Status, Step, BuildId, OutDir, Progress, PeakMemoryBytes, Error,
+        Id, Kind, Title, Status, Step, BuildId, OutDir, Progress, StepProgress, StepEtaSeconds, PeakMemoryBytes, Error, ReplayPath,
         CreatedUtc, StartedUtc, EndedUtc,
     };
 }
@@ -320,9 +323,10 @@ public sealed class JobRunner
 
     // ---------------------------------------------------------------- running the tools
 
-    public async Task RunTool(Job job, BuildRecord build, string replayPath, string outDir, string command, int? expectedSteps)
+    /// <param name="loadShare">Share of the whole job taken by the loading step (rest = writing).</param>
+    public async Task RunTool(Job job, BuildRecord build, string replayPath, string outDir, string command, double loadShare)
     {
-        job.Step = "Running replay tool";
+        job.Step = "Starting the game (headless)";
         job.OutDir = outDir;
         Directory.CreateDirectory(outDir);
 
@@ -334,42 +338,96 @@ public sealed class JobRunner
             ["REPLAYTOOLS_OUT"] = Path.GetFullPath(outDir),
         };
 
-        var done = false;
-        var steps = 0;
+        DateTime? doneAt = null;
         string? fail = null;
+        string? phase = null;
+        var phaseStart = DateTime.UtcNow;
 
         void OnLine(string line)
         {
             if (line.Contains("REPLAYTOOLS_DONE"))
-                done = true;
+            {
+                doneAt ??= DateTime.UtcNow;
+                job.Step = "Finished, closing the game";
+            }
             var f = line.IndexOf("REPLAYTOOLS_FAILED", StringComparison.Ordinal);
             if (f >= 0)
                 fail = line[f..];
-            if (line.Contains("Begin checkpoint generation") || line.Contains("Loading replay"))
-                job.Step = "Loading replay (reading every tick once)";
-            if (line.Contains("Wrote ") || line.Contains("Saved "))
+
+            var p = line.IndexOf("REPLAYTOOLS_PROGRESS ", StringComparison.Ordinal);
+            if (p < 0)
+                return;
+            var parts = line[(p + "REPLAYTOOLS_PROGRESS ".Length)..].Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length < 3
+                || !double.TryParse(parts[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var cur)
+                || !double.TryParse(parts[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var max)
+                || max <= 0)
+                return;
+
+            if (parts[0] != phase)
             {
-                steps++;
-                job.Step = $"Writing ({steps}{(expectedSteps is > 0 ? $" of ~{expectedSteps}" : "")})";
-                if (expectedSteps is > 0)
-                    job.Progress = Math.Min(0.99, (double) steps / expectedSteps.Value);
+                phase = parts[0];
+                phaseStart = DateTime.UtcNow;
+            }
+
+            var frac = Math.Clamp(cur / max, 0, 1);
+            job.StepProgress = frac;
+            var elapsed = (DateTime.UtcNow - phaseStart).TotalSeconds;
+            // Only estimate once there is enough to go on.
+            job.StepEtaSeconds = frac > 0.02 && elapsed > 5 ? elapsed * (1 - frac) / frac : null;
+            if (phase == "load")
+            {
+                job.Step = $"Loading replay ({cur:0} of {max:0} blocks)";
+                job.Progress = frac * loadShare;
+            }
+            else
+            {
+                job.Step = $"Writing ({cur:0} of {max:0} blocks)";
+                job.Progress = loadShare + frac * (1 - loadShare);
             }
         }
 
+        // The game sometimes stays open after finishing; close it shortly after it reports done.
+        bool ShouldClose() => doneAt != null && DateTime.UtcNow - doneAt > TimeSpan.FromSeconds(15);
+
         // --self-contained keeps the game's config/logs inside the build folder, away from your real game.
         var args = new[] { "--headless", "--self-contained", "+" + command };
-        await Run(job, exe, args, Path.GetDirectoryName(exe)!, check: false, env: env, onLine: OnLine, trackMemory: true);
+        await Run(job, exe, args, Path.GetDirectoryName(exe)!, check: false, env: env, onLine: OnLine,
+            trackMemory: true, closeWhen: ShouldClose);
 
+        job.StepEtaSeconds = null;
         if (fail != null)
             throw new Exception(fail.Replace("REPLAYTOOLS_FAILED: ", ""));
-        if (!done)
+        if (doneAt == null)
             throw new Exception("The game client exited without finishing - see the log.");
+    }
+
+    /// <summary>Opens a replay in the game window (not tracked after it starts).</summary>
+    public void LaunchGame(Job job, BuildRecord build, string replayPath, string saveDir)
+    {
+        var exe = _store.ClientExe(build.Id);
+        Directory.CreateDirectory(saveDir);
+        var psi = new ProcessStartInfo(exe)
+        {
+            WorkingDirectory = Path.GetDirectoryName(exe)!,
+            UseShellExecute = false,
+        };
+        psi.ArgumentList.Add("--self-contained");
+        psi.ArgumentList.Add("+replay_open -");
+        psi.Environment["ROBUST_DISABLE_SANDBOX"] = "1";
+        psi.Environment["REPLAYTOOLS_REPLAY"] = Path.GetFullPath(replayPath);
+        psi.Environment["REPLAYTOOLS_SAVE_DIR"] = Path.GetFullPath(saveDir);
+        job.Log($"> {Path.GetFileName(exe)} --self-contained \"+replay_open -\"  (replay: {replayPath})");
+        var proc = Process.Start(psi) ?? throw new Exception("Could not start the game");
+        job.OutDir = saveDir;
+        job.Log($"Game started (process {proc.Id}). In the game: pause anywhere and type 'savegrids' in the console (the key left of 1) to save the grids at that moment into {saveDir}.");
     }
 
     // ---------------------------------------------------------------- process helpers
 
     public static async Task<int> Run(Job job, string file, IEnumerable<string> args, string workDir, bool check = true,
-        Dictionary<string, string>? env = null, Action<string>? onLine = null, bool trackMemory = false)
+        Dictionary<string, string>? env = null, Action<string>? onLine = null, bool trackMemory = false,
+        Func<bool>? closeWhen = null)
     {
         var psi = new ProcessStartInfo(file)
         {
@@ -428,7 +486,7 @@ public sealed class JobRunner
 
         Task? memTask = null;
         using var memStop = new CancellationTokenSource();
-        if (trackMemory)
+        if (trackMemory || closeWhen != null)
         {
             memTask = Task.Run(async () =>
             {
@@ -436,10 +494,18 @@ public sealed class JobRunner
                 {
                     try
                     {
-                        proc.Refresh();
-                        var peak = Math.Max(proc.PeakWorkingSet64, proc.WorkingSet64);
-                        if (peak > (job.PeakMemoryBytes ?? 0))
-                            job.PeakMemoryBytes = peak;
+                        if (trackMemory)
+                        {
+                            proc.Refresh();
+                            var peak = Math.Max(proc.PeakWorkingSet64, proc.WorkingSet64);
+                            if (peak > (job.PeakMemoryBytes ?? 0))
+                                job.PeakMemoryBytes = peak;
+                        }
+                        if (closeWhen != null && closeWhen() && !proc.HasExited)
+                        {
+                            job.Log("Closing the game (it finished but did not exit by itself).");
+                            proc.Kill(true);
+                        }
                     }
                     catch
                     {
