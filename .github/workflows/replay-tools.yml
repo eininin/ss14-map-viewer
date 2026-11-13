@@ -164,7 +164,7 @@ jobs:
             if [ -f out/run.log ]; then grep -E "Maximum resident set size" out/run.log | sed 's/^\s*/- /' || true; fi
             echo
             echo '```'
-            ls -la out 2>/dev/null | head -50
+            ls -la out 2>/dev/null | head -50 || echo "(no output)"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
