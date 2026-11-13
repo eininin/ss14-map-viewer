@@ -442,3 +442,36 @@ label.dimmed { opacity: .45; }
 .gisland .hint { margin: 0; }
 .gstart::before { background: var(--gbg) center / cover no-repeat, #000; opacity: .6; filter: blur(2px) saturate(1.1); }
 .gisland { background: rgba(11,15,21,.8); backdrop-filter: blur(2px); }
+
+/* ---- phones */
+@media (max-width: 760px) {
+  #top { gap: 8px; padding: 0 8px; }
+  .mapname { display: none; }
+  .topbtns { gap: 5px; overflow-x: auto; flex: 1; justify-content: flex-end; }
+  .topbtns .btn { padding: 5px 8px; font-size: 12px; white-space: nowrap; }
+  .panel { bottom: 0; height: 42vh; z-index: 8; }
+  #status { display: none; }
+  .tools { top: 8px; left: 8px; transform: scale(.88); transform-origin: top left; }
+  /* guesser */
+  .gbar { gap: 6px; padding: 6px 8px; font-size: 12px; }
+  .gbar .gmap, .gbar .gmode { display: none; }
+  .gbar .btn { padding: 4px 7px; }
+  .gbody { flex-direction: column; gap: 8px; padding: 8px; overflow: auto; }
+  .gside { flex: 0 0 auto; gap: 6px; }
+  .ghintbtn { min-width: 0; padding: 7px 14px; }
+  .ghintbtn b { font-size: 14px; }
+  .gresult { flex-wrap: wrap; justify-content: center; gap: 8px; }
+  .gresult .gbig { font-size: 24px; }
+  .gresult .gnext { padding: 8px 18px; font-size: 15px; }
+  .gtitle { padding: 10px 18px; }
+  .gtitle h2 { font-size: 24px; }
+  .gisland { padding: 12px; margin: 0 8px; }
+  .gmodes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .gmodebtn { width: auto; min-height: 0; padding: 8px; gap: 4px; }
+  .gmodebtn .gdemo { width: 100%; height: auto; aspect-ratio: 1; }
+  .gmodebtn b { font-size: 13px; }
+  .gopts { gap: 6px; }
+  .grounds { grid-template-columns: 1fr; }
+  .gpics canvas { width: 140px; height: 140px; }
+  .landst b { font-size: 13px; }
+}

@@ -7,7 +7,7 @@ import { Parallax } from './parallax.js';
 import { exportSelection } from './exportsel.js';
 import { browse, pickServer } from './browse.js';
 import { viewPolygons, eyePolygon, seenTiles, tileX, tileY, grow, tileKey } from './fov.js?v=60';
-import { openGuesser } from './guess.js?v=69';
+import { openGuesser } from './guess.js?v=70';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
@@ -503,7 +503,13 @@ function resize() {
   DPR = window.devicePixelRatio || 1;
   const r = $('#stage').getBoundingClientRect();
   W = r.width; H = r.height;
-  for (const c of [mapCanvas, overlay]) { c.width = Math.round(W * DPR); c.height = Math.round(H * DPR); }
+  // phones: the panel is a sheet at the bottom, the map uses the space above it
+  const mobile = window.innerWidth < 760, pn = $('#panel');
+  if (mobile && pn && !pn.classList.contains('hidden')) H = Math.max(160, H - pn.offsetHeight - 28);
+  for (const c of [mapCanvas, overlay]) {
+    c.width = Math.round(W * DPR); c.height = Math.round(H * DPR);
+    c.style.height = mobile ? H + 'px' : '';
+  }
   draw();
 }
 

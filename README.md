@@ -113,6 +113,9 @@ cables, doors and everything placed on it.
   closed door, vending machines are powered (lit front and screen), filled
   bookshelves show books, powered machines and computers show their "on"
   layers, lids and storage are closed, paper labels and sparks are hidden.
+- **Phones**: the map viewer puts the map on top and the panel (tabs and
+  settings) underneath; the guesser puts the view on top and the station
+  outline below (pinch to zoom, drag to move, tap to guess).
 - **Rotate the view** (*View* tab, or Q / R): quarter turns, random, north up.
   As in the game, directional sprites show the frame for that viewing
   direction and stay upright; items on the floor look the same as north up.

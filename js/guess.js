@@ -350,11 +350,15 @@ export function openGuesser(ctx) {
   function sizeAll() {
     const body = $('.gbody').getBoundingClientRect();
     if (!body.width) return;
-    const side = Math.max(200, Math.min(body.width / 2 - 24, body.height - 120));   // room for the hint buttons below
+    const narrow = body.width < 760;          // phones: view on top, outline below
+    el.classList.toggle('narrow', narrow);
+    const side = narrow ? Math.max(160, Math.min(body.width - 16, body.height * 0.55 - 90))
+      : Math.max(200, Math.min(body.width / 2 - 24, body.height - 120));   // room for the hint button below
+    const ow0 = narrow ? body.width - 16 : body.width / 2 - 24, oh0 = narrow ? body.height * 0.45 - 70 : body.height - 70;
     cv.style.width = cv.style.height = side + 'px';
     cv.width = cv.height = Math.round(side * dpr);
     const os0 = os;
-    os = Math.min((body.width / 2 - 24) / oxw, (body.height - 70) / oyh);
+    os = Math.max(0.5, Math.min(ow0 / oxw, oh0 / oyh));
     ow = Math.round(oxw * os); oh = Math.round(oyh * os);
     if (os0 > 0) { opx *= os / os0; opy *= os / os0; }   // keep the zoom and position when the window changes
     co.style.width = ow + 'px'; co.style.height = oh + 'px';
@@ -713,14 +717,50 @@ export function openGuesser(ctx) {
     else { const [sx, sy] = toOut(wx, wy); opx += mx - sx; opy += my - sy; }
     drawOutline();
   }, { passive: false });
+  // two fingers: pinch to zoom
+  const touches = new Map();
+  let pinch = null;
   co.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'touch') {
+      touches.set(e.pointerId, [e.clientX, e.clientY]);
+      if (touches.size === 2) {
+        const [a, b] = [...touches.values()], r = co.getBoundingClientRect();
+        const mx = (a[0] + b[0]) / 2 - r.left, my = (a[1] + b[1]) / 2 - r.top;
+        pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), oz, w: fromOut(mx, my) };
+        drag = null;
+        return;
+      }
+    }
+  }, true);
+  co.addEventListener('pointermove', (e) => {
+    if (!touches.has(e.pointerId)) return;
+    touches.set(e.pointerId, [e.clientX, e.clientY]);
+    if (!pinch || touches.size < 2) return;
+    const [a, b] = [...touches.values()], r = co.getBoundingClientRect();
+    const mx = (a[0] + b[0]) / 2 - r.left, my = (a[1] + b[1]) / 2 - r.top;
+    oz = Math.max(1, Math.min(40, pinch.oz * Math.hypot(a[0] - b[0], a[1] - b[1]) / pinch.d));
+    const [sx, sy] = toOut(...pinch.w); opx += mx - sx; opy += my - sy;
+    drawOutline();
+  }, true);
+  const endTouch = (e) => {
+    touches.delete(e.pointerId);
+    if (touches.size < 2 && pinch) {          // the finger left on screen keeps moving the map, but won't guess
+      pinch = null;
+      const rest = [...touches.values()][0];
+      drag = rest ? { x: rest[0], y: rest[1], px: opx, py: opy, moved: true, button: -1 } : null;
+    }
+  };
+  co.addEventListener('pointerup', endTouch, true);
+  co.addEventListener('pointercancel', endTouch, true);
+  co.addEventListener('pointerdown', (e) => {
+    if (pinch) return;
     if (e.button === 1) e.preventDefault();   // middle button: only moves the map
     co.setPointerCapture(e.pointerId);
     drag = { x: e.clientX, y: e.clientY, px: opx, py: opy, moved: false, button: e.button };
   });
   co.addEventListener('auxclick', (e) => e.preventDefault());
   co.addEventListener('pointermove', (e) => {
-    if (!drag) return;
+    if (!drag || pinch) return;
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
     if (Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true;
     if (drag.moved) { opx = drag.px + dx; opy = drag.py + dy; co.style.cursor = 'grabbing'; drawOutline(); }
