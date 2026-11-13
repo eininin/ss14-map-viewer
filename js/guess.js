@@ -1,6 +1,6 @@
 // Station Guesser: a view from a random spot of the map on the left, the outline of the
 // station on the right; click the outline where you think the view is.
-import { eyePolygon, sightTargets, seenTiles, tileX, tileY, tileKey } from './fov.js?v=27';
+import { eyePolygon, sightTargets, seenTiles, tileX, tileY, tileKey } from './fov.js?v=29';
 
 const LSK = 'ss14mv.guess';
 const load = () => { try { return JSON.parse(localStorage.getItem(LSK)) || {}; } catch (e) { return {}; } };
@@ -18,6 +18,12 @@ export function openGuesser(ctx) {
   if (!gr) return 'This map has no station grid to play on';
   const tiles = (scene.tiles.get(grid) || []);
   const floor = new Set(tiles.map(t => tileKey(t.x, t.y)));
+  // walls, windows and doors: drawn in the wall colour on the outline
+  const struct = new Set();
+  for (const it of scene.items) {
+    if (it.kind !== 'ent' || it.grid !== grid || !it.info) continue;
+    if (it.cat === 'walls' || it.cat === 'doors' || it.info.oc) struct.add(tileKey(it.tx, it.ty));
+  }
   let opaque = ctx.sightBlockers(grid, opt.doorsOpen), targets = sightTargets(opaque);
   const spots = () => tiles.filter(t => !/lattice/i.test(t.name) && !opaque.has(tileKey(t.x, t.y)));
   let pool = spots();
@@ -30,7 +36,7 @@ export function openGuesser(ctx) {
       <b>Station Guesser</b><span class="gmap"></span>
       <label>View <input type="number" class="gsize" min="1" max="61" step="1" value="${opt.size}"> tiles</label>
       <label class="tglbtn" title="Black out everything the spot cannot see"><input type="checkbox" class="gfog" ${opt.fog ? 'checked' : ''}> field of view</label>
-      <label class="tglbtn" title="Show walls on the station outline"><input type="checkbox" class="gwalls" ${opt.walls ? 'checked' : ''}> walls on map</label>
+      <label class="tglbtn" title="Show walls, windows and airlocks on the station outline"><input type="checkbox" class="gwalls" ${opt.walls ? 'checked' : ''}> walls on map</label>
       <label class="tglbtn" title="Solid airlocks count as open for the field of view"><input type="checkbox" class="gdoor" ${opt.doorsOpen ? 'checked' : ''}> airlocks open</label>
       <label>Rotation <select class="sel grot">
         <option value="none">none</option><option value="90">random quarter turns</option>
@@ -73,11 +79,11 @@ export function openGuesser(ctx) {
     g.clearRect(0, 0, ow, oh);
     for (const t of tiles) {
       const k = tileKey(t.x, t.y);
-      g.fillStyle = opaque.has(k) && opt.walls ? '#9aa6b8' : /lattice/i.test(t.name) ? '#262c35' : '#424b58';
+      g.fillStyle = struct.has(k) && opt.walls ? '#9aa6b8' : /lattice/i.test(t.name) ? '#262c35' : '#424b58';
       const [x, y] = toOut(t.x, t.y + 1);
       g.fillRect(x, y, os + 0.3, os + 0.3);
     }
-    if (opt.walls) for (const k of opaque) if (!floor.has(k)) {   // walls on lattice etc.
+    if (opt.walls) for (const k of struct) if (!floor.has(k)) {   // walls on lattice etc.
       const x = Math.floor(k / 65536) - 32768, y = (k % 65536) - 32768;
       const [sx, sy] = toOut(x, y + 1);
       g.fillStyle = '#9aa6b8';

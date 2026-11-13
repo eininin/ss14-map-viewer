@@ -245,7 +245,7 @@ export function seenTiles(polys, opaque, P = 8) {
   }
   g.fillStyle = g.strokeStyle = '#fff';
   g.fill(path);
-  g.lineWidth = 0.1;                         // so a line that only grazes a tile still touches it
+  g.lineWidth = 0.25;                        // so a line that only grazes a tile still touches it
   g.lineJoin = 'round';
   g.stroke(path);
   const d = g.getImageData(0, 0, cw, ch).data;
@@ -261,8 +261,10 @@ export function seenTiles(polys, opaque, P = 8) {
     const x = bx0 + tx, y = by0 + ty;
     if (!inner) {
       if (!corners) continue;
+      // a wall or door touched at a corner is seen (room corners show in the game); open tiles
+      // behind a corner where two of them meet are not
       // reached only at corners: not through a corner where two sight-blocking tiles meet
-      let ok = false;
+      let ok = opaque.has(K(x, y));
       for (let q = 0; q < 4 && !ok; q++) {
         if (!(corners & (1 << q))) continue;
         const dx = q & 1 ? 1 : -1, dy = q & 2 ? 1 : -1;
