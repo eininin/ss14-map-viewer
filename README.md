@@ -53,6 +53,10 @@ cables, doors and everything placed on it.
   (plus anything inside it), floor tiles, decals and tile atmospheres. With
   "only shown layers" on, hidden layers are left out. Coordinates stay as in
   the original map; custom `!type:` tags are kept.
+- **First screen**: opening the site without a map asks *Map viewer* or
+  *Station Guesser*; the guesser offers Elkridge Depot (Starlight) as the
+  default station, or *Another map…* through the usual server → kind → map
+  browser, and starts once the map has loaded.
 - **Station Guesser** (top bar): a view from a spot of the open map on the
   left, the station's outline on the right; click where you think it is. Pick a
   mode first:

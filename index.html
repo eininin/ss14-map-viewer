@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/app.css?v=34">
+<link rel="stylesheet" href="css/app.css?v=45">
 </head>
 <body>
 <header id="top">
@@ -26,6 +26,26 @@
   <canvas id="mapCanvas"></canvas>
   <canvas id="overlayCanvas"></canvas>
   <textarea id="textInput" class="textinput" hidden spellcheck="false"></textarea>
+
+  <div id="landing" class="landing" hidden>
+    <div id="landMain" class="landbox">
+      <h1>SS14 Map Viewer</h1>
+      <div class="landcards">
+        <button id="landViewer" class="landcard"><b>Map viewer</b><span>Open any station, shuttle or map file and look around: layers, sprites, areas, field of view, drawings.</span></button>
+        <button id="landGuess" class="landcard"><b>Station Guesser</b><span>A view from a random spot: find it on the station. Photo from the station, Tider's memory, random training.</span></button>
+      </div>
+    </div>
+    <div id="landPick" class="landbox" hidden>
+      <h1>Station Guesser</h1>
+      <p class="hint">Choose a station to play on.</p>
+      <button id="landElk" class="landcard big"><b>Elkridge Depot</b><span>Starlight · the default station</span></button>
+      <details class="landmore"><summary>Another map…</summary>
+        <p class="hint">Pick a server, then the kind of map, then the map; the game starts once it has loaded.</p>
+        <button id="landOther" class="btn">Choose a map</button>
+      </details>
+      <button id="landBack" class="btn small">← Back</button>
+    </div>
+  </div>
 
   <div id="empty" class="empty">
     <div class="emptybox">
@@ -181,6 +201,6 @@
 </div>
 <div id="toast" class="toast" hidden></div>
 
-<script type="module" src="js/app.js?v=44"></script>
+<script type="module" src="js/app.js?v=45"></script>
 </body>
 </html>

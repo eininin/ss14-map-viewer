@@ -337,6 +337,7 @@ async function resolveAndRender(keepView, token = S.loadToken) {
   renderArea();
   draw();
   progress(null);
+  if (S.autoGuess && token === S.loadToken) { S.autoGuess = false; setTimeout(startGuesser, 50); }
   backgroundFill(token);
 }
 
@@ -2325,9 +2326,36 @@ function setupUI() {
   $('#stage').dataset.tool = S.tool;
   $('#btnOpenFile').onclick = () => $('#fileInput').click();
   $('#fileInput').onchange = (e) => { const f = e.target.files[0]; if (f) openFile(f); e.target.value = ''; };
-  $('#btnBrowse').onclick = () => browseMaps();
-  $('#btnGuess').onclick = () => {
-    if (!S.mapSource) { toast('Open a station first (Browse maps or Open .yml)', true); return; }
+  $('#btnBrowse').onclick = () => { S.autoGuess = false; browseMaps(); };
+  $('#btnGuess').onclick = () => startGuesser();
+  setupUIRest();
+  setupLanding();
+}
+// first screen: map viewer or Station Guesser (Elkridge by default, or any map via Browse)
+const GUESS_DEFAULT = { fork: 'starlight', path: 'Maps/_Starlight/Stations/Elkridge.yml', title: 'Elkridge Depot' };
+function setupLanding() {
+  const el = $('#landing');
+  if (!el) return;
+  const q = new URLSearchParams(location.search);
+  if (q.get('map')) { el.hidden = true; return; }
+  el.hidden = false;
+  $('#landViewer').onclick = () => { el.hidden = true; };
+  $('#landGuess').onclick = () => { $('#landPick').hidden = false; $('#landMain').hidden = true; };
+  $('#landBack').onclick = () => { $('#landPick').hidden = true; $('#landMain').hidden = false; };
+  $('#landElk').onclick = () => {
+    el.hidden = true;
+    S.autoGuess = true;
+    openFromParam(GUESS_DEFAULT.fork + ':' + GUESS_DEFAULT.path, null, GUESS_DEFAULT.title);
+  };
+  $('#landOther').onclick = () => {
+    el.hidden = true;
+    S.autoGuess = true;                       // whatever is picked in Browse starts the game once loaded
+    browseMaps();
+  };
+}
+function startGuesser() {
+  {
+    if (!S.mapSource) { $('#landing').hidden = false; $('#landMain').hidden = true; $('#landPick').hidden = false; return; }
     if (!S.scene || !S.renderer.grids) { toast('The map is still loading, try again in a moment', true); return; }
     try {
       const err = openGuesser({ renderer: S.renderer, scene: S.scene, grid: areaGrid(), CHUNK, PX, sightBlockers,
@@ -2338,7 +2366,9 @@ function setupUI() {
       console.error(e);
       toast('Station Guesser failed: ' + e.message, true);
     }
-  };
+  }
+}
+function setupUIRest() {
   $('#rotL').onclick = () => rotateView(Math.PI / 2);
   $('#rotR').onclick = () => rotateView(-Math.PI / 2);
   $('#rotRand').onclick = () => rotateView((1 + Math.floor(Math.random() * 3)) * Math.PI / 2);

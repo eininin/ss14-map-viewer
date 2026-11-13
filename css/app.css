@@ -375,3 +375,17 @@ label.dimmed { opacity: .45; }
 .gsizes { display: inline-flex; gap: 8px; align-items: center; }
 .gsizes input { width: 46px; }
 .gsettings { color: #8b96a7; font-size: 13px; text-align: center; max-width: 900px; }
+/* ---- first screen */
+.landing { position: absolute; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; background: rgba(6,8,13,.86); backdrop-filter: blur(3px); }
+.landbox { display: flex; flex-direction: column; align-items: center; gap: 16px; text-align: center; padding: 20px; }
+.landbox h1 { margin: 0; font-size: 24px; letter-spacing: .05em; }
+.landcards { display: flex; gap: 18px; flex-wrap: wrap; justify-content: center; }
+.landcard { width: 300px; min-height: 150px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; text-align: left; padding: 18px;
+  border-radius: 12px; border: 1px solid #2a3340; background: #11161e; color: #d6dde8; cursor: pointer; font: inherit; }
+.landcard:hover { border-color: #f2b84b; }
+.landcard b { font-size: 18px; color: #f2b84b; }
+.landcard span { font-size: 13px; color: #aab4c3; line-height: 1.45; }
+.landcard.big { width: 420px; min-height: 110px; }
+.landmore { color: #aab4c3; font-size: 13px; }
+.landmore summary { cursor: pointer; }
+.landmore[open] { display: flex; flex-direction: column; align-items: center; gap: 8px; }
