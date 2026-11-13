@@ -1,116 +1,243 @@
-// Station Guesser: a view from a random spot of the map on the left, the outline of the
-// station on the right; click the outline where you think the view is.
-import { eyePolygon, sightTargets, seenTiles, tileX, tileY, tileKey } from './fov.js?v=29';
+// Station Guesser: a view from a spot of the map on the left, the outline of the station on the
+// right; click the outline where you think the view is. Three kinds of spots:
+//   photo    – "Photo from the station": inside, on a proper floor (not maints, not glass)
+//   maints   – "Tider's memory": inside, in maintenance
+//   training – "Random training": any floor, outside too; free view size, no timer
+import { eyePolygon, sightTargets, seenTiles, tileX, tileY, tileKey } from './fov.js?v=31';
 
 const LSK = 'ss14mv.guess';
 const load = () => { try { return JSON.parse(localStorage.getItem(LSK)) || {}; } catch (e) { return {}; } };
 const save = (o) => { try { localStorage.setItem(LSK, JSON.stringify(o)); } catch (e) { /* ignore */ } };
+const MODES = {
+  photo: { name: 'Photo from the station', desc: 'A spot in a room or hallway: real floor, not maintenance, not inside a window.' },
+  maints: { name: "Tider's memory", desc: 'Somewhere in maintenance.' },
+  training: { name: 'Random training', desc: 'Any floor at all, outside the station too. No timer.' },
+};
+const START = 5000, GRACE = 3;                 // points at the start; seconds before they start to drop
+let starImg = null;
 
-/**
- * @param {object} ctx
- *   renderer, scene, grid (uid), CHUNK, PX, sightBlockers(grid, doorsOpen) -> Set, mapName
- */
 export function openGuesser(ctx) {
-  const opt = { size: 5, fog: true, rot: 'none', doorsOpen: false, walls: true, ...load() };
+  const opt = { size: 3, trainSize: 5, fog: true, rot: 'none', doorsOpen: false, walls: true, minutes: 3, mode: 'photo', ...load() };
   if (opt.rot !== 'none') opt.rot = '90';
   const { renderer: R, scene, grid, CHUNK, PX } = ctx;
   const gr = R.grids && R.grids.get(grid);
   if (!gr) return 'This map has no station grid to play on';
   const tiles = (scene.tiles.get(grid) || []);
-  const floor = new Set(tiles.map(t => tileKey(t.x, t.y)));
-  // walls, windows and doors: drawn in the wall colour on the outline
-  const struct = new Set();
+  if (!tiles.length) return 'No floor on this map to pick a spot from';
+  if (!starImg) { starImg = new Image(); starImg.src = 'img/stars-tile.webp'; }
+
+  // ---- what is where
+  const floorName = new Map(tiles.map(t => [tileKey(t.x, t.y), t.name]));
+  const struct = new Set(), glass = new Set();           // walls/windows/doors; windows and grilles
   for (const it of scene.items) {
     if (it.kind !== 'ent' || it.grid !== grid || !it.info) continue;
-    if (it.cat === 'walls' || it.cat === 'doors' || it.info.oc) struct.add(tileKey(it.tx, it.ty));
+    const k = tileKey(it.tx, it.ty);
+    if (it.cat === 'walls' || it.cat === 'doors' || it.info.oc) struct.add(k);
+    if (/window|grille/i.test(it.proto) || (it.cat === 'walls' && !it.info.oc)) glass.add(k);
   }
-  let opaque = ctx.sightBlockers(grid, opt.doorsOpen), targets = sightTargets(opaque);
-  const spots = () => tiles.filter(t => !/lattice/i.test(t.name) && !opaque.has(tileKey(t.x, t.y)));
-  let pool = spots();
-  if (!pool.length) return 'No floor on this map to pick a spot from';
+  const isPlating = (n) => /plating|lattice|catwalk/i.test(n || '');
+  const isLattice = (n) => /lattice/i.test(n || '');
+  const [bx0, by0, bx1, by1] = [Math.floor(gr.minX) - 2, Math.floor(gr.minY) - 2, Math.ceil(gr.maxX) + 2, Math.ceil(gr.maxY) + 2];
+  const BW = bx1 - bx0, BH = by1 - by0, idx = (x, y) => (y - by0) * BW + (x - bx0);
+  // outside: everything reachable from the map's edge without passing a wall, window or door
+  const outside = new Uint8Array(BW * BH);
+  {
+    const st = [];
+    for (let x = bx0; x < bx1; x++) { st.push(x, by0, x, by1 - 1); }
+    for (let y = by0; y < by1; y++) { st.push(bx0, y, bx1 - 1, y); }
+    while (st.length) {
+      const y = st.pop(), x = st.pop();
+      if (x < bx0 || y < by0 || x >= bx1 || y >= by1) continue;
+      const i = idx(x, y);
+      if (outside[i] || struct.has(tileKey(x, y))) continue;
+      outside[i] = 1;
+      st.push(x + 1, y, x - 1, y, x, y + 1, x, y - 1);
+    }
+  }
+  // rooms: floor areas inside, split by walls, windows and doors; maints = mostly plating
+  const room = new Int32Array(BW * BH).fill(-1), roomPlating = [];
+  for (const t of tiles) {
+    const k = tileKey(t.x, t.y), i0 = idx(t.x, t.y);
+    if (room[i0] >= 0 || outside[i0] || struct.has(k)) continue;
+    const id = roomPlating.length; let n = 0, p = 0;
+    const st = [t.x, t.y];
+    while (st.length) {
+      const y = st.pop(), x = st.pop(), kk = tileKey(x, y);
+      if (x < bx0 || y < by0 || x >= bx1 || y >= by1) continue;
+      const i = idx(x, y);
+      if (room[i] >= 0 || outside[i] || struct.has(kk) || !floorName.has(kk)) continue;
+      room[i] = id; n++; if (isPlating(floorName.get(kk))) p++;
+      st.push(x + 1, y, x - 1, y, x, y + 1, x, y - 1);
+    }
+    roomPlating.push(n ? p / n : 0);
+  }
+  const solidAround = (x, y) => {             // floor or wall in the 3x3 (walls count as floor here)
+    let c = 0;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const k = tileKey(x + dx, y + dy);
+      if (struct.has(k) || (floorName.has(k) && !isLattice(floorName.get(k)))) c++;
+    }
+    return c;
+  };
+  let opaque, targets;
+  const pools = {};
+  function buildPools() {
+    opaque = ctx.sightBlockers(grid, opt.doorsOpen);
+    targets = sightTargets(opaque);
+    pools.photo = []; pools.maints = []; pools.training = [];
+    for (const t of tiles) {
+      const k = tileKey(t.x, t.y);
+      if (opaque.has(k)) continue;
+      pools.training.push(t);
+      if (struct.has(k) || glass.has(k)) continue;
+      const i = idx(t.x, t.y);
+      if (outside[i] || room[i] < 0) continue;
+      const maintRoom = roomPlating[room[i]] >= 0.5;
+      if (!isPlating(t.name) && !maintRoom && solidAround(t.x, t.y) >= 7) pools.photo.push(t);
+      else if (maintRoom && isPlating(t.name) && !isLattice(t.name)) pools.maints.push(t);
+    }
+  }
+  buildPools();
 
+  // ---- page
   const el = document.createElement('div');
   el.className = 'gmodal';
   el.innerHTML = `
     <div class="gbar">
-      <b>Station Guesser</b><span class="gmap"></span>
-      <label>View <input type="number" class="gsize" min="1" max="61" step="1" value="${opt.size}"> tiles</label>
-      <label class="tglbtn" title="Black out everything the spot cannot see"><input type="checkbox" class="gfog" ${opt.fog ? 'checked' : ''}> field of view</label>
-      <label class="tglbtn" title="Show walls, windows and airlocks on the station outline"><input type="checkbox" class="gwalls" ${opt.walls ? 'checked' : ''}> walls on map</label>
-      <label class="tglbtn" title="Solid airlocks count as open for the field of view"><input type="checkbox" class="gdoor" ${opt.doorsOpen ? 'checked' : ''}> airlocks open</label>
-      <label>Rotation <select class="sel grot">
-        <option value="none">none</option><option value="90">random quarter turns</option>
-      </select></label>
+      <b>Station Guesser</b><span class="gmap"></span><span class="gmode"></span>
+      <span class="gtimer"></span>
+      <button class="btn small ghint" title="Show one more tile all around (H); costs 25% of the points you have">Hint (−25%)</button>
+      <label class="gtrain">View <input type="number" class="gsize" min="1" max="61" step="1"> tiles</label>
       <span class="gscore"></span>
-      <button class="btn small gnew">New spot</button>
+      <button class="btn small gskip">Skip</button>
+      <button class="btn small gmenu">Modes</button>
       <button class="btn small gclose" title="Esc">Close</button>
+    </div>
+    <div class="gstart">
+      <h2>Station Guesser</h2>
+      <p class="hint gmapname"></p>
+      <div class="gmodes"></div>
+      <div class="gopts">
+        <label>Timer <input type="number" class="gmin" min="0.5" max="30" step="0.5" value="${opt.minutes}"> min</label>
+        <label class="tglbtn" title="Black out everything the spot can't see"><input type="checkbox" class="gfog" ${opt.fog ? 'checked' : ''}> field of view</label>
+        <label class="tglbtn" title="Solid airlocks don't block the field of view"><input type="checkbox" class="gdoor" ${opt.doorsOpen ? 'checked' : ''}> airlocks open</label>
+        <label class="tglbtn" title="Walls, windows and airlocks on the station outline"><input type="checkbox" class="gwalls" ${opt.walls ? 'checked' : ''}> walls on map</label>
+        <label>Rotation <select class="sel grot"><option value="none">none</option><option value="90">random quarter turns</option></select></label>
+      </div>
+      <p class="hint">Points start at ${START} and, after ${GRACE} seconds, drain over the timer. A hint (H) shows one more tile all
+        around and costs 25% of the points left. You get the points left × how close you clicked.</p>
     </div>
     <div class="gbody">
       <div class="gside"><canvas class="gview"></canvas><div class="gnote"></div></div>
-      <div class="gside"><canvas class="gout"></canvas><div class="gresult">Click the station where you think this is.</div></div>
+      <div class="gside"><canvas class="gout"></canvas><div class="gresult"></div></div>
     </div>`;
   document.body.appendChild(el);
-  el.querySelector('.grot').value = opt.rot;
-  el.querySelector('.gmap').textContent = ctx.mapName || '';
-  const cv = el.querySelector('.gview'), co = el.querySelector('.gout');
-  const res = el.querySelector('.gresult'), scoreEl = el.querySelector('.gscore'), note = el.querySelector('.gnote');
-
-  let spot = null, angle = 0, guess = null, rounds = 0, total = 0;
+  const $ = (s) => el.querySelector(s);
+  $('.grot').value = opt.rot;
+  $('.gmap').textContent = ctx.mapName || '';
+  $('.gmapname').textContent = ctx.mapName || '';
+  const cv = $('.gview'), co = $('.gout'), res = $('.gresult'), note = $('.gnote');
   const dpr = window.devicePixelRatio || 1;
 
+  let mode = null, spot = null, angle = 0, guess = null, rounds = 0, total = 0;
+  let size = 3, hints = 0, t0 = 0, done = false, raf = 0;
+
+  // ---- mode picker
+  function showStart() {
+    mode = null; cancelAnimationFrame(raf);
+    el.classList.add('starting');
+    const box = $('.gmodes');
+    box.innerHTML = '';
+    for (const [id, m] of Object.entries(MODES)) {
+      const n = pools[id].length;
+      const b = document.createElement('button');
+      b.className = 'gmodebtn';
+      b.disabled = !n;
+      b.innerHTML = `<b>${m.name}</b><span>${m.desc}</span><em>${n ? n + ' possible spots' : 'none on this map'}</em>`;
+      b.onclick = () => startMode(id);
+      box.appendChild(b);
+    }
+  }
+  function startMode(id) {
+    mode = id; opt.mode = id; save(opt);
+    rounds = 0; total = 0; showScore();
+    el.classList.remove('starting');
+    el.classList.toggle('training', id === 'training');
+    $('.gmode').textContent = '· ' + MODES[id].name;
+    $('.gsize').value = opt.trainSize;
+    newSpot();
+    sizeAll();
+  }
+
   // ---- outline of the station (fixed, north up)
-  const [bx0, by0, bx1, by1] = [Math.floor(gr.minX) - 1, Math.floor(gr.minY) - 1, Math.ceil(gr.maxX) + 1, Math.ceil(gr.maxY) + 1];
+  const ox0 = bx0 + 1, oy1 = by1 - 1, oxw = BW - 2, oyh = BH - 2;
   let ow = 0, oh = 0, os = 1;
   function sizeAll() {
-    const body = el.querySelector('.gbody').getBoundingClientRect();
+    const body = $('.gbody').getBoundingClientRect();
+    if (!body.width) return;
     const side = Math.max(200, Math.min(body.width / 2 - 24, body.height - 40));
     cv.style.width = cv.style.height = side + 'px';
     cv.width = cv.height = Math.round(side * dpr);
-    os = Math.min((body.width / 2 - 24) / (bx1 - bx0), (body.height - 40) / (by1 - by0));
-    ow = Math.round((bx1 - bx0) * os); oh = Math.round((by1 - by0) * os);
+    os = Math.min((body.width / 2 - 24) / oxw, (body.height - 40) / oyh);
+    ow = Math.round(oxw * os); oh = Math.round(oyh * os);
     co.style.width = ow + 'px'; co.style.height = oh + 'px';
     co.width = Math.round(ow * dpr); co.height = Math.round(oh * dpr);
     drawView(); drawOutline();
   }
-  const toOut = (x, y) => [(x - bx0) * os, (by1 - y) * os];
+  const toOut = (x, y) => [(x - ox0) * os, (oy1 - y) * os];
   function drawOutline() {
     const g = co.getContext('2d');
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, ow, oh);
     for (const t of tiles) {
       const k = tileKey(t.x, t.y);
-      g.fillStyle = struct.has(k) && opt.walls ? '#9aa6b8' : /lattice/i.test(t.name) ? '#262c35' : '#424b58';
+      g.fillStyle = struct.has(k) && opt.walls ? '#9aa6b8' : isLattice(t.name) ? '#262c35' : '#424b58';
       const [x, y] = toOut(t.x, t.y + 1);
       g.fillRect(x, y, os + 0.3, os + 0.3);
     }
-    if (opt.walls) for (const k of struct) if (!floor.has(k)) {   // walls on lattice etc.
-      const x = Math.floor(k / 65536) - 32768, y = (k % 65536) - 32768;
-      const [sx, sy] = toOut(x, y + 1);
+    if (opt.walls) for (const k of struct) if (!floorName.has(k)) {
+      const [sx, sy] = toOut(tileX(k), tileY(k) + 1);
       g.fillStyle = '#9aa6b8';
       g.fillRect(sx, sy, os + 0.3, os + 0.3);
     }
-    if (guess) {
-      const [gx, gy] = toOut(guess[0], guess[1]);
+    if (localStorage.getItem('ss14mv.guessDebug')) {   // shows where each kind of spot can be
+      for (const [id, c] of [['photo', 'rgba(123,216,143,.8)'], ['maints', 'rgba(242,184,75,.8)']]) {
+        g.fillStyle = c;
+        for (const t of pools[id]) { const [x, y] = toOut(t.x, t.y + 1); g.fillRect(x, y, os, os); }
+      }
+    }
+    if (guess && spot) {
       const [ax, ay] = toOut(spot.x + 0.5, spot.y + 0.5);
-      g.strokeStyle = '#fff'; g.setLineDash([5, 4]); g.lineWidth = 1.5;
-      g.beginPath(); g.moveTo(gx, gy); g.lineTo(ax, ay); g.stroke(); g.setLineDash([]);
-      const half = opt.size / 2;
+      if (Array.isArray(guess)) {
+        const [gx, gy] = toOut(guess[0], guess[1]);
+        g.strokeStyle = '#fff'; g.setLineDash([5, 4]); g.lineWidth = 1.5;
+        g.beginPath(); g.moveTo(gx, gy); g.lineTo(ax, ay); g.stroke(); g.setLineDash([]);
+        dot(g, gx, gy, '#ff5c8a');
+      }
+      const half = size / 2;
       g.strokeStyle = '#7bd88f'; g.lineWidth = 2;
       const [rx, ry] = toOut(spot.x + 0.5 - half, spot.y + 0.5 + half);
-      g.strokeRect(rx, ry, opt.size * os, opt.size * os);
-      dot(g, ax, ay, '#7bd88f'); dot(g, gx, gy, '#ff5c8a');
+      g.strokeRect(rx, ry, size * os, size * os);
+      dot(g, ax, ay, '#7bd88f');
     }
   }
   const dot = (g, x, y, c) => { g.fillStyle = c; g.beginPath(); g.arc(x, y, 5, 0, Math.PI * 2); g.fill(); g.strokeStyle = '#000'; g.lineWidth = 1.5; g.stroke(); };
 
   // ---- the view
   function drawView() {
-    if (!spot) return;
-    const g = cv.getContext('2d'), S = cv.width, n = opt.size, pt = S / n;
+    if (!spot || !cv.width) return;
+    const g = cv.getContext('2d'), S = cv.width, n = size, pt = S / n;
     const px = spot.x + 0.5, py = spot.y + 0.5;
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.fillStyle = '#000';
     g.fillRect(0, 0, S, S);
+    if (starImg && starImg.complete && starImg.naturalWidth) {   // space looks like space
+      g.save();
+      g.translate(-((px * 9) % 512), (py * 9) % 512);
+      g.fillStyle = g.createPattern(starImg, 'repeat');
+      g.fillRect(-512, -512, S + 1024, S + 1024);
+      g.restore();
+    }
     const xf = () => { g.setTransform(1, 0, 0, 1, 0, 0); g.translate(S / 2, S / 2); g.rotate(-angle); g.scale(pt, -pt); g.translate(-px, -py); };
     xf();
     g.imageSmoothingEnabled = n > 12;
@@ -148,61 +275,107 @@ export function openGuesser(ctx) {
       g.setTransform(1, 0, 0, 1, 0, 0);
       g.drawImage(m, 0, 0);
     }
-    // the spot itself
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.strokeStyle = 'rgba(255,255,255,.7)';
     g.lineWidth = Math.max(1, dpr);
-    const r = Math.max(4, pt * 0.18);
+    const r = Math.max(4, pt * 0.12);
     g.beginPath(); g.moveTo(S / 2 - r, S / 2); g.lineTo(S / 2 + r, S / 2); g.moveTo(S / 2, S / 2 - r); g.lineTo(S / 2, S / 2 + r); g.stroke();
-    note.textContent = opt.rot === 'none' ? 'North is up.' : 'The view may be turned.';
+    note.textContent = `${size}×${size} tiles · ` + (opt.rot === 'none' ? 'north is up' : 'the view may be turned');
   }
 
+  // ---- points and timer
+  const timed = () => mode !== 'training';
+  function available(now) {
+    if (!timed()) return START;
+    const t = (now - t0) / 1000 - GRACE, T = Math.max(30, opt.minutes * 60);
+    const u = Math.min(1, Math.max(0, t / T));
+    return START * (1 - u) * (1 - u) * Math.pow(0.75, hints);   // drains fast at first, slower near the end
+  }
+  function tick() {
+    if (!mode || done) return;
+    const now = performance.now();
+    if (timed()) {
+      const left = Math.max(0, Math.max(30, opt.minutes * 60) + GRACE - (now - t0) / 1000);
+      const mm = Math.floor(left / 60), ss = Math.floor(left % 60);
+      $('.gtimer').innerHTML = `⏱ ${mm}:${String(ss).padStart(2, '0')} · <b>${Math.round(available(now))}</b> pts`;
+      if (left <= 0) { finish('timeout'); return; }
+    } else $('.gtimer').textContent = '';
+    raf = requestAnimationFrame(tick);
+  }
+  function showScore() { $('.gscore').textContent = rounds ? `${total} pts · ${rounds} round${rounds > 1 ? 's' : ''}` : ''; }
+
   function newSpot() {
+    const pool = pools[mode];
+    if (!pool || !pool.length) { showStart(); return; }
     spot = pool[Math.floor(Math.random() * pool.length)];
     angle = opt.rot === '90' ? Math.floor(Math.random() * 4) * Math.PI / 2 : 0;
     R.setViewRot(angle);                      // sprites drawn as seen from that direction
-    guess = null;
+    guess = null; done = false; hints = 0;
+    size = mode === 'training' ? opt.trainSize : 3;
     res.textContent = 'Click the station where you think this is.';
+    $('.ghint').disabled = false;
+    t0 = performance.now();
     drawView(); drawOutline();
+    cancelAnimationFrame(raf); raf = requestAnimationFrame(tick);
   }
-  function showScore() { scoreEl.textContent = rounds ? `${total} pts · ${rounds} round${rounds > 1 ? 's' : ''}` : ''; }
-
-  co.addEventListener('click', (e) => {
-    if (!spot || guess) return;
-    const r = co.getBoundingClientRect();
-    const x = (e.clientX - r.left) / os + bx0, y = by1 - (e.clientY - r.top) / os;
-    guess = [x, y];
-    const d = Math.hypot(x - (spot.x + 0.5), y - (spot.y + 0.5));
-    const scale = Math.max(6, Math.hypot(bx1 - bx0, by1 - by0) / 15);
-    const pts = Math.round(5000 * Math.exp(-Math.max(0, d - 0.7) / scale));
-    rounds++; total += pts; showScore();
-    res.innerHTML = `<b>${d < 1 ? 'Spot on!' : d.toFixed(1) + ' tiles away'}</b> · ${pts} points <button class="btn small primary gnext">Next</button>`;
+  function finish(g) {
+    if (done) return;
+    done = true; guess = g; cancelAnimationFrame(raf);
+    $('.ghint').disabled = true;
+    rounds++;
+    if (!Array.isArray(g)) {
+      res.innerHTML = `<b>${g === 'timeout' ? "Time's up" : 'Skipped'}</b> · 0 points <button class="btn small primary gnext">Next</button>`;
+      $('.gtimer').textContent = '';
+    } else {
+      const pts0 = available(performance.now());
+      const d = Math.hypot(g[0] - (spot.x + 0.5), g[1] - (spot.y + 0.5));
+      const scale = Math.max(6, Math.hypot(oxw, oyh) / 15);
+      const close = Math.exp(-Math.max(0, d - 0.7) / scale);
+      const pts = Math.round(pts0 * close);
+      total += pts;
+      res.innerHTML = `<b>${d < 1 ? 'Spot on!' : d.toFixed(1) + ' tiles away'}</b> · ${pts} points
+        <span class="hint">(${Math.round(pts0)} left × ${Math.round(close * 100)}% close)</span>
+        <button class="btn small primary gnext">Next</button>`;
+    }
     res.querySelector('.gnext').onclick = newSpot;
+    showScore();
     drawOutline();
+  }
+  co.addEventListener('click', (e) => {
+    if (!spot || done || !mode) return;
+    const r = co.getBoundingClientRect();
+    finish([(e.clientX - r.left) / os + ox0, oy1 - (e.clientY - r.top) / os]);
   });
 
-  const reopts = (refresh) => {
-    save(opt);
-    if (refresh) { opaque = ctx.sightBlockers(grid, opt.doorsOpen); targets = sightTargets(opaque); pool = spots(); drawOutline(); }
+  // ---- controls
+  $('.ghint').onclick = () => {
+    if (done || size >= 61) return;
+    size += 2;
+    if (timed()) hints++;
     drawView();
   };
-  el.querySelector('.gsize').onchange = (e) => { opt.size = Math.max(1, Math.min(61, Math.round(+e.target.value) || 5)); e.target.value = opt.size; reopts(); if (guess) drawOutline(); };
-  el.querySelector('.gfog').onchange = (e) => { opt.fog = e.target.checked; reopts(); };
-  el.querySelector('.gwalls').onchange = (e) => { opt.walls = e.target.checked; save(opt); drawOutline(); };
-  el.querySelector('.gdoor').onchange = (e) => { opt.doorsOpen = e.target.checked; reopts(true); };
-  el.querySelector('.grot').onchange = (e) => { opt.rot = e.target.value; save(opt); newSpot(); };
-  el.querySelector('.gnew').onclick = newSpot;
-  const close = () => { el.remove(); if (ctx.onClose) ctx.onClose(); window.removeEventListener('resize', sizeAll); window.removeEventListener('keydown', onKey, true); };
+  $('.gskip').onclick = () => { if (!done && spot && mode) finish('skip'); };
+  $('.gmenu').onclick = showStart;
+  $('.gsize').onchange = (e) => { opt.trainSize = Math.max(1, Math.min(61, Math.round(+e.target.value) || 5)); e.target.value = opt.trainSize; save(opt); if (mode === 'training') { size = opt.trainSize; drawView(); } };
+  $('.gmin').onchange = (e) => { opt.minutes = Math.max(0.5, Math.min(30, +e.target.value || 3)); e.target.value = opt.minutes; save(opt); };
+  $('.gfog').onchange = (e) => { opt.fog = e.target.checked; save(opt); drawView(); };
+  $('.gwalls').onchange = (e) => { opt.walls = e.target.checked; save(opt); drawOutline(); };
+  $('.gdoor').onchange = (e) => { opt.doorsOpen = e.target.checked; save(opt); buildPools(); showStart(); };
+  $('.grot').onchange = (e) => { opt.rot = e.target.value; save(opt); };
+  const close = () => {
+    cancelAnimationFrame(raf);
+    el.remove(); if (ctx.onClose) ctx.onClose();
+    window.removeEventListener('resize', sizeAll); window.removeEventListener('keydown', onKey, true);
+  };
   const onKey = (e) => {
     if (e.target.matches && e.target.matches('input, select')) return;
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
-    else if ((e.key === 'Enter' || e.key === ' ') && guess) { e.preventDefault(); e.stopPropagation(); newSpot(); }
+    else if ((e.key === 'Enter' || e.key === ' ') && done && mode) { e.preventDefault(); e.stopPropagation(); newSpot(); }
+    else if (e.key.toLowerCase() === 'h' && mode && !done) { e.stopPropagation(); $('.ghint').click(); }
     else e.stopPropagation();                 // keep the map's shortcuts out of the game
   };
-  el.querySelector('.gclose').onclick = close;
+  $('.gclose').onclick = close;
   window.addEventListener('resize', sizeAll);
   window.addEventListener('keydown', onKey, true);
-  spot = pool[Math.floor(Math.random() * pool.length)];
-  sizeAll();
-  newSpot();
+  showStart();
 }

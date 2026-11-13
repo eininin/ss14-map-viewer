@@ -53,13 +53,24 @@ cables, doors and everything placed on it.
   (plus anything inside it), floor tiles, decals and tile atmospheres. With
   "only shown layers" on, hidden layers are left out. Coordinates stay as in
   the original map; custom `!type:` tags are kept.
-- **Station Guesser** (top bar): a view from a random spot of the open map on
-  the left, the station's outline on the right; click where you think it is to
-  get the distance and points, then *Next* (Enter). Options: view size in
-  tiles (5 by default), field of view (blacks out what the spot can't see; as
-  in the game, walls are seen but not what is behind them), walls on the
-  outline on/off, airlocks open, rotation (none or random quarter turns).
-  Esc closes it.
+- **Station Guesser** (top bar): a view from a spot of the open map on the
+  left, the station's outline on the right; click where you think it is. Pick a
+  mode first:
+  - *Photo from the station*: inside the station, on real floor (not plating,
+    not maintenance, not in a window), with at least 7 of the 3×3 around it
+    floor or wall.
+  - *Tider's memory*: plating in maintenance.
+  - *Random training*: any floor, outside too; free view size, no timer.
+
+  "Inside" is everything not reachable from the map's edge without passing a
+  wall, window or door. Rooms are floor areas split by walls, windows and
+  doors; a room that is mostly plating is maintenance. Timed modes start at a
+  3×3 view and 5000 points; after 3 seconds the points drain (fast at first)
+  over the timer (3 minutes by default). A hint (H) shows one more tile all
+  around and costs 25% of the points left. Score = points left × closeness.
+  Options: timer, field of view (as in the game: walls are seen, not what is
+  behind them; space shows as space), airlocks open, walls/windows/airlocks
+  on the outline, random quarter-turn rotation. Esc closes it.
 - **Rotate the view** (*View* tab, or Q / R): quarter turns, random, north up.
   As in the game, directional sprites show the frame for that viewing
   direction and stay upright.
