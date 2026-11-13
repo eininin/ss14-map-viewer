@@ -178,6 +178,7 @@ export function openGuesser(ctx) {
   function startMode(id) {
     mode = id; opt.mode = id; save(opt);
     rounds = 0; total = 0; log = []; showScore();
+    oz = 1; opx = 0; opy = 0;
     el.classList.remove('starting', 'ended');
     el.classList.toggle('training', id === 'training');
     $('.gmode').textContent = '· ' + MODES[id].name;
@@ -195,9 +196,10 @@ export function openGuesser(ctx) {
     const side = Math.max(200, Math.min(body.width / 2 - 24, body.height - 40));
     cv.style.width = cv.style.height = side + 'px';
     cv.width = cv.height = Math.round(side * dpr);
+    const os0 = os;
     os = Math.min((body.width / 2 - 24) / oxw, (body.height - 70) / oyh);
     ow = Math.round(oxw * os); oh = Math.round(oyh * os);
-    oz = 1; opx = 0; opy = 0;
+    if (os0 > 0) { opx *= os / os0; opy *= os / os0; }   // keep the zoom and position when the window changes
     co.style.width = ow + 'px'; co.style.height = oh + 'px';
     co.width = Math.round(ow * dpr); co.height = Math.round(oh * dpr);
     drawView(); drawOutline();
@@ -479,9 +481,11 @@ export function openGuesser(ctx) {
     drawOutline();
   }, { passive: false });
   co.addEventListener('pointerdown', (e) => {
+    if (e.button === 1) e.preventDefault();   // middle button: only moves the map
     co.setPointerCapture(e.pointerId);
-    drag = { x: e.clientX, y: e.clientY, px: opx, py: opy, moved: false };
+    drag = { x: e.clientX, y: e.clientY, px: opx, py: opy, moved: false, button: e.button };
   });
+  co.addEventListener('auxclick', (e) => e.preventDefault());
   co.addEventListener('pointermove', (e) => {
     if (!drag) return;
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
@@ -490,7 +494,7 @@ export function openGuesser(ctx) {
   });
   co.addEventListener('pointerup', (e) => {
     const d = drag; drag = null; co.style.cursor = '';
-    if (!d || d.moved || !spot || done || !mode) return;
+    if (!d || d.moved || d.button !== 0 || !spot || done || !mode) return;   // only a plain left click guesses
     const r = co.getBoundingClientRect();
     finish(fromOut(e.clientX - r.left, e.clientY - r.top));
   });
