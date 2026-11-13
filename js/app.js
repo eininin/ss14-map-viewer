@@ -2378,8 +2378,7 @@ function setupLanding() {
     b.onclick = () => guessOn(st);
     grid.appendChild(b);
   }
-  const q = new URLSearchParams(location.search);
-  if (q.get('map')) { el.hidden = true; } else landShow('main');
+  el.hidden = true;                           // the site opens straight in the map viewer
   $('#landViewer').onclick = () => { el.hidden = true; };
   $('#landGuess').onclick = () => landShow('pick');
   $('#landBack').onclick = () => landShow('main');
