@@ -7,7 +7,7 @@ import { Parallax } from './parallax.js';
 import { exportSelection } from './exportsel.js';
 import { browse, pickServer } from './browse.js';
 import { viewPolygons, eyePolygon, seenTiles, tileX, tileY, grow, tileKey } from './fov.js?v=60';
-import { openGuesser } from './guess.js?v=62';
+import { openGuesser } from './guess.js?v=64';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
@@ -2401,7 +2401,13 @@ function startGuesser(force) {
     try {
       // the daily game exists only on the listed stations
       const dailyOk = !!(S.mapSource && GUESS_STATIONS.some(st => S.mapSource.param === st.fork + ':' + st.path));
-      const err = openGuesser({ renderer: S.renderer, scene: S.scene, grid: areaGrid(), CHUNK, PX, sightBlockers, dailyOk,
+      // the station's own picture behind the mode screen (stations and shuttles have one)
+      let bg = '';
+      if (S.mapSource && S.mapSource.param && S.mapSource.param.includes(':Maps/')) {
+        const [fid, p] = [S.mapSource.param.split(':')[0], S.mapSource.param.split(':').slice(1).join(':')];
+        bg = new URL(`thumbs/${fid}/${p.replace(/^Maps\//, '').replace(/\.ya?ml$/i, '')}.lg.webp`, location.href).href;
+      }
+      const err = openGuesser({ renderer: S.renderer, scene: S.scene, grid: areaGrid(), CHUNK, PX, sightBlockers, dailyOk, bg,
         onClose: () => { S.renderer.viewRot = null; S.renderer.setViewRot(camRot()); S.renderer.invalidate(); draw(); },
         mapName: (S.mapSource && (S.mapSource.title || S.mapSource.name)) || '' });
       if (err) toast(err, true);

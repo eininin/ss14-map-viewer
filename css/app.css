@@ -429,3 +429,16 @@ label.dimmed { opacity: .45; }
 .landst { padding: 8px 8px 10px; }
 .landst b { font-size: 15px; }
 @media (max-width: 760px) { .landgrid { grid-template-columns: repeat(2, minmax(140px, 1fr)); } }
+/* mode screen: the station behind, a title panel and one panel with everything else */
+.gstart { position: relative; justify-content: flex-start; padding-top: 28px; overflow: auto; }
+.gstart::before { content: ""; position: absolute; inset: 0; background: var(--gbg) center / contain no-repeat, #000;
+  opacity: .45; filter: blur(1px); pointer-events: none; }
+.gstart > * { position: relative; }
+.gtitle { padding: 14px 40px 12px; border-radius: 14px; background: rgba(11,15,21,.88); border: 1px solid #2a3340; text-align: center; }
+.gtitle h2 { margin: 0; font-size: 34px; letter-spacing: .03em; color: #f2b84b; }
+.gtitle span { font-size: 14px; letter-spacing: .25em; text-transform: uppercase; color: #aab4c3; }
+.gisland { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 18px 20px; border-radius: 16px;
+  background: rgba(11,15,21,.9); border: 1px solid #2a3340; box-shadow: 0 10px 40px rgba(0,0,0,.5); }
+.gisland .hint { margin: 0; }
+.gstart::before { background: var(--gbg) center / cover no-repeat, #000; opacity: .6; filter: blur(2px) saturate(1.1); }
+.gisland { background: rgba(11,15,21,.8); backdrop-filter: blur(2px); }

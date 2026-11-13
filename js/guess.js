@@ -232,17 +232,18 @@ export function openGuesser(ctx) {
       <button class="btn small gmenu">Modes</button>
       <button class="btn small gclose" title="Back to the map viewer (Esc)">Map viewer</button>
     </div>
-    <div class="gstart">
-      <h2>Station Guesser</h2>
-      <p class="hint gmapname"></p>
-      <div class="gmodes"></div>
-      <div class="gopts">
-        <label class="tglbtn" title="Today's game: the same for everyone, once a day per mode"><input type="checkbox" class="gdaily" ${opt.daily ? 'checked' : ''}> Daily</label>
-        <label>Seed <input class="gseed" placeholder="empty = random" maxlength="40" value="${esc0(opt.seed || '')}"></label>
-        <button class="btn small grandseed" title="Fill in a random seed">Random seed</button>
+    <div class="gstart"${ctx.bg ? ` style="--gbg: url('${ctx.bg}')"` : ''}>
+      <div class="gtitle"><h2 class="gmapname"></h2><span>Station Guesser</span></div>
+      <div class="gisland">
+        <div class="gmodes"></div>
+        <div class="gopts">
+          <label class="tglbtn" title="Today's game: the same for everyone, once a day per mode"><input type="checkbox" class="gdaily" ${opt.daily ? 'checked' : ''}> Daily</label>
+          <label>Seed <input class="gseed" placeholder="empty = random" maxlength="40" value="${esc0(opt.seed || '')}"></label>
+          <button class="btn small grandseed" title="Fill in a random seed">Random seed</button>
+        </div>
+        <p class="gwarn"></p>
+        <p class="hint">${ROUNDS} rounds · 3 min each · click where you think it is</p>
       </div>
-      <p class="gwarn"></p>
-      <p class="hint">${ROUNDS} rounds · 3 min each · click where you think it is</p>
     </div>
     <div class="gend"></div>
     <div class="gbody">
