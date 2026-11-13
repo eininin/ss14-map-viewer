@@ -1,0 +1,178 @@
+name: Replay tools
+
+# Builds the fork a replay was recorded on (at the exact commit in its replay.yml), adds the
+# replay-tools console commands to its Content.Client, and runs them headless:
+#   chunk  -> splits the replay into short replays that each start from a full state
+#   export -> saves every grid (or one) as a map .yml at an exact time
+# Results are uploaded as a workflow artifact.
+#
+# Start it from the Actions tab (Run workflow), or push a change to replay-tools/job.env on a
+# branch (workflow_dispatch only shows up once this file is on the default branch).
+
+on:
+  workflow_dispatch:
+    inputs:
+      replay_url:
+        description: "Direct download URL of the replay .zip (empty = list the Space Wizards replay CDN)"
+        required: false
+        default: ""
+      fork:
+        description: "Server the replay is from"
+        type: choice
+        options: [wizden, starlight, hardlight]
+        default: wizden
+      mode:
+        description: "chunk = split into short replays, export = save grids at a time"
+        type: choice
+        options: [chunk, export]
+        default: chunk
+      seconds:
+        description: "chunk: length of each chunk in seconds / export: time from replay start in seconds"
+        default: "60"
+      grid:
+        description: "export only: NetEntity id of one grid (empty = all grids)"
+        default: ""
+      content_commit:
+        description: "Override the content commit (if the replay's buildForkVersion is not a commit hash)"
+        default: ""
+  push:
+    paths:
+      - "replay-tools/**"
+      - ".github/workflows/replay-tools.yml"
+    branches-ignore:
+      - main
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: viewer
+
+      - name: Job settings
+        id: job
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            {
+              echo "replay_url=${{ inputs.replay_url }}"
+              echo "fork=${{ inputs.fork }}"
+              echo "mode=${{ inputs.mode }}"
+              echo "seconds=${{ inputs.seconds }}"
+              echo "grid=${{ inputs.grid }}"
+              echo "content_commit=${{ inputs.content_commit }}"
+            } >> "$GITHUB_OUTPUT"
+          else
+            # push trigger: settings come from replay-tools/job.env (KEY=value lines)
+            grep -E '^(replay_url|fork|mode|seconds|grid|content_commit)=' viewer/replay-tools/job.env >> "$GITHUB_OUTPUT"
+          fi
+          cat "$GITHUB_OUTPUT"
+
+      - name: List replay CDN (no URL given)
+        if: steps.job.outputs.replay_url == ''
+        run: |
+          echo "No replay_url given. Directory listing of the Space Wizards replay CDN:"
+          curl -fsSL https://cdn.centcomm.spacestation14.com/replays/ | grep -o 'href="[^"]*"' | head -100 || true
+          exit 1
+
+      - name: Download replay
+        run: |
+          mkdir -p work
+          curl -fL --retry 3 -o work/replay.zip "${{ steps.job.outputs.replay_url }}"
+          ls -la work/replay.zip
+
+      - name: Read replay build info
+        id: info
+        run: python3 viewer/replay-tools/replay_info.py work/replay.zip --github-output "$GITHUB_OUTPUT"
+
+      - name: Pick fork repo and commit
+        id: src
+        shell: bash
+        run: |
+          case "${{ steps.job.outputs.fork }}" in
+            wizden)    repo=https://github.com/space-wizards/space-station-14 ;;
+            starlight) repo=https://github.com/ss14Starlight/space-station-14 ;;
+            hardlight) repo=https://github.com/Vontens/HardLight-new ;;
+            *) echo "unknown fork"; exit 1 ;;
+          esac
+          commit="${{ steps.job.outputs.content_commit }}"
+          if [ -z "$commit" ]; then commit="${{ steps.info.outputs.fork_version }}"; fi
+          if ! [[ "$commit" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::buildForkVersion '$commit' is not a full commit hash. Set content_commit to the commit this server build was made from."
+            exit 1
+          fi
+          echo "repo=$repo" >> "$GITHUB_OUTPUT"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+          echo "Building $repo at $commit"
+
+      - name: Check out fork at the replay's commit
+        shell: bash
+        run: |
+          git init -q fork
+          cd fork
+          git remote add origin "${{ steps.src.outputs.repo }}"
+          git fetch -q --depth 1 origin "${{ steps.src.outputs.commit }}"
+          git checkout -q FETCH_HEAD
+          git submodule update --init --depth 1 RobustToolbox || git submodule update --init RobustToolbox
+          echo "Engine: $(grep -o '<Version>[^<]*' RobustToolbox/MSBuild/Robust.Engine.Version.props | cut -c10-)"
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: fork/global.json
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ steps.job.outputs.fork }}-${{ hashFiles('fork/Directory.Packages.props', 'fork/RobustToolbox/Directory.Packages.props') }}
+          restore-keys: nuget-${{ steps.job.outputs.fork }}-
+
+      - name: Add replay tools to Content.Client
+        run: |
+          mkdir -p fork/Content.Client/_ReplayTools
+          cp viewer/replay-tools/ReplayTools/*.cs fork/Content.Client/_ReplayTools/
+
+      - name: Build Content.Client
+        run: dotnet build fork/Content.Client/Content.Client.csproj -c Release -nologo -clp:ErrorsOnly
+
+      - name: Run
+        shell: bash
+        env:
+          ROBUST_DISABLE_SANDBOX: "1"
+          DOTNET_gcServer: "0"
+        run: |
+          mkdir -p "$PWD/out"
+          replay="$PWD/work/replay.zip"
+          if [ "${{ steps.job.outputs.mode }}" = "chunk" ]; then
+            cmd="replay_chunk $replay $PWD/out ${{ steps.job.outputs.seconds }}"
+          else
+            cmd="replay_export_grids $replay ${{ steps.job.outputs.seconds }} $PWD/out ${{ steps.job.outputs.grid }}"
+          fi
+          echo "Command: $cmd"
+          cd fork/bin/Content.Client
+          # Print peak memory use too, so we can see what the tool needed.
+          /usr/bin/time -v timeout 270m ./Content.Client --headless "+$cmd" 2>&1 | tee "$GITHUB_WORKSPACE/out/run.log" || true
+          grep -q REPLAYTOOLS_DONE "$GITHUB_WORKSPACE/out/run.log"
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "### Replay tools: ${{ steps.job.outputs.mode }}"
+            echo "- replay: ${{ steps.info.outputs.name }} (${{ steps.info.outputs.duration }})"
+            echo "- engine ${{ steps.info.outputs.engine_version }}, fork ${{ steps.info.outputs.fork_id }} @ ${{ steps.src.outputs.commit }}"
+            grep -E "Maximum resident set size" out/run.log | sed 's/^\s*/- /' || true
+            echo
+            echo '```'
+            ls -la out 2>/dev/null | head -50
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: replay-${{ steps.job.outputs.mode }}-${{ github.run_id }}
+          path: out/
+          retention-days: 14
