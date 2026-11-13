@@ -14,10 +14,25 @@ const MODES = {
   items: { name: 'Item search', desc: 'Centred on a random thing: an item, machine, locker or crate somewhere on the station.' },
   training: { name: 'Random training', desc: 'Any floor at all, outside the station too. No timer.' },
 };
+const esc0 = (t) => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const START = 5000, GRACE = 3, ROUNDS = 12;
 // what counts for item search: things lying or standing around, not walls, floors, decals or pipes
 const ITEM_CATS = new Set(['items', 'machines', 'computers', 'fabrication', 'vending', 'storage']);                 // points at the start; seconds before they start to drop
 let starImg = null;
+// seeded games: the seed, today's date in London (changes at London midnight), the map and the mode
+// together pick the spots, so a seed means the same game for everyone that day
+const londonDay = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+function hashStr(str) {
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for (let i = 0; i < str.length; i++) { const c = str.charCodeAt(i); h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677); }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (h2 >>> 0) ^ (h1 >>> 0);
+}
+function mulberry32(a) {
+  return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+}
+const randomSeed = () => Array.from({ length: 6 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]).join('');
 
 export function openGuesser(ctx) {
   const opt = { rot: 'none', walls: true, mode: 'photo', ...load() };
@@ -219,6 +234,8 @@ export function openGuesser(ctx) {
       <p class="hint gmapname"></p>
       <div class="gmodes"></div>
       <div class="gopts">
+        <label>Seed <input class="gseed" placeholder="empty = random" maxlength="40" value="${esc0(opt.seed || '')}"></label>
+        <button class="btn small grandseed" title="Fill in a random seed">Random seed</button>
         <label>Rotation <select class="sel grot"><option value="none">north up</option><option value="90">random quarter turns</option></select></label>
       </div>
       <p class="hint">${ROUNDS} rounds. Points start at ${START} and, after ${GRACE} seconds, drain over ${3} minutes. Hints cost 25% of the
@@ -241,6 +258,7 @@ export function openGuesser(ctx) {
 
   let mode = null, spot = null, angle = 0, guess = null, rounds = 0, total = 0, log = [];
   let size = 3, hints = 0, t0 = 0, done = false, raf = 0, fogOn = true;
+  let rng = Math.random, seedUsed = '', seedTyped = false, seedDay = '';
 
   // ---- mode picker
   // a spot out in space close to the hull, for the Random training card
@@ -279,7 +297,12 @@ export function openGuesser(ctx) {
     }
   }
   function startMode(id) {
-    mode = id; opt.mode = id; save(opt);
+    mode = id; opt.mode = id;
+    opt.seed = $('.gseed').value.trim(); save(opt);
+    seedTyped = !!opt.seed;
+    seedUsed = opt.seed || randomSeed();
+    seedDay = londonDay();
+    rng = mulberry32(hashStr(`${seedUsed}|${seedDay}|${ctx.mapName || ''}|${grid}|${id}`));
     rounds = 0; total = 0; log = []; showScore();
     oz = 1; opx = 0; opy = 0;
     el.classList.remove('starting', 'ended');
@@ -514,17 +537,17 @@ export function openGuesser(ctx) {
   };
   function pickSpot(pool) {
     const nearGame = (t) => log.some(r => Math.hypot(r.spot.x - t.x, r.spot.y - t.y) < 8);
-    const nearHist = (t) => hist.some(([x, y]) => Math.hypot(x - t.x, y - t.y) < 8);
+    const nearHist = (t) => !seedTyped && hist.some(([x, y]) => Math.hypot(x - t.x, y - t.y) < 8);
     const areas = mode === 'maints' ? [...byRoom.values()] : null;
     const wt = (l) => Math.pow(l.length, 0.7);          // big areas a bit more often, small ones not favoured
     const wsum = areas ? areas.reduce((a, l) => a + wt(l), 0) : 0;
     const draw = () => {
       if (areas && areas.length) {
-        let r = Math.random() * wsum, l = areas[0];
+        let r = rng() * wsum, l = areas[0];
         for (const a of areas) { r -= wt(a); if (r <= 0) { l = a; break; } }
-        return l[Math.floor(Math.random() * l.length)];
+        return l[Math.floor(rng() * l.length)];
       }
-      return pool[Math.floor(Math.random() * pool.length)];
+      return pool[Math.floor(rng() * pool.length)];
     };
     let fallback = null;
     for (let tries = 0; tries < 400; tries++) {
@@ -540,7 +563,7 @@ export function openGuesser(ctx) {
     if (!pool || !pool.length) { showStart(); return; }
     spot = pickSpot(pool);
     remember(spot);
-    angle = opt.rot === '90' ? Math.floor(Math.random() * 4) * Math.PI / 2 : 0;
+    angle = opt.rot === '90' ? Math.floor(rng() * 4) * Math.PI / 2 : 0;
     guess = null; done = false; hints = 0; fogOn = true;
     $('.gfoghint').disabled = false;
     size = opt.sizes[mode] || 3;
@@ -612,7 +635,7 @@ export function openGuesser(ctx) {
   const esc = (t) => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   function settingsText() {
     const hintsUsed = log.reduce((a, r) => a + (r.hints || 0), 0);
-    return [ctx.mapName, `start ${opt.sizes[mode]}×${opt.sizes[mode]}`, mode === 'training' ? 'no timer' : `timer ${opt.minutes} min`,
+    return [ctx.mapName, `seed ${seedUsed} (${seedDay})`, `start ${opt.sizes[mode]}×${opt.sizes[mode]}`, mode === 'training' ? 'no timer' : `timer ${opt.minutes} min`,
       `rotation ${opt.rot === 'none' ? 'north up' : 'quarter turns'}`, `${hintsUsed} hint${hintsUsed === 1 ? '' : 's'} used`].filter(Boolean).join(' · ');
   }
   // the end screen as one picture, copied to the clipboard (or downloaded if that is not allowed)
@@ -701,6 +724,7 @@ export function openGuesser(ctx) {
   $('.gwalls').onchange = (e) => { opt.walls = e.target.checked; save(opt); drawOutline(); };
 
   $('.grot').onchange = (e) => { opt.rot = e.target.value; save(opt); };
+  $('.grandseed').onclick = () => { $('.gseed').value = randomSeed(); };
   const close = () => {
     cancelAnimationFrame(raf);
     el.remove(); if (ctx.onClose) ctx.onClose();

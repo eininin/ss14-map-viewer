@@ -85,8 +85,11 @@ cables, doors and everything placed on it.
   3×3 view; every round starts at 5000 points; after 3 seconds the points drain (fast at first)
   over the timer (3 minutes by default). Two hints, each costing 25% of the
   points left: *bigger view* (H) shows one more tile all around, *no field of
-  view* (F) lifts the shadows. Rotation (north up or random quarter turns) is
-  the only setting; each mode card shows a sample view. Score = points left × closeness.
+  view* (F) lifts the shadows. Settings: rotation (north up or random quarter
+  turns) and a *seed*: the seed, today's date in London (changes at London
+  midnight), the map and the mode pick the spots and turns, so the same seed
+  is the same game for everyone that day (empty = a random seed, shown on the
+  end screen; *Random seed* fills one in); each mode card shows a sample view. Score = points left × closeness.
   On the outline doors are a shade between walls and floor, thin glass panes
   and windoors are quarter-tile strips on their edge and pane corners small
   corner squares (panes seal only their edge for the room detection); scroll zooms it,
