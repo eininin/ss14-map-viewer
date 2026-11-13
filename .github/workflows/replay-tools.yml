@@ -111,6 +111,8 @@ jobs:
           git fetch -q --depth 1 origin "${{ steps.src.outputs.commit }}"
           git checkout -q FETCH_HEAD
           git submodule update --init --depth 1 RobustToolbox || git submodule update --init RobustToolbox
+          # The engine has submodules of its own (Lidgren networking, etc.).
+          git -C RobustToolbox submodule update --init --recursive --depth 1 || git -C RobustToolbox submodule update --init --recursive
           echo "Engine: $(grep -o '<Version>[^<]*' RobustToolbox/MSBuild/Robust.Engine.Version.props | cut -c10-)"
 
       - uses: actions/setup-dotnet@v4
