@@ -260,44 +260,53 @@ export function openGuesser(ctx) {
       }
     }
   }
-  // small map of the whole station with the real spot and the guess, for the end screen
+  // small picture of the station around the round, zoomed so the guess and the real spot sit near
+  // the edges (at least 8 tiles across), drawn from the map itself, north up
   function miniMap(r, side) {
     const c = document.createElement('canvas');
     c.width = c.height = side * dpr;
     const g = c.getContext('2d');
-    // zoomed so the guess and the real spot sit near the edges (at least 8 tiles across)
     const sx0 = r.spot.x + 0.5, sy0 = r.spot.y + 0.5;
     const gx0 = r.guess ? r.guess[0] : sx0, gy0 = r.guess ? r.guess[1] : sy0;
     const span = Math.max(8, Math.abs(gx0 - sx0) * 1.18, Math.abs(gy0 - sy0) * 1.18, r.guess ? 0 : 20);
     const cxm = (sx0 + gx0) / 2, cym = (sy0 + gy0) / 2, sc = side / span;
     const at = (x, y) => [side / 2 + (x - cxm) * sc, side / 2 - (y - cym) * sc];
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
-    g.fillStyle = '#0b0f15'; g.fillRect(0, 0, side, side);
-    for (const t of tiles) {
-      const [x, y] = at(t.x, t.y + 1);
-      if (x < -sc || y < -sc || x > side || y > side) continue;
-      g.fillStyle = outColor(tileKey(t.x, t.y), t.name);
-      g.fillRect(x, y, sc + 0.2, sc + 0.2);
-    }
-    if (opt.walls) for (const k of struct) if (!floorName.has(k)) {
-      const [x, y] = at(tileX(k), tileY(k) + 1);
-      if (x < -sc || y < -sc || x > side || y > side) continue;
-      g.fillStyle = outColor(k);
-      g.fillRect(x, y, sc + 0.2, sc + 0.2);
-    }
-    if (opt.walls) drawThin(g, at, sc);
-    const [ax, ay] = at(r.spot.x + 0.5, r.spot.y + 0.5);
+    g.fillStyle = '#000'; g.fillRect(0, 0, side, side);
+    R.setViewRot(0);
+    g.save();
+    g.translate(side / 2, side / 2); g.scale(sc, -sc); g.translate(-cxm, -cym);
+    g.imageSmoothingEnabled = sc < PX / 2;
+    const h = span / 2 + 1;
+    for (let cy = Math.floor((cym - h) / CHUNK); cy <= Math.floor((cym + h) / CHUNK); cy++)
+      for (let cx = Math.floor((cxm - h) / CHUNK); cx <= Math.floor((cxm + h) / CHUNK); cx++) {
+        const ch = gr.chunks.get(cx + ',' + cy);
+        if (!ch) continue;
+        if (!ch.canvas) R.renderChunk(gr, ch);
+        g.save();
+        g.translate(cx * CHUNK, (cy + 1) * CHUNK);
+        g.scale(1 / PX, -1 / PX);
+        g.drawImage(ch.canvas, 0, 0);
+        g.restore();
+      }
+    g.restore();
+    const [ax, ay] = at(sx0, sy0);
     if (r.guess) {
-      const [gx, gy] = at(r.guess[0], r.guess[1]);
-      g.strokeStyle = '#fff'; g.setLineDash([4, 3]); g.lineWidth = 1.5;
-      g.beginPath(); g.moveTo(gx, gy); g.lineTo(ax, ay); g.stroke(); g.setLineDash([]);
+      const [gx, gy] = at(gx0, gy0);
+      g.lineCap = 'round';
+      g.strokeStyle = '#000'; g.lineWidth = 4.5;   // thin black edge around the line
+      g.beginPath(); g.moveTo(gx, gy); g.lineTo(ax, ay); g.stroke();
+      const grad = g.createLinearGradient(gx, gy, ax, ay);
+      grad.addColorStop(0, '#ff5c8a'); grad.addColorStop(1, '#7bd88f');
+      g.strokeStyle = grad; g.lineWidth = 2.5;
+      g.beginPath(); g.moveTo(gx, gy); g.lineTo(ax, ay); g.stroke();
       mdot(g, gx, gy, '#ff5c8a');
     }
     mdot(g, ax, ay, '#7bd88f');
     c.style.width = c.style.height = side + 'px';
     return c;
   }
-  const mdot = (g, x, y, c) => { g.fillStyle = c; g.beginPath(); g.arc(x, y, 5, 0, Math.PI * 2); g.fill(); g.strokeStyle = '#000'; g.lineWidth = 1; g.stroke(); };
+  const mdot = (g, x, y, c) => { g.fillStyle = c; g.beginPath(); g.arc(x, y, 5.5, 0, Math.PI * 2); g.fill(); g.strokeStyle = '#000'; g.lineWidth = 2; g.stroke(); };
   function drawOutline() {
     const g = co.getContext('2d');
     g.setTransform(dpr, 0, 0, dpr, 0, 0);

@@ -70,7 +70,8 @@ cables, doors and everything placed on it.
   (only maintenance doors, firelocks, shutters or none at all, like hidden
   rooms) is maintenance; plated work rooms such as engineering are left out. A game is 12 rounds;
   the end screen shows the total, the % of the maximum, and each round's view
-  next to a small map zoomed onto the guess and the real spot. Photo starts at a
+  next to a picture of the station zoomed onto the guess and the real spot
+  (black-edged dots joined by a red-to-green line). Photo starts at a
   3×3 view; every round starts at 5000 points; after 3 seconds the points drain (fast at first)
   over the timer (3 minutes by default). A hint (H) shows one more tile all
   around and costs 25% of the points left. Score = points left × closeness.
