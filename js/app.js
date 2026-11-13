@@ -1409,14 +1409,17 @@ function computeFov() {
     opaque.add(tileKey(it.tx, it.ty));
     nOcc++;
   }
+  if (!S.db || !Object.values(S.db.ent || {}).some(e => e.oc)) {
+    toast('This server\'s data does not say yet what blocks sight; it is being rebuilt, try again in a few minutes (Ctrl+F5)', true);
+    return;
+  }
   const t0 = performance.now();
   const res = fieldOfView({ source: S.area.tiles, opaque, floor,
     bounds: [gr.minX, gr.minY, gr.maxX, gr.maxY], range: o.range });
   const src = new Set(S.area.tiles);
   S.fov = { grid, src, see: res.see, walls: res.walls,
     paths: tilePaths(res.see), wallPaths: tilePaths(res.walls), srcPaths: tilePaths(src) };
-  if (!nOcc) toast('Nothing on this map blocks sight (no occluder data): rebuild the database', true);
-  else toast(`${res.see.size} tiles in view from ${res.sources} tiles (${Math.round(performance.now() - t0)} ms)`);
+  toast(`${res.see.size} tiles in view from ${res.sources} tiles (${Math.round(performance.now() - t0)} ms)`);
   renderArea();
   drawOverlay();
 }
@@ -1458,7 +1461,8 @@ function renderFovSection(pane, hasArea) {
   const o = fovOpts(), F = S.fov;
   pane.insertAdjacentHTML('beforeend', `<h3>Field of view ${F ? `<span class="badge">${F.see.size} tiles</span>` : ''}</h3>
     <p class="hint">Select a room or department, then <b>See from selection</b>: every tile visible from anywhere in it
-    gets coloured. Walls, closed solid doors and other things that block sight in the game stop it; windows and glass doors don't.</p>`);
+    gets coloured, in straight lines out through windows and openings. Walls and other opaque things stop it;
+    windows and glass airlocks never do; solid airlocks do unless <b>airlocks open</b> is ticked.</p>`);
   const a = document.createElement('div');
   a.className = 'row gap wrap';
   a.innerHTML = `<button class="btn small primary" data-a="go" ${hasArea ? '' : 'disabled'}>See from selection</button>
@@ -1472,7 +1476,7 @@ function renderFovSection(pane, hasArea) {
   pane.appendChild(a);
   const b = document.createElement('div');
   b.className = 'row gap wrap';
-  b.innerHTML = `<label class="tglbtn" title="Treat every door as open"><input type="checkbox" data-o="doorsOpen" ${o.doorsOpen ? 'checked' : ''}> doors open</label>
+  b.innerHTML = `<label class="tglbtn" title="Solid airlocks and doors count as open (glass airlocks are always see-through)"><input type="checkbox" data-o="doorsOpen" ${o.doorsOpen ? 'checked' : ''}> airlocks open</label>
     <label class="tglbtn" title="How far you can see, in tiles. Empty = no limit">range <input type="number" min="0" step="1" value="${o.range || ''}" placeholder="∞" style="width:52px"></label>`;
   b.querySelector('[data-o=doorsOpen]').onchange = (e) => { o.doorsOpen = e.target.checked; saveFovOpts(); if (S.fov) recomputeFovFrom(); };
   b.querySelector('input[type=number]').onchange = (e) => { o.range = Math.max(0, +e.target.value || 0); saveFovOpts(); if (S.fov) recomputeFovFrom(); };
