@@ -74,7 +74,21 @@ jobs:
         if: steps.job.outputs.replay_url == ''
         run: |
           echo "No replay_url given. Directory listing of the Space Wizards replay CDN:"
-          curl -fsSL https://cdn.centcomm.spacestation14.com/replays/ | grep -o 'href="[^"]*"' | head -100 || true
+          base=https://cdn.centcomm.spacestation14.com/replays/
+          curl -sS -o list.html -w "HTTP %{http_code}\n" "$base" || true
+          head -c 3000 list.html; echo
+          # Walk down the newest folders (server/year/month/day) and print the replay files there.
+          url=$base
+          for level in 1 2 3 4 5; do
+            curl -fsS "$url" -o page.html || break
+            entries=$(grep -o 'href="[^"?]*"' page.html | cut -d'"' -f2 | grep -v '^\.\./\?$' | grep -v '^/' )
+            echo "== $url"; echo "$entries" | tail -15
+            zips=$(echo "$entries" | grep '\.zip$' || true)
+            if [ -n "$zips" ]; then echo "Newest replays:"; echo "$zips" | tail -5 | sed "s|^|$url|"; break; fi
+            next=$(echo "$entries" | grep '/$' | sort | tail -1)
+            [ -z "$next" ] && break
+            url="$url$next"
+          done
           exit 1
 
       - name: Download replay
