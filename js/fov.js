@@ -102,7 +102,8 @@ export function castRay(opaque, px, py, dx, dy, maxT) {
     let t;
     if (tx < ty) { t = tx; tx += tdx; x += sx; } else { t = ty; ty += tdy; y += sy; }
     if (t >= maxT) return maxT;
-    if (opaque.has(K(x, y))) return t;
+    // as in the game, the wall itself is seen: the line ends where it leaves the first wall
+    if (opaque.has(K(x, y))) return Math.min(maxT, tx, ty);
   }
 }
 
@@ -202,4 +203,9 @@ function simplify(p) {
     if (lv < 1e-9 || Math.abs(ux * vy - uy * vx) > 1e-9 * lu * lv || ux * vx + uy * vy < 0) out.push(bx, by);
   }
   return Float64Array.from(out);
+}
+
+// outer corners of everything that blocks sight (what rays are aimed at)
+export function sightTargets(opaque) {
+  return turningCorners((x, y) => opaque.has(K(x, y)) ? 1 : 0, opaque).map(c => [c[0], c[1]]);
 }

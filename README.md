@@ -53,11 +53,18 @@ cables, doors and everything placed on it.
   (plus anything inside it), floor tiles, decals and tile atmospheres. With
   "only shown layers" on, hidden layers are left out. Coordinates stay as in
   the original map; custom `!type:` tags are kept.
+- **Station Guesser** (top bar): a view from a random spot of the open map on
+  the left, the station's outline on the right; click where you think it is to
+  get the distance and points, then *Next* (Enter). Options: view size in
+  tiles (5 by default), field of view (blacks out what the spot can't see; as
+  in the game, walls are seen but not what is behind them), airlocks open,
+  rotation (none, random 90° steps, random any angle). Esc closes it.
+- **Rotate the view** (*View* tab, or Q / R): quarter turns, random, north up.
 - **Field of view** (*Area* tab): select a room or department and press
   **See from selection**. Straight sight lines are traced from every corner
   along the outline of the area past the edges of everything that blocks
   sight, so each window and opening shows its widest possible cone; the view
-  is drawn as one coloured shape (colour and fill adjustable). Sight is
+  is drawn as one coloured shape; walls are part of it, what is behind them isn't (colour and fill adjustable). Sight is
   blocked by whatever has the game's `Occluder` component (walls, shutters,
   bookshelves…); windows and glass airlocks never block it; solid airlocks do
   unless **airlocks open** is ticked. Optional range limit. Nothing is selected

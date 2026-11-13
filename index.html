@@ -17,6 +17,7 @@
     <button id="btnServer" class="btn server" title="Server: whose prototypes and sprites draw the map"><span class="dot"></span><span class="sv">Server</span></button>
     <button id="btnOpenFile" class="btn primary" title="Open a .yml map file (or drop it on the page)">Open .yml</button>
     <button id="btnBrowse" class="btn" title="Browse every server's maps">Browse maps</button>
+    <button id="btnGuess" class="btn" title="A view from a random spot: find it on the station">Station Guesser</button>
     <input type="file" id="fileInput" accept=".yml,.yaml" hidden>
   </div>
 </header>
@@ -106,6 +107,15 @@
           </select>
         </label>
         <label class="row">Colour <input type="color" id="bgColor" value="#06080d"></label>
+        <h3>Rotation</h3>
+        <div class="row gap wrap">
+          <button class="btn small" id="rotL" title="Turn left (Q)">⟲ 90°</button>
+          <span id="rotLabel" class="badge">0°</span>
+          <button class="btn small" id="rotR" title="Turn right (R)">⟳ 90°</button>
+          <button class="btn small" id="rotRand" title="A random quarter turn">Random</button>
+          <button class="btn small" id="rotReset">North up</button>
+        </div>
+        <p class="hint">Turn the whole view; <b>Q</b> / <b>R</b> turn it too.</p>
       </section>
 
       <section data-pane="map" class="pane" id="paneMap">
@@ -171,6 +181,6 @@
 </div>
 <div id="toast" class="toast" hidden></div>
 
-<script type="module" src="js/app.js?v=21"></script>
+<script type="module" src="js/app.js?v=24"></script>
 </body>
 </html>

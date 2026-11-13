@@ -6,7 +6,8 @@ import { openImageViewer } from './imageviewer.js';
 import { Parallax } from './parallax.js';
 import { exportSelection } from './exportsel.js';
 import { browse, pickServer } from './browse.js';
-import { viewPolygons, eyePolygon, grow, tileKey } from './fov.js?v=21';
+import { viewPolygons, eyePolygon, grow, tileKey } from './fov.js?v=24';
+import { openGuesser } from './guess.js?v=24';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
@@ -404,6 +405,7 @@ async function openFromParam(v, q, title) {
     await openText(text, src);
     if (q && q.get('x') != null) {
       S.cam.x = +q.get('x'); S.cam.y = +q.get('y'); S.cam.s = +(q.get('z') || 1) * PX;
+      S.cam.r = (+q.get('r') || 0) * Math.PI / 180;
       draw();
     }
   } catch (e) {
@@ -420,6 +422,7 @@ function syncUrl() {
     const q = new URLSearchParams();
     q.set('map', S.mapSource.param);
     q.set('x', S.cam.x.toFixed(1)); q.set('y', S.cam.y.toFixed(1)); q.set('z', (S.cam.s / PX).toFixed(3));
+    if (camRot()) q.set('r', Math.round(camRot() * 180 / Math.PI));
     history.replaceState(null, '', location.pathname + '?' + q.toString());
   }, 300);
 }
@@ -443,9 +446,21 @@ function openModal(title, html) { $('#modalTitle').textContent = title; $('#moda
 function closeModal() { $('#modal').hidden = true; }
 
 // ---------------------------------------------------------------- camera & drawing
+// the view can be turned (S.cam.r, radians): world -> view = rotate by r, then scale, y up
+const camRot = () => S.cam.r || 0;
+function viewToWorldVec(vx, vy) {              // a vector in view axes (x right, y up) in world axes
+  const r = camRot(), c = Math.cos(r), s = Math.sin(r);
+  return [vx * c + vy * s, -vx * s + vy * c];
+}
 const cam = {
-  toScreen(wx, wy) { return [(wx - S.cam.x) * S.cam.s + W / 2, -(wy - S.cam.y) * S.cam.s + H / 2]; },
-  toWorld(sx, sy) { return [(sx - W / 2) / S.cam.s + S.cam.x, -(sy - H / 2) / S.cam.s + S.cam.y]; },
+  toScreen(wx, wy) {
+    const r = camRot(), c = Math.cos(r), s = Math.sin(r), dx = wx - S.cam.x, dy = wy - S.cam.y;
+    return [(dx * c - dy * s) * S.cam.s + W / 2, -(dx * s + dy * c) * S.cam.s + H / 2];
+  },
+  toWorld(sx, sy) {
+    const [dx, dy] = viewToWorldVec((sx - W / 2) / S.cam.s, -(sy - H / 2) / S.cam.s);
+    return [dx + S.cam.x, dy + S.cam.y];
+  },
   get s() { return S.cam.s; },
 };
 function gridLocal(gr, wx, wy) {
@@ -457,9 +472,20 @@ function gridWorld(gr, lx, ly) {
   return [gr.xf.x + lx * c - ly * s, gr.xf.y + lx * s + ly * c];
 }
 function setGridXf(g, gr) {
-  const s = S.cam.s, c = Math.cos(gr.xf.r), sn = Math.sin(gr.xf.r);
+  const s = S.cam.s, a = gr.xf.r + camRot(), c = Math.cos(a), sn = Math.sin(a);
+  const r = camRot(), rc = Math.cos(r), rs = Math.sin(r), dx = gr.xf.x - S.cam.x, dy = gr.xf.y - S.cam.y;
+  const ox = dx * rc - dy * rs, oy = dx * rs + dy * rc;
   g.setTransform(DPR * s * c, DPR * -s * sn, DPR * -s * sn, DPR * -s * c,
-    DPR * (s * (gr.xf.x - S.cam.x) + W / 2), DPR * (-s * (gr.xf.y - S.cam.y) + H / 2));
+    DPR * (s * ox + W / 2), DPR * (-s * oy + H / 2));
+}
+function rotateView(by, abs) {
+  const cx = W / 2, cy = H / 2, [wx, wy] = cam.toWorld(cx, cy);
+  S.cam.r = abs ? by : (camRot() + by);
+  S.cam.r = ((S.cam.r % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+  if (Math.abs(S.cam.r - 2 * Math.PI) < 1e-6) S.cam.r = 0;
+  S.cam.x = wx; S.cam.y = wy;
+  const lbl = $('#rotLabel'); if (lbl) lbl.textContent = Math.round(S.cam.r * 180 / Math.PI) + '°';
+  draw();
 }
 
 function resize() {
@@ -477,15 +503,16 @@ function fitView() {
     if (!isFinite(gr.minX)) continue;
     for (const [lx, ly] of [[gr.minX, gr.minY], [gr.maxX, gr.minY], [gr.minX, gr.maxY], [gr.maxX, gr.maxY]]) {
       const [wx, wy] = gridWorld(gr, lx, ly);
-      x0 = Math.min(x0, wx); y0 = Math.min(y0, wy); x1 = Math.max(x1, wx); y1 = Math.max(y1, wy);
+      // extents in view axes, so a turned view still fits
+      const rr = camRot(), vx = wx * Math.cos(rr) - wy * Math.sin(rr), vy = wx * Math.sin(rr) + wy * Math.cos(rr);
+      x0 = Math.min(x0, vx); y0 = Math.min(y0, vy); x1 = Math.max(x1, vx); y1 = Math.max(y1, vy);
     }
   }
   if (!isFinite(x0)) return;
   const pw = panelWidth();
   const aw = Math.max(200, W - pw - 80), ah = Math.max(200, H - 60);
   S.cam.s = Math.max(0.5, Math.min(64, Math.min(aw / (x1 - x0), ah / (y1 - y0))));
-  S.cam.x = (x0 + x1) / 2 + (pw / 2) / S.cam.s;
-  S.cam.y = (y0 + y1) / 2;
+  { const [cx, cy] = viewToWorldVec((x0 + x1) / 2 + (pw / 2) / S.cam.s, (y0 + y1) / 2); S.cam.x = cx; S.cam.y = cy; }
   draw();
 }
 function panelWidth() { return $('#panel').classList.contains('hidden') || W < 760 ? 0 : $('#panel').offsetWidth; }
@@ -742,8 +769,9 @@ function setupInput() {
       const dx = e.offsetX - drag.x, dy = e.offsetY - drag.y;
       if (Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true;
       {
-        S.cam.x = drag.cx - dx / S.cam.s;
-        S.cam.y = drag.cy + dy / S.cam.s;
+        const [mx, my] = viewToWorldVec(dx / S.cam.s, -dy / S.cam.s);
+        S.cam.x = drag.cx - mx;
+        S.cam.y = drag.cy - my;
         draw();
       }
     } else if (drag.kind === 'pen') {
@@ -795,6 +823,8 @@ function setupInput() {
     else if (k === 'e') setTool('eraser');
     else if (k === 't') setTool('text');
     else if (k === 'g') { S.showGrid = !S.showGrid; renderToggles(); drawOverlay(); }
+    else if (k === 'q' || k === '[') rotateView(Math.PI / 2);
+    else if (k === 'r' || k === ']') rotateView(-Math.PI / 2);
     else if (k === '+' || k === '=') zoomAt(W / 2, H / 2, 1.25);
     else if (k === '-') zoomAt(W / 2, H / 2, 0.8);
     else if (k === 'escape') {
@@ -823,7 +853,8 @@ function setupInput() {
       if (keys.has('d') || keys.has('arrowright')) dx += 1;
       if (!dx && !dy) { keyPan = false; return; }
       const sp = 700 / S.cam.s * dt / 1000;
-      S.cam.x += dx * sp; S.cam.y += dy * sp;
+      const [mx, my] = viewToWorldVec(dx * sp, dy * sp);
+      S.cam.x += mx; S.cam.y += my;
       draw();
       requestAnimationFrame(step);
     };
@@ -1334,7 +1365,7 @@ function zoomToZone(z) {
   const [cx, cy] = gridWorld(gr, (x0 + x1) / 2, (y0 + y1) / 2);
   const pw = panelWidth();
   S.cam.s = Math.max(4, Math.min(64, Math.min((W - pw - 120) / (x1 - x0), (H - 120) / (y1 - y0))));
-  S.cam.x = cx + (pw / 2) / S.cam.s; S.cam.y = cy;
+  { const [ox, oy] = viewToWorldVec((pw / 2) / S.cam.s, 0); S.cam.x = cx + ox; S.cam.y = cy + oy; }
   draw();
 }
 function exportZones() {
@@ -1392,6 +1423,16 @@ function drawZones(g) {
 // ---------------------------------------------------------------- field of view
 // Mark a room or department as the selection, then see everything visible from it.
 const FOV_DEF = { color: '#ff9f43', color2: '#7bd88f', alpha: 0.35, range: 0, doorsOpen: false, withArea: false, hover: false };
+// tiles holding something that blocks sight (walls, closed solid doors…)
+function sightBlockers(grid, doorsOpen) {
+  const opaque = new Set();
+  for (const it of S.scene.items) {
+    if (it.kind !== 'ent' || it.grid !== grid || !it.info || !it.info.oc) continue;
+    if (it.info.door != null && (doorsOpen || it.door === 'open')) continue;
+    opaque.add(tileKey(it.tx, it.ty));
+  }
+  return opaque;
+}
 function fovOpts() {
   if (!S.fovOpts) S.fovOpts = { ...FOV_DEF, ...(LS.get('fov') || {}) };
   return S.fovOpts;
@@ -1401,15 +1442,9 @@ function computeFov() {
   if (!S.area || !S.area.tiles.size || !S.scene) { toast('Select an area first', true); return; }
   const o = fovOpts(), grid = S.area.grid, gr = S.renderer.grids && S.renderer.grids.get(grid);
   if (!gr) return;
-  const opaque = new Set(), floor = new Set();
+  const floor = new Set();
   for (const t of (S.scene.tiles.get(grid) || [])) floor.add(tileKey(t.x, t.y));
-  let nOcc = 0;
-  for (const it of S.scene.items) {
-    if (it.kind !== 'ent' || it.grid !== grid || !it.info || !it.info.oc) continue;
-    if (it.info.door != null && (o.doorsOpen || it.door === 'open')) continue;
-    opaque.add(tileKey(it.tx, it.ty));
-    nOcc++;
-  }
+  const opaque = sightBlockers(grid, o.doorsOpen);
   if (!S.db || !Object.values(S.db.ent || {}).some(e => e.oc)) {
     toast('This server\'s data does not say yet what blocks sight; it is being rebuilt, try again in a few minutes (Ctrl+F5)', true);
     return;
@@ -1454,7 +1489,7 @@ function fovTiles(F) {
     }
     if (!hit) continue;
     const x = bx0 + tx, y = by0 + ty, k = tileKey(x, y);
-    if (F.opaque.has(k) || !F.floor.has(k)) continue;
+    if (!F.floor.has(k) && !F.opaque.has(k)) continue;   // floor and walls in view, not open space
     out.add(x + ',' + y);
   }
   for (const k of F.src) out.delete(k);
@@ -2303,6 +2338,15 @@ function setupUI() {
   $('#btnOpenFile').onclick = () => $('#fileInput').click();
   $('#fileInput').onchange = (e) => { const f = e.target.files[0]; if (f) openFile(f); e.target.value = ''; };
   $('#btnBrowse').onclick = () => browseMaps();
+  $('#btnGuess').onclick = () => {
+    if (!S.scene || !S.renderer.grids) { toast('Open a station first', true); return; }
+    openGuesser({ renderer: S.renderer, scene: S.scene, grid: areaGrid(), CHUNK, PX, sightBlockers,
+      mapName: (S.mapSource && (S.mapSource.title || S.mapSource.name)) || '' });
+  };
+  $('#rotL').onclick = () => rotateView(Math.PI / 2);
+  $('#rotR').onclick = () => rotateView(-Math.PI / 2);
+  $('#rotRand').onclick = () => rotateView((1 + Math.floor(Math.random() * 3)) * Math.PI / 2);
+  $('#rotReset').onclick = () => rotateView(0, true);
   $('#btnServer').onclick = chooseServerForCurrent;
   $('#btnDownloadYml').onclick = downloadYml;
   $('#modalClose').onclick = closeModal;
