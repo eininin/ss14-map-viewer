@@ -1,12 +1,23 @@
 {
     "version": 1,
     "license": "CC-BY-SA-3.0",
-    "copyright":  "allulalo typing indicators by kipdotnet for impstation",
+    "copyright": "snail typing indicators by widgetbeck for impstation, allulalo typing indicators by kipdotnet for impstation",
     "size": {
       "x": 32,
       "y": 32
     },
     "states": [
+        {
+            "name": "snail",
+            "delays": [
+                [
+                    0.2,
+                    0.3,
+                    0.3,
+                    0.5
+                ]
+            ]
+        },
         {
             "name": "allulalo",
             "delays": [

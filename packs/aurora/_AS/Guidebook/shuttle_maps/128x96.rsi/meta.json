@@ -1,7 +1,7 @@
 {
     "version": 1,
     "license": "CC-BY-SA-3.0",
-    "copyright": "dinghy by zenixic(discord/github), dove and scavenger by salamanderskies (discord/github), strike by TillsterRulz (discord/github)",
+    "copyright": "dinghy (original) by zenixic(discord/github), dove and scavenger by salamanderskies (discord/github), adept, akupara, anchor, barada, barnacle, baron, baroness, bocakillo, bodkin, bonsai, bookworm, broadhead, broom, camper, campfire, canister, chauffeur, cleric, crescent, crossroads, dinghy (edited), disciple, dragonfly, drone, duchess, empress, express, falcon, fang, fighter, geode, glatisant, halo, hammer, harvester, heartbeat, heimdall, hospitaller, hunter, hypnos, infiltrator, javelin, lyrae, mailpod, master, mccargo, menace, mercury, mule, nugget, orange, paladin, panacea, parcel, petrel, petrelmkii, piecrust, potionseller, prowler, pts, rogue, runabout, sacre, saker, sakeru, schooner, scorpion, scythe, sloop, spectre, sprinter, stellaris, strike, templar, turncoat, vitalis, tyne, wasp, watchdog by TillsterRulz (discord/github)",
     "extra_copyright": [
     ],
     "metaAtlas": false,
@@ -11,16 +11,247 @@
     },
     "states": [
         {
+            "name": "adept"
+        },
+        {
+            "name": "akupara"
+        },
+        {
+            "name": "anchor"
+        },
+        {
+            "name": "barada"
+        },
+        {
+            "name": "barnacle"
+        },
+        {
+            "name": "baron"
+        },
+        {
+            "name": "baroness"
+        },
+        {
+            "name": "bocakillo"
+        },
+        {
+            "name": "bodkin"
+        },
+        {
+            "name": "bonsai"
+        },
+        {
+            "name": "bookworm"
+        },
+        {
+            "name": "broadhead"
+        },
+        {
+            "name": "broom"
+        },
+        {
+            "name": "camper"
+        },
+        {
+            "name": "campfire"
+        },
+        {
+            "name": "canister"
+        },
+        {
+            "name": "chauffeur"
+        },
+        {
+            "name": "cleric"
+        },
+        {
+            "name": "crescent"
+        },
+        {
+            "name": "crossroads"
+        },
+        {
             "name": "dinghy"
+        },
+        {
+            "name": "disciple"
         },
         {
             "name": "dove"
         },
         {
+            "name": "dragonfly"
+        },
+        {
+            "name": "drone"
+        },
+        {
+            "name": "duchess"
+        },
+        {
+            "name": "empress"
+        },
+        {
+            "name": "express"
+        },
+        {
+            "name": "falcon"
+        },
+        {
+            "name": "fang"
+        },
+        {
+            "name": "fighter"
+        },
+        {
+            "name": "geode"
+        },
+        {
+            "name": "glatisant"
+        },
+        {
+            "name": "halo"
+        },
+        {
+            "name": "hammer"
+        },
+        {
+            "name": "harvester"
+        },
+        {
+            "name": "heartbeat"
+        },
+        {
+            "name": "heimdall"
+        },
+        {
+            "name": "hospitaller"
+        },
+        {
+            "name": "hunter"
+        },
+        {
+            "name": "hypnos"
+        },
+        {
+            "name": "infiltrator"
+        },
+        {
+            "name": "javelin"
+        },
+        {
+            "name": "lyrae"
+        },
+        {
+            "name": "mailpod"
+        },
+        {
+            "name": "master"
+        },
+        {
+            "name": "mccargo"
+        },
+        {
+            "name": "menace"
+        },
+        {
+            "name": "mercury"
+        },
+        {
+            "name": "mule"
+        },
+        {
+            "name": "nugget"
+        },
+        {
+            "name": "orange"
+        },
+        {
+            "name": "paladin"
+        },
+        {
+            "name": "panacea"
+        },
+        {
+            "name": "parcel"
+        },
+        {
+            "name": "petrel"
+        },
+        {
+            "name": "petrelmkii"
+        },
+        {
+            "name": "piecrust"
+        },
+        {
+            "name": "potionseller"
+        },
+        {
+            "name": "prowler"
+        },
+        {
+            "name": "pts"
+        },
+        {
+            "name": "rogue"
+        },
+        {
+            "name": "runabout"
+        },
+        {
+            "name": "sacre"
+        },
+        {
+            "name": "saker"
+        },
+        {
+            "name": "sakeru"
+        },
+        {
             "name": "scavenger"
         },
         {
+            "name": "schooner"
+        },
+        {
+            "name": "scorpion"
+        },
+        {
+            "name": "scythe"
+        },
+        {
+            "name": "sloop"
+        },
+        {
+            "name": "spectre"
+        },
+        {
+            "name": "sprinter"
+        },
+        {
+            "name": "stellaris"
+        },
+        {
             "name": "strike"
+        },
+        {
+            "name": "templar"
+        },
+        {
+            "name": "turncoat"
+        },
+        {
+            "name": "tyne"
+        },
+        {
+            "name": "vitalis"
+        },
+        {
+            "name": "wasp"
+        },
+        {
+            "name": "watchdog"
         }
     ]
 }

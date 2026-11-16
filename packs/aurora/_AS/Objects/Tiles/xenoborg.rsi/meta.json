@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "license": "CC-BY-SA-3.0",
+  "copyright": "Tile created by Samuka-C (github) for space-station-14, Resprited by FancyPlanks. Rest by FancyPlanks.",
+  "size": {
+    "x": 32,
+    "y": 32
+  },
+  "states": [
+    {
+      "name": "tile"
+    },
+    {
+      "name": "tile-inhand-right"
+    },
+    {
+      "name": "tile-inhand-left"
+    },
+    {
+      "name": "pattern"
+    },
+    {
+      "name": "diamond"
+    },
+    {
+      "name": "bigplate"
+    }
+  ]
+}

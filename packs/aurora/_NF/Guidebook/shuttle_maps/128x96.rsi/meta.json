@@ -6,7 +6,7 @@
         "spirit by iNoahGuy/actualcatmoment (discord/github).",
         "apothecary, caladrius, charon, courier, druid, pulsar, retort, stasis, surveyor by dustylens (discord/github).",
         "barge, eagle, hauler, phoenix, placebo, skipper by Mygnol (discord/github)",
-        "apothecary, charon, caladrius, crescent, druid, pulsar, retort, stasis, surveyor by dustylens (discord/github).",
+        "apothecary, charon, caladrius, crescent (Aurora's Song, deleted in favor of AS image), druid, pulsar, retort, stasis, surveyor by dustylens (discord/github).",
         "barge, eagle, hauler, phoenix, placebo, skipper, sparrow by Mygnol (discord/github)",
         "izakaya by AF-Buyrcsp2 (discord/github)",
         "nook by Chervjakys (discord/github)",
@@ -68,9 +68,6 @@
         },
         {
             "name": "courier"
-        },
-        {
-            "name": "crescent"
         },
         {
             "name": "druid"

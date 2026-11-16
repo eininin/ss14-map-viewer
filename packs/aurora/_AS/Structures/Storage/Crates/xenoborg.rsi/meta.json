@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "license": "CC-BY-SA-3.0",
+  "copyright": "Sprite by FancyPlanks",
+  "size": {
+    "x": 64,
+    "y": 36
+  },
+  "states": [
+    {
+      "name": "icon"
+    },
+    {
+      "name": "base"
+    },
+    {
+      "name": "closed"
+    },
+    {
+      "name": "open"
+    },
+    {
+      "name": "welded"
+    },
+    {
+      "name": "base-illuminated"
+    },
+    {
+      "name": "sparking",
+      "delays": [
+        [
+          0.1,
+          0.1,
+          0.1,
+          0.1,
+          0.1,
+          0.1
+        ]
+      ]
+    }
+  ]
+}

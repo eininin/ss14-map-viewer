@@ -1,7 +1,7 @@
 {
     "version": 1,
     "license": "CC-BY-SA-3.0",
-    "copyright": "Made by TrixxedHeart for Aurora's Song",
+    "copyright": "Made by TrixxedHeart for Aurora's Song. rock_xenite by FancyPlanks",
     "size": {
         "x": 32,
         "y": 32
@@ -12,6 +12,28 @@
         },
         {
             "name": "rock_eidolite"
+        },
+        {
+            "name": "rock_xenite"
+        },
+        {
+            "name": "rock_shine",
+            "delays": [
+                [
+                    0.2,
+                    0.2,
+                    0.2,
+                    0.2,
+                    0.2,
+                    0.2,
+                    0.2,
+                    0.2,
+                    0.2,
+                    0.2,
+                    0.2,
+                    0.2
+                ]
+            ]
         }
     ]
 }
