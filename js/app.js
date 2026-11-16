@@ -6,7 +6,8 @@ import { openImageViewer } from './imageviewer.js';
 import { Parallax } from './parallax.js';
 import { exportSelection } from './exportsel.js';
 import { browse, pickServer } from './browse.js';
-import { viewPolygons, eyePolygon, seenTiles, tileX, tileY, grow, tileKey } from './fov.js?v=60';
+import { grow, tileKey } from './fov.js?v=60';
+import { viewPolygons, eyePolygon } from './fov-view.js?v=71';
 import { openGuesser } from './guess.js?v=70';
 
 const $ = (s) => document.querySelector(s);
@@ -1477,23 +1478,38 @@ function computeFov() {
     path.closePath();
   }
   const src = new Set(S.area.tiles);
-  const seen = seenTiles(res.polys, opaque);
-  addWallSquares(path, seen, opaque);
-  S.fov = { grid, src, path, polys: res.polys, opaque, floor, seen, srcPaths: tilePaths(src),
+  S.fov = { grid, src, path, polys: res.polys, opaque, floor, srcPaths: tilePaths(src),
     targets: res.targets, maxT: res.maxT, srcKeys: new Set([...src].map(k => { const i = k.indexOf(','); return tileKey(+k.slice(0, i), +k.slice(i + 1)); })),
     bounds: [gr.minX, gr.minY, gr.maxX, gr.maxY] };
   toast(`View from ${res.viewpoints} points along the outline (${Math.round(performance.now() - t0)} ms)`);
   renderArea();
   drawOverlay();
 }
-// walls and doors the view touches are seen whole (as in the game)
-function addWallSquares(path, seen, opaque) {
-  for (const k of seen) if (opaque.has(k)) path.rect(tileX(k), tileY(k), 1, 1);
-}
-// tiles in view: floor and the walls/doors it reaches, not open space, not the source area
+// tiles the view covers: draw it small on a hidden canvas and read which tiles got paint
 function fovTiles(F) {
+  const P = 8, [x0, y0, x1, y1] = F.bounds;
+  const bx0 = Math.floor(x0) - 2, by0 = Math.floor(y0) - 2, w = Math.ceil(x1) - bx0 + 2, h = Math.ceil(y1) - by0 + 2;
+  const c = document.createElement('canvas');
+  c.width = w * P; c.height = h * P;
+  const g = c.getContext('2d');
+  g.setTransform(P, 0, 0, P, -bx0 * P, -by0 * P);
+  g.fillStyle = g.strokeStyle = '#fff';
+  g.fill(F.path);
+  g.lineWidth = 0.12;                         // a sight line that only grazes a tile corner still counts
+  g.lineJoin = 'round';
+  g.stroke(F.path);
+  const d = g.getImageData(0, 0, c.width, c.height).data;
   const out = new Set();
-  for (const k of F.seen) if (F.floor.has(k) || F.opaque.has(k)) out.add(tileX(k) + ',' + tileY(k));
+  for (let ty = 0; ty < h; ty++) for (let tx = 0; tx < w; tx++) {
+    let hit = 0;
+    for (let py = 0; py < P && !hit; py++) for (let px = 0; px < P; px++) {
+      if (d[((ty * P + py) * c.width + tx * P + px) * 4 + 3] > 40) { hit = 1; break; }
+    }
+    if (!hit) continue;
+    const x = bx0 + tx, y = by0 + ty, k = tileKey(x, y);
+    if (F.opaque.has(k) || !F.floor.has(k)) continue;
+    out.add(x + ',' + y);
+  }
   for (const k of F.src) out.delete(k);
   return out;
 }
@@ -1524,7 +1540,6 @@ function fovHoverAt(wx, wy) {
           path.moveTo(p[0], p[1]);
           for (let i = 2; i < p.length; i += 2) path.lineTo(p[i], p[i + 1]);
           path.closePath();
-          if (mode === 'src') addWallSquares(path, seenTiles([p], F.opaque, 4), F.opaque);
           H = { mode, path };
         }
       }

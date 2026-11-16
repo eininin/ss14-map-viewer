@@ -123,7 +123,8 @@ cables, doors and everything placed on it.
   **See from selection**. Straight sight lines are traced from every corner
   along the outline of the area past the edges of everything that blocks
   sight, so each window and opening shows its widest possible cone; the view
-  is drawn as one coloured shape; walls are part of it, what is behind them isn't (colour and fill adjustable). Sight is
+  is drawn as one coloured shape that stops at the face of walls (`js/fov-view.js`;
+  the Station Guesser uses its own rules in `js/fov.js`) (colour and fill adjustable). Sight is
   blocked by whatever has the game's `Occluder` component (walls, shutters,
   bookshelves…); windows and glass airlocks never block it; solid airlocks do
   unless **airlocks open** is ticked. Optional range limit. Nothing is selected
