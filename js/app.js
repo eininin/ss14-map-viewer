@@ -2368,6 +2368,7 @@ const GUESS_STATIONS = [
   { fork: 'starlight', path: 'Maps/_Starlight/Stations/SpaceMall.yml', title: 'Space Mall', img: 'thumbs/starlight/_Starlight/Stations/SpaceMall.lg.webp' },
   { fork: 'starlight', path: 'Maps/_Starlight/Stations/Sepultum.yml', title: 'Sepultum Station', img: 'thumbs/starlight/_Starlight/Stations/Sepultum.lg.webp' },
   { fork: 'starlight', path: 'Maps/_Starlight/Stations/Box.yml', title: 'Box Station', img: 'thumbs/starlight/_Starlight/Stations/Box.lg.webp' },
+  { fork: 'starlight', path: 'Maps/_Starlight/Stations/Prism.yml', title: 'Prism Station', img: 'thumbs/starlight/_Starlight/Stations/Prism.lg.webp' },
 ];
 function landShow(which) {                    // 'main' | 'pick' | 'load'
   const el = $('#landing');

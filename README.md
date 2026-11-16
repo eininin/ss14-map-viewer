@@ -55,7 +55,7 @@ cables, doors and everything placed on it.
   the original map; custom `!type:` tags are kept.
 - **Station Guesser picker**: the site opens in the map viewer; the *Station
   Guesser* button always starts at the station choice: Elkridge Depot, Hotel,
-  Novo Lobster, Space Mall, Sepultum and Box (Starlight; these have the daily
+  Novo Lobster, Space Mall, Sepultum, Box and Prism (Starlight; these have the daily
   game), or *Another map…* through the usual server → kind → map
   browser, and starts once the map has loaded.
 - **Station Guesser** (top bar): a view from a spot of the open map on the
