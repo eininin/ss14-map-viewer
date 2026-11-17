@@ -493,6 +493,12 @@ def build(res):
         occ = comps.get("Occluder")
         if occ is not None and occ.get("enabled", True) is not False:
             e["oc"] = 1                       # blocks sight (walls, closed airlocks, bookshelves…)
+            poly = occ.get("polygon")         # its shape when not the default 1x1 box (diagonal walls)
+            if isinstance(poly, list) and len(poly) >= 3:
+                try:
+                    e["ocp"] = [[float(v) for v in str(p).split(",")] for p in poly]
+                except ValueError:
+                    pass
         door = comps.get("Door")
         if door is not None and door.get("occludes", True) is False:
             e.pop("oc", None)                 # glass airlocks, firelocks: see-through even when closed

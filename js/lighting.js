@@ -2,20 +2,22 @@
 //  - every light adds the engine's point-light falloff (Robust light_shared.swsl) in linear colour,
 //    cut by walls and closed doors; the light map is tonemapped (Starlight LightTonemapOverlay:
 //    knee 0.7, max 1.15) and blurred, then multiplies the world (sRGB output, so gamma-encoded here)
-//  - walls take the light that bleeds onto them; in game view only from the side you see them from
+//  - walls take the light that bleeds onto them
 //  - ambient occlusion: a soft dark rim on floors along walls (Starlight #04080F, alpha 0xAA, 4 px)
 //  - "unshaded" sprite layers (lamps, screens, lit fronts) glow on top
 //  - post-processing as Starlight's ScreenPostProcessOverlay: bloom (strength 1.5, threshold 0.15),
 //    vignette (0.5) and film grain (0.05)
-//  - game view: the station as seen from the cursor, out-of-sight areas in darkness
+//  - game view: the station as seen from the cursor with the engine's own FOV (robust-fov.js) and, with
+//    lighting on, the engine's lighting FOV and wall bleed for that eye
 //
 // Self-contained add-on. To remove it: delete this file, db/lights-*.json, tools/build_lights.py,
 // and the lines marked "lighting add-on" in js/app.js and .github/workflows/update-db.yml.
 // The Station Guesser and the previews are not affected.
-import { eyePolygon, sightTargets, seenTiles, tileX, tileY } from './fov.js?v=78';
+import { tileX, tileY } from './fov.js?v=78';
+import { buildOccluderGeometry, computeFov, fovPolygon, lightingOcclusion } from './robust-fov.js?v=1';
 
 const LS = 'ss14mv.lighting';
-const DEF = { on: false, ambient: 0, hiddenLights: false, ao: true, bloom: true, vignette: true, grain: true, gameView: false, gameFov: true };
+const DEF = { on: false, ambient: 0, hiddenLights: false, ao: true, bloom: true, vignette: true, grain: true, gameView: false };
 const st = (() => { try { return { ...DEF, ...JSON.parse(localStorage.getItem(LS) || '{}') }; } catch (e) { return { ...DEF }; } })();
 const saveSt = () => { try { localStorage.setItem(LS, JSON.stringify(st)); } catch (e) { /* ignore */ } };
 
@@ -50,10 +52,7 @@ export function initLighting(e) {
         <label class="row tglbtn" title="Lights whose objects are hidden by the layers above still shine"><input type="checkbox" data-k="hiddenLights"> Lights from hidden objects</label>
         <label class="row">Unlit areas <input type="range" id="lgtAmb" min="0" max="0.3" step="0.01" value="${st.ambient}" style="flex:1"></label>
       </div>
-      <div class="row gap wrap">
-        <label class="tglbtn" title="See the station as from where the cursor is: what can't be seen from there is dark"><input type="checkbox" data-k="gameView"> Game view at the cursor</label>
-        <label class="tglbtn" title="The engine's own view shadows: you see into the first wall, everything behind it is dark. Off: the Station Guesser's rules"><input type="checkbox" data-k="gameFov"> Game FOV</label>
-      </div>
+      <label class="row tglbtn" title="See the station as from where the cursor is, with the game's own field of view"><input type="checkbox" data-k="gameView"> Game view at the cursor</label>
       <p class="hint" id="lgtNote"></p>`;
     pane.appendChild(box);
     box.querySelectorAll('input[data-k]').forEach(inp => {
@@ -275,21 +274,24 @@ function addLight(lm, opaque, targets, it, pl) {
   g.restore();
 }
 
+// Starlight tonemap of linear light, gamma-encoded to 0..255
+function tone(r, gg, b) {
+  const peak = Math.max(r, gg, b);
+  if (peak > TONE_KNEE) {
+    const range = TONE_MAX - TONE_KNEE, k = (TONE_KNEE + range * (1 - Math.exp(-(peak - TONE_KNEE) / range))) / peak;
+    r *= k; gg *= k; b *= k;
+  }
+  return [toSrgb(Math.min(1, Math.max(0, r))) * 255, toSrgb(Math.min(1, Math.max(0, gg))) * 255, toSrgb(Math.min(1, Math.max(0, b))) * 255];
+}
+
 // tonemap (Starlight), wall bleed, gamma-encode for the sRGB world, and blur as the engine does
 function finishLightMap(lm, opaque, amb) {
   const { canvas, g, P, x0, y1, station, tileLight } = lm;
   const W = canvas.width, d = g.getImageData(0, 0, W, canvas.height).data;
   const out = new Uint8ClampedArray(d.length).fill(255);    // space keeps its own colours
   const idx = (x, y, xx, yy) => (((y1 - y - 1) * P + yy) * W + (x - x0) * P + xx) * 4;
-  const shade = (i) => {
-    let r = d[i] / 255 * 2 + amb, gg = d[i + 1] / 255 * 2 + amb, b = d[i + 2] / 255 * 2 + amb;
-    const peak = Math.max(r, gg, b);
-    if (peak > TONE_KNEE) {
-      const range = TONE_MAX - TONE_KNEE, k = (TONE_KNEE + range * (1 - Math.exp(-(peak - TONE_KNEE) / range))) / peak;
-      r *= k; gg *= k; b *= k;
-    }
-    return [toSrgb(Math.min(1, r)) * 255, toSrgb(Math.min(1, gg)) * 255, toSrgb(Math.min(1, b)) * 255];
-  };
+  const shade = (i) => tone(d[i] / 255 * 2 + amb, d[i + 1] / 255 * 2 + amb, d[i + 2] / 255 * 2 + amb);
+  lm.raw = d;                                               // the lights before all this (game view starts from it)
   for (const k of station) {
     if (opaque.has(k)) continue;
     const x = tileX(k), y = tileY(k);
@@ -301,7 +303,7 @@ function finishLightMap(lm, opaque, amb) {
     }
     tileLight.set(k, shade(idx(x, y, P >> 1, P >> 1)));
   }
-  // walls: the floor light blurred into them, as the engine's wall bleed (game view keeps the seen side)
+  // walls: the floor light blurred into them, as the engine's wall bleed
   const src = new Uint8ClampedArray(d.length);              // floor light only
   for (const k of station) {
     if (opaque.has(k)) continue;
@@ -375,6 +377,7 @@ export function drawLighting(g, setGridXf, frame, overview) {
     }
   }
   const ready = !!(lit && job && job.ready);
+  computeEye();
   if (ready) {
     const { PX, CHUNK } = env;
     for (const gr of R.grids.values()) {
@@ -383,7 +386,11 @@ export function drawLighting(g, setGridXf, frame, overview) {
       setGridXf(g, gr);
       const place = (c) => { g.save(); g.imageSmoothingEnabled = true; g.translate(lm.x0, lm.y1); g.scale(1 / lm.P, -1 / lm.P); g.drawImage(c, 0, 0); g.restore(); };
       if (st.ao && lm.ao) place(lm.ao);
-      g.save(); g.globalCompositeOperation = 'multiply'; place(lm.canvas); g.restore();
+      const el = eye && eye.gr === gr ? eyeLight(lm, eye) : null;
+      g.save(); g.globalCompositeOperation = 'multiply';
+      if (el) { g.imageSmoothingEnabled = true; g.translate(el.tx0, el.ty1); g.scale(1 / el.P, -1 / el.P); g.drawImage(el.canvas, 0, 0); }
+      else place(lm.canvas);
+      g.restore();
       if (overview) continue;
       for (const c of gr.chunks.values()) {
         if (!c.canvas || c.used < frame) continue;
@@ -473,81 +480,18 @@ function drawPost(map, setGridXf, ready) {
 }
 
 // ---------------------------------------------------------------- game view at the cursor
+// The FOV itself is the engine's, ported in robust-fov.js. Here: the eye under the cursor, the final FOV
+// (black past the walls) and, with lighting on, the engine's lighting FOV and wall bleed for that eye.
 function queueFov() {
   if (fovRaf) return;
   fovRaf = requestAnimationFrame(() => { fovRaf = 0; env.redraw(); });
 }
 
-// Robust's FOV: the depth to the far (back-facing) side of the first wall along each ray, with the
-// edges between touching walls dropped, so the first wall is seen whole and everything past it is dark.
-function castRayFar(opaque, px, py, dx, dy, maxT) {
-  const O = (x, y) => opaque.has(K(x, y));
-  // an exposed wall face at vertex (vx, vy) that faces the eye
-  const facingAt = (vx, vy) => {
-    for (const ex of [vx - 1, vx]) {              // horizontal edges along y = vy
-      const below = O(ex, vy - 1), above = O(ex, vy);
-      if (below !== above && (below ? py > vy : py < vy)) return true;
-    }
-    for (const ey of [vy - 1, vy]) {              // vertical edges along x = vx
-      const left = O(vx - 1, ey), right = O(vx, ey);
-      if (left !== right && (left ? px > vx : px < vx)) return true;
-    }
-    return false;
-  };
-  let x = Math.floor(px), y = Math.floor(py), inside = false;
-  const sx = dx > 0 ? 1 : -1, sy = dy > 0 ? 1 : -1;
-  const tdx = dx !== 0 ? 1 / Math.abs(dx) : Infinity, tdy = dy !== 0 ? 1 / Math.abs(dy) : Infinity;
-  let tx = dx !== 0 ? (dx > 0 ? x + 1 - px : px - x) * tdx : Infinity;
-  let ty = dy !== 0 ? (dy > 0 ? y + 1 - py : py - y) * tdy : Infinity;
-  for (;;) {
-    let t, nx = x, ny = y, edge = null;
-    if (Math.abs(tx - ty) < 1e-9) {            // through a tile corner
-      t = tx;
-      if (t >= maxT) return maxT;
-      if (!inside && O(x + sx, y) && O(x, y + sy)) return t;     // between two walls: no gap
-      if (inside) return t;
-      tx += tdx; ty += tdy; nx = x + sx; ny = y + sy;
-    } else if (tx < ty) {
-      t = tx; tx += tdx; nx = x + sx;
-      const vx = sx > 0 ? x + 1 : x; edge = [[vx, y], [vx, y + 1]];
-    } else {
-      t = ty; ty += tdy; ny = y + sy;
-      const vy = sy > 0 ? y + 1 : y; edge = [[x, vy], [x + 1, vy]];
-    }
-    if (t >= maxT) return maxT;
-    const o = O(nx, ny);
-    if (inside) {
-      if (!o) return t;                          // left the wall: its back face
-      // into a touching wall: the edge between them only counts when neither end touches a face we see
-      if (!edge || !(facingAt(...edge[0]) || facingAt(...edge[1]))) return t;
-    } else if (o) inside = true;
-    x = nx; y = ny;
-  }
-}
-function enginePolygon(opaque, targets, px, py, maxT) {
-  const angles = [];
-  for (const [tx, ty] of targets) {
-    const ddx = tx - px, ddy = ty - py;
-    if (ddx * ddx + ddy * ddy > maxT * maxT * 2) continue;
-    const a = Math.atan2(ddy, ddx);
-    angles.push(a - 1e-4, a, a + 1e-4);
-  }
-  for (let i = 0; i < 1440; i++) angles.push(-Math.PI + i * Math.PI / 720);
-  angles.sort((a, b) => a - b);
-  const pts = [];
-  for (const a of angles) {
-    const dx = Math.cos(a), dy = Math.sin(a), t = castRayFar(opaque, px, py, dx, dy, maxT);
-    pts.push(px + dx * t, py + dy * t);
-  }
-  return pts;
-}
+const geomCache = new WeakMap();   // grid -> { scene, geom }
+let eye = null, eyeMemo = null, lightMemo = null;
 
-const fovCache = new WeakMap();   // grid -> { scene, opaque, targets }
-function drawFov(setGridXf) {
-  const g = cvFov.getContext('2d');
-  g.setTransform(1, 0, 0, 1, 0, 0);
-  g.clearRect(0, 0, cvFov.width, cvFov.height);
-  lastFovMask = null;
+function computeEye() {
+  eye = null;
   const scene = env.getScene(), R = env.getRenderer();
   if (!st.gameView || !cursor || !scene || !R.grids) return;
   const [wx, wy] = env.toWorld(cursor[0], cursor[1]);
@@ -558,75 +502,123 @@ function drawFov(setGridXf) {
   }
   if (!gr) return;
   const [lx, ly] = env.gridLocal(gr, wx, wy);
-  let fc = fovCache.get(gr);
-  if (!fc || fc.scene !== scene) { const opaque = blockers(scene, gr.uid); fc = { scene, opaque, targets: sightTargets(opaque) }; fovCache.set(gr, fc); }
-  const opaque = fc.opaque;
-  if (opaque.has(K(Math.floor(lx), Math.floor(ly)))) return;
+  let gc = geomCache.get(gr);
+  if (!gc || gc.scene !== scene) { gc = { scene, geom: buildOccluderGeometry(scene.items, gr.uid) }; geomCache.set(gr, gc); }
   const range = Math.min(60, Math.hypot(cvFov.width, cvFov.height) / (2 * (window.devicePixelRatio || 1) * env.camScale()) + 2);
-  if (st.gameFov && !fc.allCorners) {          // every tile corner of the walls (shadow edges start at far corners too)
-    const set = new Map();
-    for (const k of opaque) for (const [cx, cy] of [[tileX(k), tileY(k)], [tileX(k) + 1, tileY(k)], [tileX(k), tileY(k) + 1], [tileX(k) + 1, tileY(k) + 1]]) set.set(K(cx, cy), [cx, cy]);
-    fc.allCorners = [...set.values()];
-  }
-  const p = st.gameFov ? enginePolygon(opaque, fc.allCorners, lx, ly, range) : eyePolygon(opaque, fc.targets, lx, ly, range);
-  const seen = seenTiles([p], opaque, 8);
-  const vis = new Path2D();
+  if (eyeMemo && eyeMemo.gr === gr && eyeMemo.geom === gc.geom && eyeMemo.lx === lx && eyeMemo.ly === ly && eyeMemo.range === range) { eye = eyeMemo; return; }
+  const fov = computeFov(gc.geom, lx, ly, range);
+  eye = eyeMemo = { gr, geom: gc.geom, lx, ly, range, fov, poly: fovPolygon(fov, range) };
+}
+
+// fov.swsl: everything not in view is black
+function drawFov(setGridXf) {
+  const g = cvFov.getContext('2d');
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.clearRect(0, 0, cvFov.width, cvFov.height);
+  lastFovMask = null;
+  if (!eye) return;
+  const p = eye.poly, vis = new Path2D();
   vis.moveTo(p[0], p[1]);
   for (let i = 2; i < p.length; i += 2) vis.lineTo(p[i], p[i + 1]);
   vis.closePath();
-  if (!st.gameFov) for (const k of seen) if (opaque.has(k)) vis.rect(tileX(k), tileY(k), 1, 1);   // walls are seen whole
   g.fillStyle = '#000';
   g.fillRect(0, 0, cvFov.width, cvFov.height);
   g.save();
-  setGridXf(g, gr);
+  setGridXf(g, eye.gr);
   g.globalCompositeOperation = 'destination-out';
   g.fill(vis);
   g.restore();
   lastFovMask = cvFov;
-  if (st.on && job && job.ready) {               // walls only take the light of the side seen
-    const lm = job.grids.get(gr.uid);
-    if (lm) relightWalls(g, setGridXf, gr, lm, opaque, seen, vis, lx, ly);
-  }
 }
 
-function relightWalls(g, setGridXf, gr, lm, opaque, seen, vis, ex, ey) {
-  const { PX, CHUNK } = env;
-  const walls = [...seen].filter(k => opaque.has(k));
-  if (!walls.length) return;
-  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-  for (const k of walls) { const x = tileX(k), y = tileY(k); x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
-  const w = x1 - x0 + 1, h = y1 - y0 + 1;
-  const oc = document.createElement('canvas'); oc.width = w * PX; oc.height = h * PX;
-  const og = oc.getContext('2d');
-  og.imageSmoothingEnabled = false;
-  const a = toSrgb(Math.min(1, st.ambient)) * 255;
-  for (const k of walls) {
-    const x = tileX(k), y = tileY(k);
-    // a wall face lights up only if it faces the eye and has floor in front of it
-    let best = [a, a, a];
-    for (const [nx, ny, faces] of [[x + 1, y, ex > x + 1], [x - 1, y, ex < x], [x, y + 1, ey > y + 1], [x, y - 1, ey < y]]) {
-      if (!faces) continue;
-      const nk = K(nx, ny);
-      if (opaque.has(nk)) continue;
-      const v = lm.tileLight.get(nk);
-      if (v) best = [Math.max(best[0], v[0]), Math.max(best[1], v[1]), Math.max(best[2], v[2])];
+// The engine's light pass for this eye, on the light map's pixels around what is in view:
+// clear to the ambient, fov-lighting.swsl (darkens the ambient, no lights where not fully in view),
+// the lights, light blur (light.blur_factor 0.001 x 14), BlurOntoWalls (3 gaussian passes with x1.1 each
+// way) merged onto the occluders only (MergeWallLayer); then the Starlight tonemap as the rest of the map.
+function eyeLight(lm, e) {
+  if (lightMemo && lightMemo.e === e && lightMemo.lm === lm && lightMemo.amb === st.ambient) return lightMemo.out;
+  const { P, x0, y1, station, raw } = lm;
+  if (!raw) return null;
+  const p = e.poly;
+  let mx0 = Infinity, my0 = Infinity, mx1 = -Infinity, my1 = -Infinity;
+  for (let i = 0; i < p.length; i += 2) { mx0 = Math.min(mx0, p[i]); mx1 = Math.max(mx1, p[i]); my0 = Math.min(my0, p[i + 1]); my1 = Math.max(my1, p[i + 1]); }
+  const tx0 = Math.max(x0, Math.floor(mx0) - 2), tx1 = Math.min(x0 + lm.w, Math.ceil(mx1) + 2);
+  const ty0 = Math.max(y1 - lm.h, Math.floor(my0) - 2), ty1 = Math.min(y1, Math.ceil(my1) + 2);
+  const W = (tx1 - tx0) * P, H = (ty1 - ty0) * P;
+  if (W <= 0 || H <= 0) return null;
+  const RW = lm.w * P, ox = (tx0 - x0) * P, oy = (y1 - ty1) * P, n = W * H, amb = st.ambient;
+  const buf = new Float32Array(n * 3), onStation = new Uint8Array(n);
+  const tw = tx1 - tx0, rowSt = new Uint8Array(tw);
+  for (let py = 0; py < H; py++) {
+    const wy = ty1 - (py + 0.5) / P, ty = ty1 - 1 - Math.floor(py / P);
+    if (py % P === 0) for (let t = 0; t < tw; t++) rowSt[t] = station.has(K(tx0 + t, ty)) ? 1 : 0;
+    for (let px = 0; px < W; px++) {
+      const j = py * W + px;
+      onStation[j] = rowSt[(px / P) | 0];
+      const occ = lightingOcclusion(e.fov, tx0 + (px + 0.5) / P, wy);
+      const ri = ((oy + py) * RW + ox + px) * 4, lit = occ >= 1;
+      buf[j * 3] = (lit ? raw[ri] / 255 * 2 : 0) + amb * occ;
+      buf[j * 3 + 1] = (lit ? raw[ri + 1] / 255 * 2 : 0) + amb * occ;
+      buf[j * 3 + 2] = (lit ? raw[ri + 2] / 255 * 2 : 0) + amb * occ;
     }
-    const ch = gr.chunks.get(Math.floor(x / CHUNK) + ',' + Math.floor(y / CHUNK));
-    if (!ch || !ch.canvas) continue;
-    const dx = (x - x0) * PX, dy = (y1 - y) * PX;
-    og.globalCompositeOperation = 'source-over';
-    og.drawImage(ch.canvas, (x - ch.cx * CHUNK) * PX, ((ch.cy + 1) * CHUNK - y - 1) * PX, PX, PX, dx, dy, PX, PX);
-    og.globalCompositeOperation = 'multiply';
-    og.fillStyle = `rgb(${best[0] | 0},${best[1] | 0},${best[2] | 0})`;
-    og.fillRect(dx, dy, PX, PX);
   }
-  g.save();
-  setGridXf(g, gr);
-  g.clip(vis);                                   // nothing in the shadow
-  g.imageSmoothingEnabled = false;
-  g.translate(x0, y1 + 1); g.scale(1 / PX, -1 / PX);
-  g.drawImage(oc, 0, 0);
-  g.restore();
+  const tmp = new Float32Array(n * 3);
+  for (let i = 3; i > 0; i--) {                  // light blur
+    const o = (i + 1) * 0.001 * 14 * P;
+    blurPass(buf, tmp, W, H, o, true, 1); blurPass(tmp, buf, W, H, o, false, 1);
+  }
+  const wb = Float32Array.from(buf);
+  for (let i = 3; i > 0; i--) {                  // wall bleed
+    const o = (i + 1) * 7e-3 * 14 * P;
+    blurPass(wb, tmp, W, H, o, true, 1.1); blurPass(tmp, wb, W, H, o, false, 1.1);
+  }
+  const mc = document.createElement('canvas'); mc.width = W; mc.height = H;
+  const mg = mc.getContext('2d');
+  mg.setTransform(P, 0, 0, -P, -tx0 * P, ty1 * P);
+  const walls = new Path2D();
+  for (const o of e.geom.occ) {
+    if (o.x1 < tx0 || o.x0 > tx1 || o.y1 < ty0 || o.y0 > ty1) continue;
+    walls.moveTo(o.verts[0][0], o.verts[0][1]);
+    for (let i = 1; i < o.verts.length; i++) walls.lineTo(o.verts[i][0], o.verts[i][1]);
+    walls.closePath();
+  }
+  mg.fill(walls);
+  const mask = mg.getImageData(0, 0, W, H).data;
+  const out = new Uint8ClampedArray(n * 4);
+  for (let j = 0; j < n; j++) {
+    const o = j * 4;
+    out[o + 3] = 255;
+    if (!onStation[j]) { out[o] = out[o + 1] = out[o + 2] = 255; continue; }   // space keeps its own colours
+    const src = mask[o + 3] > 127 ? wb : buf;
+    const v = tone(src[j * 3], src[j * 3 + 1], src[j * 3 + 2]);
+    out[o] = v[0]; out[o + 1] = v[1]; out[o + 2] = v[2];
+  }
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  c.getContext('2d').putImageData(new ImageData(out, W, H), 0, 0);
+  const res = { canvas: c, tx0, ty1, P };
+  lightMemo = { e, lm, amb: st.ambient, out: res };
+  return res;
+}
+
+// one direction of the engine's 5-tap blur (light-blur / wall-bleed-blur.swsl), linear sampling, clamped
+function blurPass(src, dst, W, H, o, horiz, gain) {
+  const len = horiz ? W : H, lines = horiz ? H : W, step = horiz ? 1 : W, lstep = horiz ? W : 1;
+  const taps = [[o, 0.25], [-o, 0.25], [2 * o, 0.0625], [-2 * o, 0.0625]].map(([t, w]) => { const d = Math.floor(t); return [d, t - d, w]; });
+  for (let b = 0; b < lines; b++) {
+    const base = b * lstep;
+    for (let i = 0; i < len; i++) {
+      const k = (base + i * step) * 3;
+      let r = src[k] * 0.375, g = src[k + 1] * 0.375, bl = src[k + 2] * 0.375;
+      for (let q = 0; q < 4; q++) {
+        const tp = taps[q], j0 = i + tp[0], fr = tp[1], w = tp[2];
+        const a0 = (base + (j0 < 0 ? 0 : j0 >= len ? len - 1 : j0) * step) * 3;
+        const j1 = j0 + 1, a1 = (base + (j1 < 0 ? 0 : j1 >= len ? len - 1 : j1) * step) * 3;
+        const w0 = w * (1 - fr), w1 = w * fr;
+        r += src[a0] * w0 + src[a1] * w1; g += src[a0 + 1] * w0 + src[a1 + 1] * w1; bl += src[a0 + 2] * w0 + src[a1 + 2] * w1;
+      }
+      dst[k] = r * gain; dst[k + 1] = g * gain; dst[k + 2] = bl * gain;
+    }
+  }
 }
 
 // the parts of sprites that glow in the dark ("unshaded" layers), for one chunk
