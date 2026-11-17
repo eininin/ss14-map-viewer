@@ -45,7 +45,8 @@ cables, doors and everything placed on it.
   adds, **Alt+drag** or **Ctrl+drag** removes, **Esc** clears. The *Area* tab
   lists every object, floor tile and decal inside, with counts, counting only
   layers shown in the *View* tab. Copy the list or download it as `.csv`;
-  click a row to highlight those objects. **Show only these kinds, map-wide**
+  click a row to highlight those objects. **Show only the selection** shows only
+  what lies inside the selected tiles; **Show only these kinds, map-wide**
   hides everything except objects, floor tiles and decals of the kinds found in
   the selection, anywhere on the map.
 - **Export selection as .yml** (*Area* tab): a new map file with only the
@@ -116,13 +117,19 @@ cables, doors and everything placed on it.
 - **Phones**: the map viewer puts the map on top and the panel (tabs and
   settings) underneath; the guesser puts the view on top and the station
   outline below (pinch to zoom, drag to move, tap to guess).
-- **Realistic lighting** (optional add-on, *View* tab): lights, shadows and
-  glowing screens as in the game, on a powered station. Uses the engine's
-  point-light falloff; walls and closed doors cast shadows; "unshaded" sprite
-  layers glow on top. *Brightness* and *Unlit areas* sliders. Data:
-  `db/lights-<server>.json` from `tools/build_lights.py`. To remove it, delete
-  `js/lighting.js`, `tools/build_lights.py`, `db/lights-*.json` and the lines
-  marked `lighting add-on` in `js/app.js` and the workflow.
+- **Realistic lighting** (optional add-on, *View* tab), done as Starlight's
+  client does it: lights add the engine's point-light falloff in linear colour,
+  cut by walls and closed doors; the light map is tonemapped (knee 0.7, max
+  1.15), blurred and multiplies the world (gamma-correct). Walls take the
+  light that reaches them. Options as in Starlight: wall shading (ambient
+  occlusion), bloom, vignette, film grain; lights of objects hidden by the
+  layers don't shine unless *Lights from hidden objects* is on; *Unlit areas*.
+  **Game view at the cursor**: what can't be seen from the cursor is dark (the
+  Station Guesser's sight rules), and walls only take the light of the side
+  they are seen from. Data: `db/lights-<server>.json` from
+  `tools/build_lights.py`. To remove it, delete `js/lighting.js`,
+  `tools/build_lights.py`, `db/lights-*.json` and the lines marked
+  `lighting add-on` in `js/app.js` and the workflow.
 - **Rotate the view** (*View* tab, or Q / R): quarter turns, random, north up.
   As in the game, directional sprites show the frame for that viewing
   direction and stay upright; items on the floor look the same as north up.
@@ -178,7 +185,8 @@ cables, doors and everything placed on it.
   adds, **Alt+drag** or **Ctrl+drag** removes, **Esc** clears. The *Area* tab
   lists every object, floor tile and decal inside, with counts, counting only
   layers shown in the *View* tab. Copy the list or download it as `.csv`;
-  click a row to highlight those objects. **Show only these kinds, map-wide**
+  click a row to highlight those objects. **Show only the selection** shows only
+  what lies inside the selected tiles; **Show only these kinds, map-wide**
   hides everything except objects, floor tiles and decals of the kinds found in
   the selection, anywhere on the map.
 - **Export selection as .yml** (*Area* tab): a new map file with only the

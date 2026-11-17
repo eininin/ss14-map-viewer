@@ -278,6 +278,15 @@ export function seenTiles(polys, opaque, P = 8) {
       if (ok) { out.add(K(x, y)); break; }
     }
   }
+  // room corners: a wall whose diagonal floor is in view and whose two walls beside it are in view
+  for (const k of opaque) {
+    if (out.has(k)) continue;
+    const x = KX(k), y = KY(k);
+    for (const [dx, dy] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+      const f = K(x + dx, y + dy), a = K(x + dx, y), b = K(x, y + dy);
+      if (!opaque.has(f) && out.has(f) && opaque.has(a) && opaque.has(b) && out.has(a) && out.has(b)) { out.add(k); break; }
+    }
+  }
   return out;
 }
 export { KX as tileX, KY as tileY };

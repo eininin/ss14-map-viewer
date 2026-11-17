@@ -6,10 +6,10 @@ import { openImageViewer } from './imageviewer.js';
 import { Parallax } from './parallax.js';
 import { exportSelection } from './exportsel.js';
 import { browse, pickServer } from './browse.js';
-import { grow, tileKey } from './fov.js?v=60';
+import { grow, tileKey } from './fov.js?v=78';
 import { viewPolygons, eyePolygon } from './fov-view.js?v=71';
-import { initLighting, drawLighting } from './lighting.js?v=74';   // lighting add-on
-import { openGuesser } from './guess.js?v=70';
+import { initLighting, drawLighting } from './lighting.js?v=78';   // lighting add-on
+import { openGuesser } from './guess.js?v=78';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
@@ -114,7 +114,8 @@ async function boot() {
   try { S.forks = (await (await fetch('sources.json', { cache: 'no-cache' })).json()).sources || []; } catch (e) { S.forks = []; }
   try { S.commits = (await (await fetch('db/commits.json', { cache: 'no-cache' })).json()).commits || {}; } catch (e) { S.commits = {}; }
   setupUI();
-  initLighting({ getScene: () => S.scene, getRenderer: () => S.renderer, getFork: () => S.fork, redraw: () => draw(), PX, CHUNK });   // lighting add-on
+  initLighting({ getScene: () => S.scene, getRenderer: () => S.renderer, getFork: () => S.fork, redraw: () => draw(), PX, CHUNK,
+    toWorld: (sx, sy) => cam.toWorld(sx, sy), gridLocal: (gr, x, y) => gridLocal(gr, x, y), camScale: () => S.cam.s });   // lighting add-on
   resize();
   const q = new URLSearchParams(location.search);
   const want = q.get('map') && q.get('map').split(':')[0];
@@ -1710,6 +1711,12 @@ function setOnly(mode) {
   if (mode === 'area' && S.area && S.area.tiles.size) {
     S.onlyKinds = kindsOfArea();
     r.only = kindFilter(S.onlyKinds);
+  } else if (mode === 'sel' && S.area && S.area.tiles.size) {
+    // only what lies inside the selected tiles (a copy, so it stays when the selection changes)
+    const grid = S.area.grid, tiles = new Set(S.area.tiles);
+    S.onlySel = { grid, tiles };
+    const inSel = (g, x, y) => g === grid && tiles.has(Math.floor(x) + ',' + Math.floor(y));
+    r.only = { test: (it) => inSel(it.grid, it.x, it.y), tile: (g, t) => inSel(g, t.x, t.y) };
   } else if (mode === 'list') {
     r.only = kindFilter(S.kinds);
   } else { r.only = null; S.onlyMode = null; }
@@ -1856,9 +1863,10 @@ function renderArea() {
       <span class="k">decals</span><span class="v">${nDec} (${res.decals.size} kinds)</span></div>`);
     const row = document.createElement('div');
     row.className = 'row gap wrap';
-    row.innerHTML = `<label class="tglbtn" title="Every object, floor tile and decal of the kinds in the selection, anywhere on the map"><input type="checkbox" ${S.onlyMode === 'area' ? 'checked' : ''}> Show only these kinds, map-wide</label>
+    row.innerHTML = `<label class="tglbtn" title="Only what lies inside the selected tiles"><input type="checkbox" data-o="sel" ${S.onlyMode === 'sel' ? 'checked' : ''}> Show only the selection</label>
+      <label class="tglbtn" title="Every object, floor tile and decal of the kinds in the selection, anywhere on the map"><input type="checkbox" data-o="area" ${S.onlyMode === 'area' ? 'checked' : ''}> Show only these kinds, map-wide</label>
       <button class="btn small" data-a="clear">Clear selection</button>`;
-    row.querySelector('input').onchange = (e) => setOnly(e.target.checked ? 'area' : null);
+    row.querySelectorAll('input[data-o]').forEach(inp => { inp.onchange = (e) => setOnly(e.target.checked ? inp.dataset.o : null); });
     row.querySelector('[data-a=clear]').onclick = clearArea;
     pane.appendChild(row);
     const ex = document.createElement('div');
@@ -1868,6 +1876,12 @@ function renderArea() {
     ex.querySelector('input').onchange = (e) => { S.exportShownOnly = e.target.checked; };
     ex.querySelector('[data-a=yml]').onclick = exportSelectionYml;
     pane.appendChild(ex);
+  } else if (S.onlyMode === 'sel' && S.onlySel) {
+    const row = document.createElement('div');
+    row.className = 'row gap wrap';
+    row.innerHTML = `<label class="tglbtn"><input type="checkbox" checked> Show only the last selection (${S.onlySel.tiles.size} tiles)</label>`;
+    row.querySelector('input').onchange = () => setOnly(null);
+    pane.appendChild(row);
   } else if (S.onlyMode === 'area' && S.onlyKinds) {
     // filter stays on after the selection is cleared
     const row = document.createElement('div');

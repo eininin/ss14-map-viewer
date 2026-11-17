@@ -3,7 +3,7 @@
 //   photo    – "Photo from the station": inside, on a proper floor (not maints, not glass)
 //   maints   – "Tider's memory": inside, in maintenance
 //   training – "Random training": any floor, outside too; free view size, no timer
-import { eyePolygon, sightTargets, seenTiles, tileX, tileY, tileKey } from './fov.js?v=60';
+import { eyePolygon, sightTargets, seenTiles, tileX, tileY, tileKey } from './fov.js?v=78';
 
 const LSK = 'ss14mv.guess';
 const load = () => { try { return JSON.parse(localStorage.getItem(LSK)) || {}; } catch (e) { return {}; } };
