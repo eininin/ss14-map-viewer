@@ -117,19 +117,17 @@ cables, doors and everything placed on it.
 - **Phones**: the map viewer puts the map on top and the panel (tabs and
   settings) underneath; the guesser puts the view on top and the station
   outline below (pinch to zoom, drag to move, tap to guess).
-- **Realistic lighting** (optional add-on, *View* tab), done as Starlight's
-  client does it: lights add the engine's point-light falloff in linear colour,
-  cut by walls and closed doors; the light map is tonemapped (knee 0.7, max
-  1.15), blurred and multiplies the world (gamma-correct). Walls take the
-  light that reaches them. Options as in Starlight: wall shading (ambient
-  occlusion), bloom, vignette, film grain; lights of objects hidden by the
-  layers don't shine unless *Lights from hidden objects* is on; *Unlit areas*.
-  **Game view at the cursor**: the station as seen from the cursor, with the
-  game's own field of view ported from Starlight's engine (`js/robust-fov.js`):
-  occluder edges and their shared-edge rules, the polar depth map, the final FOV
-  (black past the walls) and, with lighting on, the lighting FOV and wall bleed.
+- **Realistic lighting** (optional add-on, *View* tab): Starlight's own lighting, ported to WebGL2
+  from its engine and content code (`js/clyde.js`): shadow maps built from the occluder edges, soft-shadow
+  point lights with their masks, light blur and wall bleed, global illumination, the light tonemap,
+  ambient occlusion and the screen post-processing (night vision, bloom, vignette, film grain), at the
+  game's default settings. A powered station in daytime. Lights of objects hidden by the layers don't shine
+  unless *Lights from hidden objects* is on. Unlike the game, every light in view is drawn (the game caps
+  shadow-casting lights and occluders, which a whole-station view would exceed).
+  **Game view at the cursor**: the station as seen from the cursor, with the game's own field of view
+  (`js/robust-fov.js`); elsewhere the eye is the centre of the view.
   Data: `db/lights-<server>.json` from
-  `tools/build_lights.py`. To remove it, delete `js/lighting.js`, `js/robust-fov.js`,
+  `tools/build_lights.py`. To remove it, delete `js/lighting.js`, `js/clyde.js`, `js/robust-fov.js`,
   `tools/build_lights.py`, `db/lights-*.json` and the lines marked
   `lighting add-on` in `js/app.js` and the workflow.
 - **Rotate the view** (*View* tab, or Q / R): quarter turns, random, north up.

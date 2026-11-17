@@ -2,11 +2,15 @@
 """Light data for the optional "realistic lighting" view (js/lighting.js).
 
 Writes db/lights-<server>.json, separate from the sprite database:
-  ent: { proto: { "pl": [radius, energy, softness, falloff, curve, "#rrggbb", offX, offY, shadows],
+  ent: { proto: { "pl": { r: radius, e: energy, s: softness, f: falloff, c: curveFactor, col: "#rrggbb",
+                          o: [offX, offY], sh: castShadows, m: mask texture path, ar: mask turns with the entity },
                   "un": { "s": [unshaded states], "m": [unshaded layer map keys] } } }
 
-Lights are taken as on a normal running station: light fixtures use the bulb they spawn with,
-lights that come on with power are on, lights that are off by default (emergency lights) stay off.
+Lights are taken as on a normal running station in daytime (SharedPoweredLightSystem.UpdateLight): a light
+fixture shines with the bulb it spawns with (LightBulbComponent: energy 0.8, radius 10, softness 1, white
+unless the bulb says otherwise), light floors scale that (LightFloorComponent: energy x0.6, radius at most 4),
+a fixture without a bulb is dark; lights that come on with power are on, lights that are off by default
+(emergency lights) stay off. Light masks come from lightMask prototypes (PointLight.lightMask).
 The whole feature can be removed by deleting this file, js/lighting.js, db/lights-*.json and the
 two marked lines in js/app.js and the workflow.
 
@@ -80,30 +84,45 @@ def main():
     res, out = sys.argv[1], sys.argv[2]
     allc = resolved(res)
     result = {}
+    masks = {}
+    for d in B.load_all(os.path.join(res, "Prototypes")):
+        if d.get("type") == "lightMask" and d.get("id") and d.get("maskPath"):
+            masks[str(d["id"])] = str(d["maskPath"])
     for pid, comps in allc.items():
         e = {}
         pl = comps.get("PointLight")
         if isinstance(pl, dict):
             on = pl.get("enabled", True) not in (False, "false", "False")
-            powered = "PoweredLight" in comps or "LitOnPowered" in comps
-            if on or powered:
-                r, en = num(pl.get("radius"), 5.0), num(pl.get("energy"), 1.0)
-                sf, col = num(pl.get("softness"), 1.0), hexcol(pl.get("color"))
-                pw = comps.get("PoweredLight")
-                if isinstance(pw, dict) and pw.get("hasLampOnSpawn"):
-                    bulb = allc.get(str(pw["hasLampOnSpawn"]), {}).get("LightBulb")
-                    if isinstance(bulb, dict):     # the fixture shines with its bulb's light
-                        r = num(bulb.get("lightRadius"), r)
-                        en = num(bulb.get("lightEnergy"), en)
-                        sf = num(bulb.get("lightSoftness"), sf)
-                        col = hexcol(bulb.get("color"), col)
-                    elif isinstance(pw, dict) and pw.get("hasLampOnSpawn") is not None and not bulb:
-                        pass
-                off = B.vec(pl.get("offset")) or [0, 0]
-                if r > 0 and en > 0:
-                    e["pl"] = [round(r, 3), round(en, 3), round(sf, 3), round(num(pl.get("falloff"), 6.8), 3),
-                               round(num(pl.get("curveFactor"), 0.0), 3), col, off[0], off[1],
-                               0 if pl.get("castShadows") in (False, "false") else 1]
+            r, en = num(pl.get("radius"), 5.0), num(pl.get("energy"), 1.0)
+            sf, col = num(pl.get("softness"), 1.0), hexcol(pl.get("color"))
+            pw = comps.get("PoweredLight")
+            if isinstance(pw, dict):
+                bulb_id = pw.get("hasLampOnSpawn")
+                bulb = allc.get(str(bulb_id), {}).get("LightBulb") if bulb_id else None
+                on = isinstance(bulb, dict) and pw.get("on", True) not in (False, "false", "False") \
+                    and str(bulb.get("startingState", "Normal")) == "Normal"
+                if on:                              # SetLight(color, radius, energy, softness) from the bulb
+                    en = num(bulb.get("lightEnergy"), 0.8)
+                    r = num(bulb.get("lightRadius"), 10.0)
+                    sf = num(bulb.get("lightSoftness"), 1.0)
+                    col = hexcol(bulb.get("color"), "#ffffff")
+                    lf = comps.get("LightFloor")
+                    if isinstance(lf, dict):
+                        en *= num(lf.get("energyMultiplier"), 0.6)
+                        r = min(r, num(lf.get("maxRadius"), 4.0))
+            elif "LitOnPowered" in comps:
+                on = True
+            off = B.vec(pl.get("offset")) or [0, 0]
+            if on and r > 0 and en > 0:
+                rec = {"r": round(r, 4), "e": round(en, 4), "s": round(sf, 4), "f": round(num(pl.get("falloff"), 6.8), 4),
+                       "c": round(num(pl.get("curveFactor"), 0.0), 4), "col": col, "o": [off[0], off[1]],
+                       "sh": 0 if pl.get("castShadows") in (False, "false", "False") else 1}
+                lm = pl.get("lightMask")
+                if lm and str(lm) in masks:
+                    rec["m"] = masks[str(lm)]
+                    if pl.get("autoRot") in (True, "true", "True"):
+                        rec["ar"] = 1
+                e["pl"] = rec
         sp = comps.get("Sprite")
         if isinstance(sp, dict):
             st, mk = set(), set()
@@ -121,7 +140,7 @@ def main():
         if e:
             result[pid] = e
     with open(out, "w") as fh:
-        json.dump({"v": 1, "ent": result}, fh, separators=(",", ":"))
+        json.dump({"v": 2, "ent": result}, fh, separators=(",", ":"))
     n = sum(1 for v in result.values() if "pl" in v)
     print(f"lights: {n} light sources, {len(result) - n} other glowing sprites -> {os.path.getsize(out) / 1e3:.0f} KB")
 
