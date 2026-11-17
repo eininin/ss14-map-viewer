@@ -75,6 +75,7 @@ jobs:
               commits[s["id"]] = c
               res = f"/tmp/src/{s['id']}/Resources"
               subprocess.run(["python3", "tools/build_db.py", res, f"db/sprites-{s['id']}.json", "--repo", s["repo"], "--commit", c], check=True)
+              subprocess.run(["python3", "tools/build_lights.py", res, f"db/lights-{s['id']}.json"], check=False)   # lighting add-on
               subprocess.run(["python3", "tools/map_index.py", res, s["id"], s["repo"], c, "db"], check=True)
           json.dump({"commits": commits}, open("db/commits.json", "w"), indent=1)
           EOF

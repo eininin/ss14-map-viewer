@@ -116,6 +116,13 @@ cables, doors and everything placed on it.
 - **Phones**: the map viewer puts the map on top and the panel (tabs and
   settings) underneath; the guesser puts the view on top and the station
   outline below (pinch to zoom, drag to move, tap to guess).
+- **Realistic lighting** (optional add-on, *View* tab): lights, shadows and
+  glowing screens as in the game, on a powered station. Uses the engine's
+  point-light falloff; walls and closed doors cast shadows; "unshaded" sprite
+  layers glow on top. *Brightness* and *Unlit areas* sliders. Data:
+  `db/lights-<server>.json` from `tools/build_lights.py`. To remove it, delete
+  `js/lighting.js`, `tools/build_lights.py`, `db/lights-*.json` and the lines
+  marked `lighting add-on` in `js/app.js` and the workflow.
 - **Rotate the view** (*View* tab, or Q / R): quarter turns, random, north up.
   As in the game, directional sprites show the frame for that viewing
   direction and stay upright; items on the floor look the same as north up.

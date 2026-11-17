@@ -8,6 +8,7 @@ import { exportSelection } from './exportsel.js';
 import { browse, pickServer } from './browse.js';
 import { grow, tileKey } from './fov.js?v=60';
 import { viewPolygons, eyePolygon } from './fov-view.js?v=71';
+import { initLighting, drawLighting } from './lighting.js?v=74';   // lighting add-on
 import { openGuesser } from './guess.js?v=70';
 
 const $ = (s) => document.querySelector(s);
@@ -113,6 +114,7 @@ async function boot() {
   try { S.forks = (await (await fetch('sources.json', { cache: 'no-cache' })).json()).sources || []; } catch (e) { S.forks = []; }
   try { S.commits = (await (await fetch('db/commits.json', { cache: 'no-cache' })).json()).commits || {}; } catch (e) { S.commits = {}; }
   setupUI();
+  initLighting({ getScene: () => S.scene, getRenderer: () => S.renderer, getFork: () => S.fork, redraw: () => draw(), PX, CHUNK });   // lighting add-on
   resize();
   const q = new URLSearchParams(location.search);
   const want = q.get('map') && q.get('map').split(':')[0];
@@ -605,6 +607,7 @@ function drawNow() {
         g.restore();
       }
     }
+    try { drawLighting(g, setGridXf, t0, useOverview); } catch (e) { console.error(e); }   // lighting add-on
     r.evict();
   }
   if (pending) draw();
