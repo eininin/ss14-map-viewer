@@ -1,5 +1,5 @@
 import { Pack, SpriteStore, localPackFromFiles, texRel, DEV } from './packs.js';
-import { buildScene, SceneRenderer, PX, CHUNK, LAYER_KEYS, DEFAULT_OPTS } from './scene.js?v=53';
+import { buildScene, SceneRenderer, PX, CHUNK, LAYER_KEYS, DEFAULT_OPTS } from './scene.js?v=75';
 import { Annotations } from './annot.js';
 import { GitHub } from './github.js';
 import { openImageViewer } from './imageviewer.js';
@@ -1685,7 +1685,7 @@ function areaContents() {
   return { ents, tiles, decals, total, tileList };
 }
 const CAT_LABEL = { atmos: 'atmos pipes', atmosdev: 'atmos devices', hv: 'HV', mv: 'MV', lv: 'LV', power: 'electric machines',
-  disposal: 'disposal pipes', disposaldev: 'disposal units', walls: 'walls', doors: 'doors', wallmount: 'wall-mounted',
+  disposal: 'disposal pipes', disposaldev: 'disposal units', walls: 'walls', doors: 'doors', wallmount: 'wall-mounted', lights: 'lights',
   computers: 'computers', fabrication: 'fabrication', vending: 'vending', machines: 'other machines', storage: 'storage',
   furniture: 'furniture', items: 'items', other: 'other', markers: 'marker' };
 // ---- "show only": every object of the kinds in the selection or in the saved list
@@ -2059,7 +2059,8 @@ const LAYER_TREE = [
   { id: 'objects', label: 'Objects', children: [
     { k: 'walls', label: 'Walls', sub: 'walls, windows, grilles' },
     { k: 'doors', label: 'Airlocks and doors', sub: 'airlocks, firelocks, shutters, blast doors' },
-    { k: 'wallmount', label: 'Wall-mounted', sub: 'lights, air and fire alarms, cameras, signs' },
+    { k: 'lights', label: 'Lights', sub: 'light tubes, small lights, light posts' },
+    { k: 'wallmount', label: 'Wall-mounted', sub: 'air and fire alarms, cameras, signs' },
     { id: 'machinesg', label: 'Machines and computers', children: [
       { k: 'computers', label: 'Computers and consoles', sub: 'consoles, arcades, record and monitoring computers' },
       { k: 'fabrication', label: 'Fabrication and production', sub: 'lathes, fabricators, reclaimers, ore processors, kitchen' },

@@ -7,7 +7,7 @@ export const CHUNK = 16;       // tiles per render chunk
 // every layer can be shown on its own
 export const LAYER_KEYS = ['tiles', 'decals',
   'atmos', 'atmosdev', 'hv', 'mv', 'lv', 'power', 'disposal', 'disposaldev',
-  'walls', 'doors', 'wallmount', 'computers', 'fabrication', 'vending', 'machines',
+  'walls', 'doors', 'wallmount', 'lights', 'computers', 'fabrication', 'vending', 'machines',
   'storage', 'furniture', 'items', 'other', 'markers'];
 // pipes and cables themselves (drawn on top in "on top" mode)
 export const NET_CATS = new Set(['atmos', 'hv', 'mv', 'lv', 'disposal']);
@@ -164,6 +164,8 @@ export function buildScene(model, db, opts) {
     }
     it.info = info;
     if (info.cat) it.cat = info.cat;
+    // light fixtures and light posts: their own layer, apart from the other wall-mounted things
+    if ((it.cat === 'wallmount' || !it.cat) && info.s && /\/Light(ing|Posts)\//i.test(info.s)) it.cat = 'lights';
     it.depth = info.d != null ? info.d : 0;
     if (info.mk) it.marker = true;
     if (info.sub) it.sub = true;
