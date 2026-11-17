@@ -8,7 +8,7 @@ import { exportSelection } from './exportsel.js';
 import { browse, pickServer } from './browse.js';
 import { grow, tileKey } from './fov.js?v=78';
 import { viewPolygons, eyePolygon } from './fov-view.js?v=71';
-import { initLighting, drawLighting } from './lighting.js?v=81';   // lighting add-on
+import { initLighting, drawLighting } from './lighting.js?v=82';   // lighting add-on
 import { openGuesser } from './guess.js?v=78';
 
 const $ = (s) => document.querySelector(s);

@@ -189,8 +189,8 @@ function newLightMap(gr, scene, opaque) {
   const g = c.getContext('2d');
   g.fillStyle = '#000';
   g.fillRect(0, 0, c.width, c.height);
-  const station = new Set();                  // tiles that get lit (floor and walls, not lattice)
-  for (const t of (scene.tiles.get(gr.uid) || [])) if (!/lattice/i.test(t.name || '')) station.add(K(t.x, t.y));
+  const station = new Set();                  // everything on the grid gets lit (lattice too); only the background doesn't
+  for (const t of (scene.tiles.get(gr.uid) || [])) station.add(K(t.x, t.y));
   for (const k of opaque) station.add(k);
   return { canvas: c, g, P, x0, y1, w, h, station, tileLight: new Map() };
 }
@@ -301,18 +301,29 @@ function finishLightMap(lm, opaque, amb) {
     }
     tileLight.set(k, shade(idx(x, y, P >> 1, P >> 1)));
   }
-  // walls take the light that reaches them (from any side here; game view keeps the seen side)
-  const a = toSrgb(Math.min(1, amb)) * 255;
-  for (const k of opaque) {
+  // walls: the floor light blurred into them, as the engine's wall bleed (game view keeps the seen side)
+  const src = new Uint8ClampedArray(d.length);              // floor light only
+  for (const k of station) {
+    if (opaque.has(k)) continue;
     const x = tileX(k), y = tileY(k);
-    let best = [a, a, a];
-    for (const [nx, ny] of [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]]) {
-      const v = tileLight.get(K(nx, ny));
-      if (v) best = [Math.max(best[0], v[0]), Math.max(best[1], v[1]), Math.max(best[2], v[2])];
-    }
     for (let yy = 0; yy < P; yy++) for (let xx = 0; xx < P; xx++) {
       const i = idx(x, y, xx, yy);
-      out[i] = best[0]; out[i + 1] = best[1]; out[i + 2] = best[2];
+      src[i] = out[i]; src[i + 1] = out[i + 1]; src[i + 2] = out[i + 2]; src[i + 3] = 255;
+    }
+  }
+  const sc = document.createElement('canvas'); sc.width = W; sc.height = canvas.height;
+  sc.getContext('2d').putImageData(new ImageData(src, W, canvas.height), 0, 0);
+  const bc = document.createElement('canvas'); bc.width = W; bc.height = canvas.height;
+  const bcg = bc.getContext('2d');
+  bcg.filter = `blur(${Math.max(1, P * 0.5)}px)`;
+  bcg.drawImage(sc, 0, 0);
+  const bl = bcg.getImageData(0, 0, W, canvas.height).data;
+  const a0 = toSrgb(Math.min(1, amb)) * 255;
+  for (const k of opaque) {
+    const x = tileX(k), y = tileY(k);
+    for (let yy = 0; yy < P; yy++) for (let xx = 0; xx < P; xx++) {
+      const i = idx(x, y, xx, yy), al = bl[i + 3];
+      out[i] = al ? Math.max(a0, bl[i]) : a0; out[i + 1] = al ? Math.max(a0, bl[i + 1]) : a0; out[i + 2] = al ? Math.max(a0, bl[i + 2]) : a0;
     }
   }
   g.putImageData(new ImageData(out, W, canvas.height), 0, 0);
@@ -574,38 +585,47 @@ function drawFov(setGridXf) {
   lastFovMask = cvFov;
   if (st.on && job && job.ready) {               // walls only take the light of the side seen
     const lm = job.grids.get(gr.uid);
-    if (lm) relightWalls(g, setGridXf, gr, lm, opaque, seen);
+    if (lm) relightWalls(g, setGridXf, gr, lm, opaque, seen, vis, lx, ly);
   }
 }
 
-function relightWalls(g, setGridXf, gr, lm, opaque, seen) {
+function relightWalls(g, setGridXf, gr, lm, opaque, seen, vis, ex, ey) {
   const { PX, CHUNK } = env;
-  g.save();
-  setGridXf(g, gr);
-  g.imageSmoothingEnabled = false;
+  const walls = [...seen].filter(k => opaque.has(k));
+  if (!walls.length) return;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const k of walls) { const x = tileX(k), y = tileY(k); x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+  const w = x1 - x0 + 1, h = y1 - y0 + 1;
+  const oc = document.createElement('canvas'); oc.width = w * PX; oc.height = h * PX;
+  const og = oc.getContext('2d');
+  og.imageSmoothingEnabled = false;
   const a = toSrgb(Math.min(1, st.ambient)) * 255;
-  for (const k of seen) {
-    if (!opaque.has(k)) continue;
+  for (const k of walls) {
     const x = tileX(k), y = tileY(k);
+    // a wall face lights up only if it faces the eye and has floor in front of it
     let best = [a, a, a];
-    for (const [nx, ny] of [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]]) {
+    for (const [nx, ny, faces] of [[x + 1, y, ex > x + 1], [x - 1, y, ex < x], [x, y + 1, ey > y + 1], [x, y - 1, ey < y]]) {
+      if (!faces) continue;
       const nk = K(nx, ny);
-      if (opaque.has(nk) || !seen.has(nk)) continue;      // only the side that is seen
+      if (opaque.has(nk)) continue;
       const v = lm.tileLight.get(nk);
       if (v) best = [Math.max(best[0], v[0]), Math.max(best[1], v[1]), Math.max(best[2], v[2])];
     }
     const ch = gr.chunks.get(Math.floor(x / CHUNK) + ',' + Math.floor(y / CHUNK));
     if (!ch || !ch.canvas) continue;
-    const sx = (x - ch.cx * CHUNK) * PX, sy = ((ch.cy + 1) * CHUNK - y - 1) * PX;
-    g.save();
-    g.beginPath(); g.rect(x, y, 1, 1); g.clip();
-    g.translate(x, y + 1); g.scale(1 / PX, -1 / PX);
-    g.drawImage(ch.canvas, sx, sy, PX, PX, 0, 0, PX, PX);
-    g.globalCompositeOperation = 'multiply';
-    g.fillStyle = `rgb(${best[0] | 0},${best[1] | 0},${best[2] | 0})`;
-    g.fillRect(0, 0, PX, PX);
-    g.restore();
+    const dx = (x - x0) * PX, dy = (y1 - y) * PX;
+    og.globalCompositeOperation = 'source-over';
+    og.drawImage(ch.canvas, (x - ch.cx * CHUNK) * PX, ((ch.cy + 1) * CHUNK - y - 1) * PX, PX, PX, dx, dy, PX, PX);
+    og.globalCompositeOperation = 'multiply';
+    og.fillStyle = `rgb(${best[0] | 0},${best[1] | 0},${best[2] | 0})`;
+    og.fillRect(dx, dy, PX, PX);
   }
+  g.save();
+  setGridXf(g, gr);
+  g.clip(vis);                                   // nothing in the shadow
+  g.imageSmoothingEnabled = false;
+  g.translate(x0, y1 + 1); g.scale(1 / PX, -1 / PX);
+  g.drawImage(oc, 0, 0);
   g.restore();
 }
 
