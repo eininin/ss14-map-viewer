@@ -15,7 +15,7 @@
 import { eyePolygon, sightTargets, seenTiles, tileX, tileY } from './fov.js?v=78';
 
 const LS = 'ss14mv.lighting';
-const DEF = { on: false, ambient: 0, hiddenLights: false, ao: true, bloom: true, vignette: true, grain: true, gameView: false };
+const DEF = { on: false, ambient: 0, hiddenLights: false, ao: true, bloom: true, vignette: true, grain: true, gameView: false, gameFov: true };
 const st = (() => { try { return { ...DEF, ...JSON.parse(localStorage.getItem(LS) || '{}') }; } catch (e) { return { ...DEF }; } })();
 const saveSt = () => { try { localStorage.setItem(LS, JSON.stringify(st)); } catch (e) { /* ignore */ } };
 
@@ -50,7 +50,10 @@ export function initLighting(e) {
         <label class="row tglbtn" title="Lights whose objects are hidden by the layers above still shine"><input type="checkbox" data-k="hiddenLights"> Lights from hidden objects</label>
         <label class="row">Unlit areas <input type="range" id="lgtAmb" min="0" max="0.3" step="0.01" value="${st.ambient}" style="flex:1"></label>
       </div>
-      <label class="row tglbtn" title="See the station as from where the cursor is: what can't be seen from there is dark"><input type="checkbox" data-k="gameView"> Game view at the cursor</label>
+      <div class="row gap wrap">
+        <label class="tglbtn" title="See the station as from where the cursor is: what can't be seen from there is dark"><input type="checkbox" data-k="gameView"> Game view at the cursor</label>
+        <label class="tglbtn" title="The engine's own view shadows: you see into the first wall, everything behind it is dark. Off: the Station Guesser's rules"><input type="checkbox" data-k="gameFov"> Game FOV</label>
+      </div>
       <p class="hint" id="lgtNote"></p>`;
     pane.appendChild(box);
     box.querySelectorAll('input[data-k]').forEach(inp => {
@@ -178,7 +181,7 @@ function startJob() {
 
 function newLightMap(gr, scene, opaque) {
   const area = (gr.maxX - gr.minX) * (gr.maxY - gr.minY);
-  const P = area > 160000 ? 4 : area > 40000 ? 6 : 8;           // light-map pixels per tile
+  const P = area > 250000 ? 6 : 8;           // light-map pixels per tile (fine enough for crisp corner shadows)
   const x0 = Math.floor(gr.minX) - 2, y1 = Math.ceil(gr.maxY) + 2;
   const w = Math.ceil(gr.maxX) + 2 - x0, h = y1 - (Math.floor(gr.minY) - 2);
   const c = document.createElement('canvas');
@@ -316,7 +319,7 @@ function finishLightMap(lm, opaque, amb) {
   const soft = document.createElement('canvas');
   soft.width = W; soft.height = canvas.height;
   const sg = soft.getContext('2d');
-  sg.filter = `blur(${Math.max(1, P * 0.25)}px)`;
+  sg.filter = `blur(${Math.max(1, P * 0.12)}px)`;
   sg.drawImage(canvas, 0, 0);
   lm.canvas = soft; lm.g = null;
 }
@@ -464,6 +467,70 @@ function queueFov() {
   fovRaf = requestAnimationFrame(() => { fovRaf = 0; env.redraw(); });
 }
 
+// Robust's FOV: the depth to the far (back-facing) side of the first wall along each ray, with the
+// edges between touching walls dropped, so the first wall is seen whole and everything past it is dark.
+function castRayFar(opaque, px, py, dx, dy, maxT) {
+  const O = (x, y) => opaque.has(K(x, y));
+  // an exposed wall face at vertex (vx, vy) that faces the eye
+  const facingAt = (vx, vy) => {
+    for (const ex of [vx - 1, vx]) {              // horizontal edges along y = vy
+      const below = O(ex, vy - 1), above = O(ex, vy);
+      if (below !== above && (below ? py > vy : py < vy)) return true;
+    }
+    for (const ey of [vy - 1, vy]) {              // vertical edges along x = vx
+      const left = O(vx - 1, ey), right = O(vx, ey);
+      if (left !== right && (left ? px > vx : px < vx)) return true;
+    }
+    return false;
+  };
+  let x = Math.floor(px), y = Math.floor(py), inside = false;
+  const sx = dx > 0 ? 1 : -1, sy = dy > 0 ? 1 : -1;
+  const tdx = dx !== 0 ? 1 / Math.abs(dx) : Infinity, tdy = dy !== 0 ? 1 / Math.abs(dy) : Infinity;
+  let tx = dx !== 0 ? (dx > 0 ? x + 1 - px : px - x) * tdx : Infinity;
+  let ty = dy !== 0 ? (dy > 0 ? y + 1 - py : py - y) * tdy : Infinity;
+  for (;;) {
+    let t, nx = x, ny = y, edge = null;
+    if (Math.abs(tx - ty) < 1e-9) {            // through a tile corner
+      t = tx;
+      if (t >= maxT) return maxT;
+      if (!inside && O(x + sx, y) && O(x, y + sy)) return t;     // between two walls: no gap
+      if (inside) return t;
+      tx += tdx; ty += tdy; nx = x + sx; ny = y + sy;
+    } else if (tx < ty) {
+      t = tx; tx += tdx; nx = x + sx;
+      const vx = sx > 0 ? x + 1 : x; edge = [[vx, y], [vx, y + 1]];
+    } else {
+      t = ty; ty += tdy; ny = y + sy;
+      const vy = sy > 0 ? y + 1 : y; edge = [[x, vy], [x + 1, vy]];
+    }
+    if (t >= maxT) return maxT;
+    const o = O(nx, ny);
+    if (inside) {
+      if (!o) return t;                          // left the wall: its back face
+      // into a touching wall: the edge between them only counts when neither end touches a face we see
+      if (!edge || !(facingAt(...edge[0]) || facingAt(...edge[1]))) return t;
+    } else if (o) inside = true;
+    x = nx; y = ny;
+  }
+}
+function enginePolygon(opaque, targets, px, py, maxT) {
+  const angles = [];
+  for (const [tx, ty] of targets) {
+    const ddx = tx - px, ddy = ty - py;
+    if (ddx * ddx + ddy * ddy > maxT * maxT * 2) continue;
+    const a = Math.atan2(ddy, ddx);
+    angles.push(a - 1e-4, a, a + 1e-4);
+  }
+  for (let i = 0; i < 1440; i++) angles.push(-Math.PI + i * Math.PI / 720);
+  angles.sort((a, b) => a - b);
+  const pts = [];
+  for (const a of angles) {
+    const dx = Math.cos(a), dy = Math.sin(a), t = castRayFar(opaque, px, py, dx, dy, maxT);
+    pts.push(px + dx * t, py + dy * t);
+  }
+  return pts;
+}
+
 const fovCache = new WeakMap();   // grid -> { scene, opaque, targets }
 function drawFov(setGridXf) {
   const g = cvFov.getContext('2d');
@@ -485,13 +552,18 @@ function drawFov(setGridXf) {
   const opaque = fc.opaque;
   if (opaque.has(K(Math.floor(lx), Math.floor(ly)))) return;
   const range = Math.min(60, Math.hypot(cvFov.width, cvFov.height) / (2 * (window.devicePixelRatio || 1) * env.camScale()) + 2);
-  const p = eyePolygon(opaque, fc.targets, lx, ly, range);
+  if (st.gameFov && !fc.allCorners) {          // every tile corner of the walls (shadow edges start at far corners too)
+    const set = new Map();
+    for (const k of opaque) for (const [cx, cy] of [[tileX(k), tileY(k)], [tileX(k) + 1, tileY(k)], [tileX(k), tileY(k) + 1], [tileX(k) + 1, tileY(k) + 1]]) set.set(K(cx, cy), [cx, cy]);
+    fc.allCorners = [...set.values()];
+  }
+  const p = st.gameFov ? enginePolygon(opaque, fc.allCorners, lx, ly, range) : eyePolygon(opaque, fc.targets, lx, ly, range);
   const seen = seenTiles([p], opaque, 8);
   const vis = new Path2D();
   vis.moveTo(p[0], p[1]);
   for (let i = 2; i < p.length; i += 2) vis.lineTo(p[i], p[i + 1]);
   vis.closePath();
-  for (const k of seen) if (opaque.has(k)) vis.rect(tileX(k), tileY(k), 1, 1);   // walls are seen whole
+  if (!st.gameFov) for (const k of seen) if (opaque.has(k)) vis.rect(tileX(k), tileY(k), 1, 1);   // walls are seen whole
   g.fillStyle = '#000';
   g.fillRect(0, 0, cvFov.width, cvFov.height);
   g.save();
