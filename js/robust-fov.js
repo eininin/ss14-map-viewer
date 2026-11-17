@@ -70,11 +70,6 @@ export function buildOccluderGeometry(items, grid) {
     for (const [x, y] of verts) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
     occ.push({ verts, edges, keys: edges.map(eKeyArr), mask: 0, x0, y0, x1, y1 });
   }
-  sharedMasks(occ);
-  return finishGeometry(occ);
-}
-
-function sharedMasks(occ) {
   // ClientOccluderSystem: bit i set when edge i is shared with another enabled occluder's edge
   const cell = new Map(), ck = (x, y) => x + ',' + y;
   occ.forEach((o, n) => {
@@ -97,9 +92,6 @@ function sharedMasks(occ) {
       }
     }
   });
-}
-
-function finishGeometry(occ) {
   // AddOccluderBoundaryEdges, BuildSharedVertexEdges, BuildConvexBoundaryVertices
   const segments = [], sharedEdges = new Set();
   for (const o of occ) o.edges.forEach((e, i) => { segments.push(e); if (o.mask & (1 << i)) sharedEdges.add(eKey(e)); });
@@ -125,56 +117,6 @@ function finishGeometry(occ) {
     if (cross(d.inc[0], d.inc[1], d.out[0], d.out[1]) < -TOL) convex.add(k);
   }
   return { occ, segments, sharedEdges, sharedVertexEdges, convex };
-}
-
-// Several grids' geometry moved into one space (each part: geom + f(x, y) -> [X, Y], a rigid transform).
-// Only occluders whose bounds meet `keep(x0, y0, x1, y1)` (in the new space) are taken.
-export function transformedGeometry(parts, keep) {
-  const occ = [];
-  for (const { geom, f } of parts) {
-    for (const o of geom.occ) {
-      const verts = o.verts.map(([x, y]) => f(x, y));
-      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-      for (const [x, y] of verts) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
-      if (keep && !keep(x0, y0, x1, y1)) continue;
-      const edges = verts.map((v, i) => { const w = verts[(i + 1) % verts.length]; return [v[0], v[1], w[0], w[1]]; });
-      occ.push({ verts, edges, keys: edges.map(eKeyArr), mask: o.mask, x0, y0, x1, y1, inView: true });
-    }
-  }
-  return finishGeometry(occ);
-}
-
-// IsLightEmbeddedInOccluder: the point is inside (or on) an occluder's polygon
-export function embeddedInOccluder(geom, px, py) {
-  for (const o of geom.occ) {
-    if (px < o.x0 - TOL || px > o.x1 + TOL || py < o.y0 - TOL || py > o.y1 + TOL) continue;
-    let inside = true;
-    for (const e of o.edges) {                          // clockwise: inside is on the right of every edge
-      if (cross(e[2] - e[0], e[3] - e[1], px - e[0], py - e[1]) > 0) { inside = false; break; }
-    }
-    if (inside) return true;
-  }
-  return false;
-}
-
-// UploadSourceOcclusionDepthGeometry: the edges that go into the depth maps for this eye
-// (occluders in the box x0..x1, y0..y1; the boundary topology uses everything in geom)
-export function depthEdges(geom, ex, ey, x0, y0, x1, y1) {
-  const visible = new Set();                            // BuildVisibleBoundaryVertices
-  for (const e of geom.segments) {
-    if (geom.sharedEdges.has(eKey(e)) || !edgeFacesPoint(e, ex, ey)) continue;
-    visible.add(vKey(e[0], e[1])); visible.add(vKey(e[2], e[3]));
-  }
-  const draw = [];
-  for (const o of geom.occ) {
-    if (o.x1 < x0 || o.x0 > x1 || o.y1 < y0 || o.y0 > y1) continue;
-    const shared = o.edges.map((_, i) => (o.mask & (1 << i)) !== 0);
-    for (let i = 0; i < o.edges.length; i++) {
-      if (shouldSuppress(i, o.edges, shared, visible, geom.convex, geom.sharedVertexEdges, ex, ey)) continue;
-      draw.push(o.edges[i]);
-    }
-  }
-  return draw;
 }
 
 // ---------------------------------------------------------------- source-dependent rules

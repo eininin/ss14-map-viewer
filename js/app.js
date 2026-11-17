@@ -8,7 +8,7 @@ import { exportSelection } from './exportsel.js';
 import { browse, pickServer } from './browse.js';
 import { grow, tileKey } from './fov.js?v=78';
 import { viewPolygons, eyePolygon } from './fov-view.js?v=71';
-import { initLighting, drawLighting } from './lighting.js?v=84';   // lighting add-on
+import { initLighting, drawLighting } from './lighting.js?v=85';   // lighting add-on
 import { openGuesser } from './guess.js?v=78';
 
 const $ = (s) => document.querySelector(s);
@@ -114,7 +114,7 @@ async function boot() {
   try { S.forks = (await (await fetch('sources.json', { cache: 'no-cache' })).json()).sources || []; } catch (e) { S.forks = []; }
   try { S.commits = (await (await fetch('db/commits.json', { cache: 'no-cache' })).json()).commits || {}; } catch (e) { S.commits = {}; }
   setupUI();
-  initLighting({ getScene: () => S.scene, getRenderer: () => S.renderer, getFork: () => S.fork, getStore: () => S.store, redraw: () => draw(), PX, CHUNK,
+  initLighting({ getScene: () => S.scene, getRenderer: () => S.renderer, getFork: () => S.fork, redraw: () => draw(), PX, CHUNK,
     toWorld: (sx, sy) => cam.toWorld(sx, sy), gridLocal: (gr, x, y) => gridLocal(gr, x, y), camScale: () => S.cam.s });   // lighting add-on
   resize();
   const q = new URLSearchParams(location.search);
