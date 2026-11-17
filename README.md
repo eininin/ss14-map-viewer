@@ -124,13 +124,12 @@ cables, doors and everything placed on it.
   light that reaches them. Options as in Starlight: wall shading (ambient
   occlusion), bloom, vignette, film grain; lights of objects hidden by the
   layers don't shine unless *Lights from hidden objects* is on; *Unlit areas*.
-  **Game view at the cursor**: what can't be seen from the cursor is dark, and
-  walls only take the light of the side they are seen from. With **Game FOV**
-  (on by default) it follows Robust's own FOV: you see into the first wall
-  (its far side sets the shadow), walls joined to it count as one block where
-  an end touches a face you see, and everything beyond is black with a hard
-  edge. Off: the Station Guesser's sight rules. Data: `db/lights-<server>.json` from
-  `tools/build_lights.py`. To remove it, delete `js/lighting.js`,
+  **Game view at the cursor**: the station as seen from the cursor, with the
+  game's own field of view ported from Starlight's engine (`js/robust-fov.js`):
+  occluder edges and their shared-edge rules, the polar depth map, the final FOV
+  (black past the walls) and, with lighting on, the lighting FOV and wall bleed.
+  Data: `db/lights-<server>.json` from
+  `tools/build_lights.py`. To remove it, delete `js/lighting.js`, `js/robust-fov.js`,
   `tools/build_lights.py`, `db/lights-*.json` and the lines marked
   `lighting add-on` in `js/app.js` and the workflow.
 - **Rotate the view** (*View* tab, or Q / R): quarter turns, random, north up.
