@@ -1,6 +1,6 @@
 // Worker for room visibility: { grid, tiles: [[room, x, y, eyes(Float64Array)]…] }
 // posts { type: 'tiles', items: [[room, x, y, [ids seen]]…] } in batches, then { type: 'done' }
-import { seenFrom } from './roomvis.js?v=3';
+import { seenFrom } from './roomvis.js?v=4';
 
 self.onmessage = (ev) => {
   const { grid, tiles } = ev.data;

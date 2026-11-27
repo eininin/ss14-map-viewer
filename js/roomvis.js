@@ -16,6 +16,8 @@ export function seenFrom(grid, eyes, seen = new Set(), onEye, cells) {
     const px = eyes[e], py = eyes[e + 1];
     const own = owner[Math.floor(py) * w + Math.floor(px)];
     if (own) seen.add(own);
+    const own2 = grid.owner2 ? grid.owner2[Math.floor(py) * w + Math.floor(px)] : -1;
+    if (own2 > 0) seen.add(own2);
     if (cells) cells[Math.floor(py) * w + Math.floor(px)] = 1;
     const local = onEye ? new Set() : seen;
     for (let q = 0; q < 4; q++) cone(grid, px, py, q, local, cells);
@@ -62,7 +64,7 @@ function cone(grid, px, py, q, seen, cells) {
         if (u < 0 || u >= uMax) { seen.add(0); continue; }
         const c = cell(u, v);
         // walls stop sight: a wall's face doesn't count as seeing the room it belongs to
-        if (!block[c]) seen.add(owner[c]);
+        if (!block[c]) { seen.add(owner[c]); if (grid.owner2 && grid.owner2[c] >= 0) seen.add(grid.owner2[c]); }
         if (cells) cells[c] = 1;
         if (block[c]) (blocks || (blocks = [])).push(s0, s1);
       }
