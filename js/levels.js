@@ -17,6 +17,13 @@ const COLORS = {
 const DIRS = { N: [0, 1], E: [1, 0], S: [0, -1], W: [-1, 0] };
 const OPP = { N: 'S', S: 'N', E: 'W', W: 'E' };
 const CW = { N: 'E', E: 'S', S: 'W', W: 'N' };
+// A cut tile is a set of arms from the tile centre to the middle of its edges, written as letters in the
+// order n, s, w, e: "ns" (north–south line), "we" (west–east line), "ne"/"nw"/"se"/"sw" (corners),
+// "nsw"/"nse"/"nwe"/"swe" (T shapes), "nswe" (cross). An arm N separates the NW and NE quarters, and so on.
+const ARM_ORDER = ['n', 's', 'w', 'e'];
+export const canonArms = (str) => { const set = new Set(String(str || '').toLowerCase()); return ARM_ORDER.filter(a => set.has(a)).join(''); };
+const armsOf = (str) => new Set(String(str || ''));
+const ARM_SEP = { n: [2, 3], e: [3, 1], s: [1, 0], w: [0, 2] };   // the two quarters an arm separates
 const SNAP = (v) => Math.max(LEVEL_MIN, Math.min(LEVEL_MAX, Math.round(v / LEVEL_STEP) * LEVEL_STEP)) + 0;
 const fmt = (v) => (v > 0 ? '+' : v < 0 ? '−' : '') + String(Number(Math.abs(v).toFixed(2))) + ' m';
 const key = (x, y) => x + ',' + y;
@@ -99,7 +106,7 @@ export class LevelsDoc {
     for (const uid of Object.keys(j.grids || {})) {
       const s = j.grids[uid], d = this.g(String(uid));
       for (const [k, v] of Object.entries(s.levels || {})) { const n = SNAP(+v); if (n !== 0) d.levels.set(k, n); }
-      for (const [k, v] of Object.entries(s.cuts || {})) if (v === 'ns' || v === 'we') d.cuts.set(k, v);
+      for (const [k, v] of Object.entries(s.cuts || {})) { const a = canonArms(v); if (a.length >= 2 && a.length === String(v).length) d.cuts.set(k, a); }
       for (const e of (s.edges || [])) if (DIRS[e.side]) d.edges.add(edgeKey(+e.x, +e.y, e.side));
       for (const [k, v] of Object.entries(s.stairs || {})) if (DIRS[v]) d.stairs.set(k, v);
     }
@@ -108,25 +115,46 @@ export class LevelsDoc {
 
 // ---------------------------------------------------------------- checking
 // tiles: Set of "x,y" with a floor (any tile) on this grid. Returns quarters, warnings, stubs, stair info.
-export function analyse(d, tiles) {
+export function analyse(d, tiles, doors = new Set()) {
   const exists = (x, y) => tiles.has(key(x, y)) || d.levels.has(key(x, y)) || d.cuts.has(key(x, y)) || d.stairs.has(key(x, y));
-  const memo = new Map();
   // quarter i: 0 SW, 1 SE, 2 NW, 3 NE. Value: a level, null (no tile / unknown), or 'S' (stairs)
-  const quarter = (x, y, i, depth = 0) => {
-    const k = key(x, y), mk = k + '#' + i;
-    if (memo.has(mk)) return memo.get(mk);
-    let v;
-    if (!exists(x, y)) v = null;
-    else if (d.stairs.has(k)) v = 'S';
-    else if (d.cuts.has(k)) {
-      if (depth > 8) v = null;
-      else if (d.cuts.get(k) === 'ns') v = (i === 0 || i === 2) ? quarter(x - 1, y, i + 1, depth + 1) : quarter(x + 1, y, i - 1, depth + 1);
-      else v = (i === 0 || i === 1) ? quarter(x, y - 1, i + 2, depth + 1) : quarter(x, y + 1, i - 2, depth + 1);
-      if (v === 'S') v = null;
-    } else v = d.levels.get(k) || 0;
-    memo.set(mk, v);
-    return v;
+  const base = (x, y, i) => {
+    const k = key(x, y);
+    if (!exists(x, y)) return null;
+    if (d.stairs.has(k)) return 'S';
+    return d.levels.get(k) || 0;
   };
+  // cut tiles: each region between the arms takes the level of the neighbours on its outer sides
+  // (other cut tiles resolve together, a few passes)
+  const OUTER = [[[0, -1, 2], [-1, 0, 1]], [[0, -1, 3], [1, 0, 0]], [[0, 1, 0], [-1, 0, 3]], [[0, 1, 1], [1, 0, 2]]];
+  const cutRegions = new Map(), cutQ = new Map();
+  for (const [k, arms] of d.cuts) {
+    const A = armsOf(arms), parent = [0, 1, 2, 3];
+    const find = (i) => parent[i] === i ? i : (parent[i] = find(parent[i]));
+    for (const a of ['n', 'e', 's', 'w']) if (!A.has(a)) { const [p, q] = ARM_SEP[a]; parent[find(p)] = find(q); }
+    const groups = new Map();
+    for (let i = 0; i < 4; i++) { const r = find(i); if (!groups.has(r)) groups.set(r, []); groups.get(r).push(i); }
+    cutRegions.set(k, [...groups.values()]);
+    cutQ.set(k, [null, null, null, null]);
+  }
+  const quarter = (x, y, i) => { const k = key(x, y); return cutQ.has(k) ? cutQ.get(k)[i] : base(x, y, i); };
+  for (let pass = 0; pass < 8; pass++) {
+    let moved = false;
+    for (const [k, regions] of cutRegions) {
+      const [x, y] = unkey(k), q = cutQ.get(k);
+      for (const reg of regions) {
+        const count = new Map();
+        for (const i of reg) for (const [dx, dy, j] of OUTER[i]) {
+          const v = quarter(x + dx, y + dy, j);
+          if (typeof v === 'number') count.set(v, (count.get(v) || 0) + 1);
+        }
+        let best = null, bn = 0;
+        for (const [v, n] of count) if (n > bn) { best = v; bn = n; }
+        for (const i of reg) if (q[i] !== best) { q[i] = best; moved = true; }
+      }
+    }
+    if (!moved) break;
+  }
   const num = (v) => typeof v === 'number';
   const warnings = [];
   const warn = (kind, x, y, msg) => warnings.push({ kind, x, y, msg });
@@ -155,30 +183,33 @@ export function analyse(d, tiles) {
     }
   }
 
-  // 2. middle cuts
+  // 2. middle cuts: each arm is a cut line from the centre to an edge
   const stubs = [], cutLines = [];
-  for (const [k, dir] of d.cuts) {
+  const ARM_END = { n: [0.5, 1], s: [0.5, 0], w: [0, 0.5], e: [1, 0.5] };
+  for (const [k, arms] of d.cuts) {
     const [x, y] = unkey(k);
-    const [qa, qb] = dir === 'ns' ? [quarter(x, y, 0), quarter(x, y, 1)] : [quarter(x, y, 0), quarter(x, y, 2)];
-    cutLines.push(dir === 'ns' ? [x + 0.5, y, x + 0.5, y + 1] : [x, y + 0.5, x + 1, y + 0.5]);
-    const lvl = (xx, yy) => (exists(xx, yy) && !d.cuts.has(key(xx, yy)) && !d.stairs.has(key(xx, yy))) ? (d.levels.get(key(xx, yy)) || 0) : null;
-    if (!num(qa) || !num(qb) || qa === qb) {
-      const n = lvl(x, y + 1), s = lvl(x, y - 1), w = lvl(x - 1, y), e = lvl(x + 1, y);
-      const wrong = dir === 'ns' ? (num(n) && num(s) && n !== s) : (num(w) && num(e) && w !== e);
-      warn('error', x + 0.5, y + 0.5, wrong
-        ? `Cut line runs the wrong way: the level changes ${dir === 'ns' ? 'south to north (use a west–east line)' : 'west to east (use a north–south line)'}`
-        : 'Cut tile without two different levels on its two sides');
-      continue;
+    const q = cutQ.get(k);
+    const lvls = new Set(q.filter(num));
+    for (const a of arms) {
+      const [ex, ey] = ARM_END[a];
+      cutLines.push([x + 0.5, y + 0.5, x + ex, y + ey]);
+      const [qa, qb] = ARM_SEP[a].map(i => q[i]);
+      if (!num(qa) || !num(qb) || qa === qb) continue;
+      if (Math.abs(qa - qb) > MAX_STEP + 1e-9) warn('error', x + 0.5, y + 0.5, `Step of ${Math.abs(qa - qb)} m (more than ${MAX_STEP} m)`);
+      // stubs along the arm: bottom on the lower side, top on the higher side, both facing the arm
+      // (quarter order: n separates NW|NE = W|E sides; e separates NE|SE = N|S; s: SE|SW = E|W; w: SW|NW = S|N)
+      const sides = { n: ['W', 'E'], e: ['N', 'S'], s: ['E', 'W'], w: ['S', 'N'] }[a];
+      const mx = x + (0.5 + ex) / 2, my = y + (0.5 + ey) / 2, ax = (a === 'n' || a === 's') ? 'v' : 'h';
+      stubs.push({ x: mx, y: my, side: qa < qb ? sides[0] : sides[1], kind: 'bottom', ax, len: 0.3 });
+      stubs.push({ x: mx, y: my, side: qa < qb ? sides[1] : sides[0], kind: 'top', ax, len: 0.3 });
     }
-    if (Math.abs(qa - qb) > MAX_STEP + 1e-9) warn('error', x + 0.5, y + 0.5, `Step of ${Math.abs(qa - qb)} m (more than ${MAX_STEP} m)`);
-    // stubs in the cut tile: bottom on the lower side, top on the higher side, both facing the line
-    const lowFirst = qa < qb;   // first = west (ns) or south (we)
-    if (dir === 'ns') {
-      stubs.push({ x: x + 0.5, y: y + 0.5, side: lowFirst ? 'W' : 'E', kind: 'bottom', ax: 'v' });
-      stubs.push({ x: x + 0.5, y: y + 0.5, side: lowFirst ? 'E' : 'W', kind: 'top', ax: 'v' });
-    } else {
-      stubs.push({ x: x + 0.5, y: y + 0.5, side: lowFirst ? 'S' : 'N', kind: 'bottom', ax: 'h' });
-      stubs.push({ x: x + 0.5, y: y + 0.5, side: lowFirst ? 'N' : 'S', kind: 'top', ax: 'h' });
+    if (lvls.size < 2) {
+      const lvl = (xx, yy) => { const v = base(xx, yy, 0); return num(v) && !d.cuts.has(key(xx, yy)) ? v : null; };
+      const n = lvl(x, y + 1), s2 = lvl(x, y - 1), w = lvl(x - 1, y), e = lvl(x + 1, y);
+      const wrong = arms === 'ns' ? (num(n) && num(s2) && n !== s2) : arms === 'we' ? (num(w) && num(e) && w !== e) : false;
+      warn('error', x + 0.5, y + 0.5, wrong
+        ? `Cut line runs the wrong way: the level changes ${arms === 'ns' ? 'south to north (use a west–east line)' : 'west to east (use a north–south line)'}`
+        : 'Cut tile without two different levels around it');
     }
   }
 
@@ -208,7 +239,7 @@ export function analyse(d, tiles) {
     const highQ = sideQ(x + dx, y + dy, OPP[dir]);  // the tile behind
     const one = (q) => (num(q[0]) && q[0] === q[1]) ? q[0] : null;
     const lo = one(lowQ), hi = one(highQ);
-    const info = { x, y, dir, lo, hi, kind: null };
+    const info = { x, y, dir, lo, hi, kind: null, airlock: doors.has(k) };
     stairInfo.push(info);
     if (lo === null) { warn('error', x + 0.5, y + 0.5, `Stairs: the low side (${OPP[dir]}) isn't one level`); continue; }
     if (hi === null) { warn('error', x + 0.5, y + 0.5, `Stairs: the high side (${dir}) isn't one level`); continue; }
@@ -256,9 +287,24 @@ export function createLevels(env) {
     return tileSets.map.get(uid);
   };
 
+  // tiles with an airlock or other door on them (stairs there are "in an airlock")
+  const doorsOf = (uid) => {
+    const scene = env.getScene();
+    if (tileSets.scene !== scene) tileSets = { scene, map: new Map() };
+    const dk = 'doors|' + uid;
+    if (!tileSets.map.has(dk)) {
+      const s2 = new Set();
+      if (scene) for (const it of scene.items) {
+        if (it.kind !== 'ent' || String(it.grid) !== String(uid)) continue;
+        if (it.cat === 'doors' || (it.info && it.info.door != null)) s2.add(key(Math.floor(it.x), Math.floor(it.y)));
+      }
+      tileSets.map.set(dk, s2);
+    }
+    return tileSets.map.get(dk);
+  };
   function reanalyse() {
     analysis = new Map();
-    for (const [uid, d] of doc.grids) if (!d.empty) analysis.set(uid, analyse(d, tilesOf(uid)));
+    for (const [uid, d] of doc.grids) if (!d.empty) analysis.set(uid, analyse(d, tilesOf(uid), doorsOf(uid)));
   }
   function changed() {
     reanalyse();
@@ -303,24 +349,97 @@ export function createLevels(env) {
     const d = doc.g(h.uid), x0 = Math.floor(h.lx), y0 = Math.floor(h.ly), r = (ui.brush - 1) / 2;
     for (let y = y0 - r; y <= y0 + r; y++) for (let x = x0 - r; x <= x0 + r; x++) paintTile(d, x, y, ui.level);
   }
-  function cutAt(h, toggle) {
+  // ---- cuts: arms toward the previous and next tile of a drag; arms join neighbouring cut tiles and stairs
+  const ARMDIR = { n: [0, 1], s: [0, -1], w: [-1, 0], e: [1, 0] };
+  const OPPA = { n: 's', s: 'n', w: 'e', e: 'w' };
+  const setArms = (d, k, set) => d.cuts.set(k, canonArms([...set].join('')));
+  // arms for a tile on its own: toward neighbouring cut tiles and stairs, else a straight line across
+  // the level change
+  function autoArms(d, uid, x, y) {
+    if (ui.cutDir === 'ns' || ui.cutDir === 'we') return new Set(ui.cutDir);
+    const set = new Set();
+    for (const a of ['n', 's', 'w', 'e']) {
+      const [dx, dy] = ARMDIR[a], nk = key(x + dx, y + dy);
+      if (d.stairs.has(nk) || (d.cuts.has(nk) && d.cuts.get(nk).includes(OPPA[a]))) set.add(a);
+    }
+    if (set.size === 1) { const only = [...set][0]; set.add(OPPA[only]); }
+    if (set.size >= 2) return set;
+    const w = neighbourLevel(d, uid, x - 1, y), e = neighbourLevel(d, uid, x + 1, y);
+    const so = neighbourLevel(d, uid, x, y - 1), n = neighbourLevel(d, uid, x, y + 1);
+    if (w !== null && e !== null && w !== e) return new Set('ns');
+    if (so !== null && n !== null && so !== n) return new Set('we');
+    return new Set((so !== null && n !== null && (w === null || e === null)) ? 'we' : 'ns');
+  }
+  // a cut tile's arms that point at a cut tile without the matching arm: give it that arm (T or cross)
+  function joinNeighbours(d, k) {
+    const [x, y] = unkey(k);
+    for (const a of (d.cuts.get(k) || '')) {
+      const [dx, dy] = ARMDIR[a], nk = key(x + dx, y + dy);
+      if (d.cuts.has(nk) && !d.cuts.get(nk).includes(OPPA[a])) setArms(d, nk, new Set(d.cuts.get(nk) + OPPA[a]));
+    }
+  }
+  function cutStart(h) {
     const d = doc.g(h.uid), x = Math.floor(h.lx), y = Math.floor(h.ly), k = key(x, y);
     d.stairs.delete(k);
-    let dir = ui.cutDir;
-    if (toggle && d.cuts.has(k)) { d.cuts.set(k, d.cuts.get(k) === 'ns' ? 'we' : 'ns'); return d.cuts.get(k); }
-    if (dir === 'auto') {
-      if (drag && drag.cutDir) dir = drag.cutDir;
-      else {
-        const w = neighbourLevel(d, h.uid, x - 1, y), e = neighbourLevel(d, h.uid, x + 1, y);
-        const s = neighbourLevel(d, h.uid, x, y - 1), n = neighbourLevel(d, h.uid, x, y + 1);
-        if (w !== null && e !== null && w !== e) dir = 'ns';
-        else if (s !== null && n !== null && s !== n) dir = 'we';
-        else if (w !== null && e !== null && (s === null || n === null)) dir = 'ns';
-        else dir = (s !== null && n !== null) ? 'we' : 'ns';
-      }
+    const existed = d.cuts.has(k);
+    drag = { kind: 'cut', uid: h.uid, last: k, start: k, existed, moved: false, before: new Map(), prov: new Map(), h0: h };
+    drag.before.set(k, existed ? d.cuts.get(k) : null);
+    if (!existed) setArms(d, k, autoArms(d, h.uid, x, y));
+  }
+  function cutStep(toK) {
+    const d = doc.g(drag.uid), [px, py] = unkey(drag.last), [tx, ty] = unkey(toK);
+    const a = tx > px ? 'e' : tx < px ? 'w' : ty > py ? 'n' : 's';
+    drag.moved = true;
+    // the tile we leave: its arm toward the new tile; a straight guess made for it on the way in goes
+    const prevArms = armsOf(d.cuts.get(drag.last));
+    const before = drag.before.get(drag.last);
+    if (drag.last === drag.start && !drag.existed) { prevArms.clear(); }
+    else if (drag.prov.has(drag.last)) { const pa = drag.prov.get(drag.last); if (!(before && before.includes(pa))) prevArms.delete(pa); }
+    drag.prov.delete(drag.last);
+    if (before) for (const c of before) prevArms.add(c);
+    prevArms.add(a);
+    if (drag.last === drag.start && !drag.existed && prevArms.size < 2) prevArms.add(OPPA[a]);
+    setArms(d, drag.last, prevArms);
+    // the tile we enter: an arm back, and for now straight on
+    d.stairs.delete(toK);
+    if (!drag.before.has(toK)) drag.before.set(toK, d.cuts.has(toK) ? d.cuts.get(toK) : null);
+    const cur = armsOf(d.cuts.get(toK) || '');
+    cur.add(OPPA[a]);
+    if (!cur.has(a)) { cur.add(a); drag.prov.set(toK, a); }
+    setArms(d, toK, cur);
+    drag.last = toK;
+  }
+  function cutMove(h) {
+    const k = key(Math.floor(h.lx), Math.floor(h.ly));
+    if (k === drag.last) return false;
+    // walk there one tile at a time (four-way), so fast drags leave no gaps
+    let [x, y] = unkey(drag.last);
+    const [tx, ty] = unkey(k);
+    let guard = 0;
+    while ((x !== tx || y !== ty) && guard++ < 200) {
+      if (Math.abs(tx - x) >= Math.abs(ty - y)) x += Math.sign(tx - x); else y += Math.sign(ty - y);
+      cutStep(key(x, y));
     }
-    d.cuts.set(k, dir);
-    return dir;
+    return true;
+  }
+  function cutEnd() {
+    const d = doc.g(drag.uid);
+    if (!drag.moved && drag.existed) {
+      // a click on a cut tile: the arm on the side nearest the click goes on or off
+      const h = drag.h0, x = Math.floor(h.lx), y = Math.floor(h.ly), fx = h.lx - x, fy = h.ly - y;
+      const dist = { w: fx, e: 1 - fx, s: fy, n: 1 - fy };
+      const a = Object.keys(dist).reduce((p, q) => dist[p] <= dist[q] ? p : q);
+      const set = armsOf(d.cuts.get(drag.start));
+      if (set.has(a)) set.delete(a); else set.add(a);
+      if (set.size < 2) env.toast('A cut needs at least two arms. Alt+click removes the cut.', true);
+      else setArms(d, drag.start, set);
+    }
+    // a drag that ends on a cut tile joins it there (a T) rather than crossing straight on
+    if (drag.moved && drag.prov.has(drag.last) && drag.before.get(drag.last)) {
+      const set = armsOf(d.cuts.get(drag.last)); set.delete(drag.prov.get(drag.last));
+      if (set.size >= 2) setArms(d, drag.last, set);
+    }
+    for (const k of drag.before.keys()) joinNeighbours(d, k);
   }
   function edgeAt(h) {
     const d = doc.g(h.uid), x = Math.floor(h.lx), y = Math.floor(h.ly), fx = h.lx - x, fy = h.ly - y;
@@ -365,7 +484,7 @@ export function createLevels(env) {
       drag = { kind: 'paint', uid: h.uid }; paintAt(h);
     } else if (ui.mode === 'cut') {
       if (e.altKey) { doc.g(h.uid).cuts.delete(key(Math.floor(h.lx), Math.floor(h.ly))); drag = { kind: 'uncut', uid: h.uid }; }
-      else { drag = { kind: 'cut', uid: h.uid, last: key(Math.floor(h.lx), Math.floor(h.ly)) }; drag.cutDir = cutAt(h, true); }
+      else cutStart(h);
     } else if (ui.mode === 'edge') { edgeAt(h); drag = null; }
     else if (ui.mode === 'stairs') { stairsAt(h, e.altKey); drag = null; }
     else if (ui.mode === 'erase') { drag = { kind: 'erase', uid: h.uid }; eraseAt(h); }
@@ -378,7 +497,7 @@ export function createLevels(env) {
     if (!h || h.uid !== drag.uid) return;
     if (drag.kind === 'rect') { drag.b = [h.lx, h.ly]; env.redraw(); return; }
     if (drag.kind === 'paint') paintAt(h);
-    else if (drag.kind === 'cut') { const k = key(Math.floor(h.lx), Math.floor(h.ly)); if (k !== drag.last) { drag.last = k; cutAt(h, false); } }
+    else if (drag.kind === 'cut') { if (!cutMove(h)) return; }
     else if (drag.kind === 'uncut') doc.g(h.uid).cuts.delete(key(Math.floor(h.lx), Math.floor(h.ly)));
     else if (drag.kind === 'erase') eraseAt(h);
     changed();
@@ -396,6 +515,7 @@ export function createLevels(env) {
       changed();
       return;
     }
+    if (drag && drag.kind === 'cut') { cutEnd(); drag = null; changed(); return; }
     drag = null;
   }
   function leave() { hover = null; env.redraw(); }
@@ -430,11 +550,12 @@ export function createLevels(env) {
             if (d.cuts.has(k) || d.stairs.has(k) || v === 0) continue;
             const [x, y] = unkey(k); add(levelColor(v), x, y, 1, 1);
           }
-          if (an) for (const [k, dir] of d.cuts) {
+          if (an) for (const k of d.cuts.keys()) {
             const [x, y] = unkey(k);
-            const a = an.quarter(x, y, 0), b = dir === 'ns' ? an.quarter(x, y, 1) : an.quarter(x, y, 2);
-            if (typeof a === 'number' && a !== 0) dir === 'ns' ? add(levelColor(a), x, y, 0.5, 1) : add(levelColor(a), x, y, 1, 0.5);
-            if (typeof b === 'number' && b !== 0) dir === 'ns' ? add(levelColor(b), x + 0.5, y, 0.5, 1) : add(levelColor(b), x, y + 0.5, 1, 0.5);
+            [[0, 0], [0.5, 0], [0, 0.5], [0.5, 0.5]].forEach(([ox, oy], i) => {
+              const v = an.quarter(x, y, i);
+              if (typeof v === 'number' && v !== 0) add(levelColor(v), x + ox, y + oy, 0.5, 0.5);
+            });
           }
           g.globalAlpha = 0.38;
           for (const [c, p] of byColor) { g.fillStyle = c; g.fill(p); }
@@ -445,7 +566,7 @@ export function createLevels(env) {
           const [x, y] = unkey(k);
           const info = an && an.stairInfo.find(i => i.x === x && i.y === y);
           g.fillStyle = 'rgba(20,24,30,.55)'; g.fillRect(x + 0.04, y + 0.04, 0.92, 0.92);
-          g.strokeStyle = '#ffffff'; g.lineWidth = 1.5 / s;
+          g.strokeStyle = info && info.airlock ? '#5ad1ff' : '#ffffff'; g.lineWidth = (info && info.airlock ? 3 : 1.5) / s;
           g.strokeRect(x + 0.04, y + 0.04, 0.92, 0.92);
           g.save(); g.translate(x + 0.5, y + 0.5);
           g.rotate({ N: 0, E: -Math.PI / 2, S: Math.PI, W: Math.PI / 2 }[dir]);
@@ -453,7 +574,7 @@ export function createLevels(env) {
           g.fillStyle = info && info.kind ? '#ffffff' : '#ff5a5a'; g.fill();
           g.restore();
           if (s >= 18) {
-            const label = info && info.kind ? info.kind.label : '?';
+            const label = (info && info.kind ? info.kind.label : '?') + (info && info.airlock ? ' · airlock' : '');
             g.save(); g.translate(x + 0.5, y + 0.5); g.scale(1 / s, -1 / s);
             g.font = `bold ${Math.max(9, Math.min(13, s * 0.26))}px system-ui, sans-serif`;
             g.textAlign = 'center'; g.textBaseline = 'middle';
@@ -471,7 +592,7 @@ export function createLevels(env) {
           g.stroke();
           // stubs: bottom (low side) outlined, top (high side) filled, beside the line
           for (const st of an.stubs) {
-            const off = 0.14, len = 0.56, th = 0.09;
+            const off = 0.14, len = st.len || 0.56, th = 0.09;
             const sgn = (st.side === 'E' || st.side === 'N') ? 1 : -1;
             let rx, ry, rw, rh;
             if (st.ax === 'v') { rx = st.x + sgn * off - th / 2; ry = st.y - len / 2; rw = th; rh = len; }
@@ -602,7 +723,7 @@ export function createLevels(env) {
       <h4>Tool</h4>
       <div class="row gap wrap">
         ${modeBtn('paint', 'Paint level', 'Drag to paint tiles. Shift+drag paints a rectangle.')}
-        ${modeBtn('cut', 'Cut tile', 'Click a tile between two levels: the cut runs through its middle. Click again to turn the line. Drag to mark a row. Alt+click removes.')}
+        ${modeBtn('cut', 'Cut tile', 'Drag along the tiles the cut goes through: it bends around corners and joins other cuts (T, cross) and stairs. Click a cut tile near an edge to add or remove that arm. Alt+click removes.')}
         ${modeBtn('edge', 'Edge cut', 'Click next to a tile edge to cut exactly on that edge (or remove it).')}
         ${modeBtn('stairs', 'Stairs', 'Click a tile to make it stairs. Auto points them uphill; clicking again turns them. Alt+click removes.')}
         ${modeBtn('erase', 'Erase marks', 'Drag to remove cuts, edge cuts and stairs (levels stay; paint 0 to clear a level).')}
@@ -614,8 +735,8 @@ export function createLevels(env) {
         <label class="row">Brush ${[1, 3, 5].map(b => `<button class="btn small lvbrush${ui.brush === b ? ' on' : ''}" data-b="${b}">${b}×${b}</button>`).join('')}</label>
       </div>
       <button class="btn small" id="lvArea" ${area && area.tiles && area.tiles.size ? '' : 'disabled'}>Set ${fmt(ui.level)} on the Area selection${area && area.tiles && area.tiles.size ? ` (${area.tiles.size} tiles)` : ''}</button>
-      <h4>Cut line</h4>
-      <div class="row gap">${opt('cutDir', 'auto', 'Auto', ui.cutDir)}${opt('cutDir', 'ns', 'North–south', ui.cutDir)}${opt('cutDir', 'we', 'West–east', ui.cutDir)}</div>
+      <h4>New cut tile on a click</h4>
+      <div class="row gap">${opt('cutDir', 'auto', 'Auto (joins cuts and stairs)', ui.cutDir)}${opt('cutDir', 'ns', 'North–south', ui.cutDir)}${opt('cutDir', 'we', 'West–east', ui.cutDir)}</div>
       <h4>Stairs rise</h4>
       <div class="row gap">${opt('stairDir', 'auto', 'Auto', ui.stairDir)}${['N', 'E', 'S', 'W'].map(dd => opt('stairDir', dd, dd, ui.stairDir)).join('')}</div>
       <h4>Legend</h4>
@@ -625,12 +746,13 @@ export function createLevels(env) {
         <span><i class="stubb"></i>bottom stub (low side)</span>
         <span><i class="stubt"></i>top stub (high side)</span>
         <span><i class="errsw"></i>levels touching</span>
+        <span><i class="airsw"></i>stairs in an airlock</span>
       </div>
       <p class="hint">Stairs: <b>0.75</b> small stairs, <b>1.5</b> steep stairs, anything else a ladder. Unpainted tiles are level 0.</p>
       <h4>Warnings <span class="lvcount">${errors} error${errors === 1 ? '' : 's'}, ${checks} to check</span></h4>
       <div class="lvwarn">${all.length ? all.slice(0, 300).map((w, i) => `<button class="lvw ${w.kind}" data-i="${i}">${w.kind === 'check' ? 'Check: ' : ''}${esc(w.msg)} <small>(${Math.floor(w.x)}, ${Math.floor(w.y)})</small></button>`).join('') + (all.length > 300 ? `<p class="hint">…and ${all.length - 300} more</p>` : '') : '<p class="hint">None.</p>'}</div>
       <h4>File</h4>
-      <p class="hint">${painted} tiles painted, ${cuts} cut tiles, ${edges} edge cuts, ${stairs} stairs.</p>
+      <p class="hint">${painted} tiles painted, ${cuts} cut tiles, ${edges} edge cuts, ${stairs} stairs${(() => { let n = 0; for (const a of analysis.values()) n += a.stairInfo.filter(i => i.airlock).length; return n ? ` (${n} in an airlock)` : ''; })()}.</p>
       <div class="row gap wrap">
         <button class="btn primary small" id="lvSave">Save .levels.json</button>
         <button class="btn small" id="lvOpen">Open .levels.json</button>

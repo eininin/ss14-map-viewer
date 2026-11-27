@@ -491,6 +491,7 @@ label.dimmed { opacity: .45; }
 .lvlegend i.stubb { width: 4px; height: 12px; border: 1.5px solid #3fe0ff; }
 .lvlegend i.stubt { width: 4px; height: 12px; background: #ffd23f; }
 .lvlegend i.errsw { height: 0; border-top: 2px dashed #ff3b3b; }
+.lvlegend i.airsw { border: 3px solid #5ad1ff; background: rgba(20,24,30,.55); }
 .lvcount { text-transform: none; letter-spacing: 0; font-weight: 400; }
 .lvwarn { max-height: 260px; overflow: auto; display: flex; flex-direction: column; gap: 2px; }
 .lvw { text-align: left; background: #20252b; border: 1px solid #2c333b; border-left: 3px solid #ff3b3b; color: inherit; padding: 4px 8px; border-radius: 4px; font-size: 12px; cursor: pointer; }

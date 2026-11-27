@@ -44,10 +44,12 @@ cables, doors and everything placed on it.
 - **Levels** (tool `L`, *Levels* tab): heights for the Blender importer
   (`eininin/ss14-blender-importer`). Paint a level onto tiles (0, ±0.75, ±1.5,
   ±2.25, ±3 m; drag, **Shift+drag** for a rectangle, or set it on the Area
-  selection), mark **cut tiles** (the cut runs through the tile's middle, north–south
-  or west–east; each half takes the level of its side), **edge cuts** (exactly on a
-  tile edge) and **stairs** (the direction they rise; shown as 0.75 small stairs,
-  1.5 steep stairs or a ladder). The overlay shows the level colours, cut lines,
+  selection), mark **cut tiles** (drag along the tiles the cut runs through; it goes
+  through tile middles, bends around corners and joins other cuts as T or cross
+  shapes and ends at stairs; each part of a cut tile takes the level of its side;
+  click near an edge of a cut tile to add or remove that arm), **edge cuts** (exactly
+  on a tile edge) and **stairs** (the direction they rise; shown as 0.75 small
+  stairs, 1.5 steep stairs or a ladder, and marked when they sit in an airlock). The overlay shows the level colours, cut lines,
   the bottom and top stubs Blender adds at each cut, and stairs. A warning list
   (click to jump) flags levels touching without a cut, steps over 3 m, cut tiles
   without two different sides or with the line the wrong way, stairs whose sides
