@@ -508,3 +508,4 @@ label.dimmed { opacity: .45; }
 .lvlegend i.stubf { width: 4px; height: 12px; background: #3fe0ff; }
 .lvlegend i.stubr { width: 4px; height: 12px; border: 1.5px solid #ff9a3b; }
 .lvlegend i.unsw { border: 1px dashed #9aa3ad; }
+.lvlegend i.subsw { height: 0; border-top: 3px dashed #ff2bd6; }

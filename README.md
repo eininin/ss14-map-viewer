@@ -48,7 +48,8 @@ cables, doors and everything placed on it.
   **Shift+drag** for a rectangle, or set it on the Area selection). **Cut tiles**: pick the
   exact shape from the palette (straight, corner, T, cross), **R** turns it, click places
   it, drag places it on every tile you pass, **Alt+click** near an edge adds or removes
-  that arm; joining to neighbouring cuts and stairs is an option, off by default. With the
+  that arm; joining to neighbouring cuts and stairs is an option, off by default. Cuts come in two tiers: **main cuts** (solid lines) split rooms, **subcuts**
+  (dashed) only move tiles up or down inside one room. With the
   level brush, a click on a cut tile sets the level of that part by hand (solid; worked-out
   parts are faint and hatched); right-click or *Clear set part* puts it back. **Edge cuts**
   on tile edges, whole or half (a half edge cut meets a middle cut). **Stairs**: the direction they rise, an optional set bottom step, and
