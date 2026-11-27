@@ -41,6 +41,21 @@ cables, doors and everything placed on it.
 - **Pick a sprite** (pick tool, `V`): shows the object, every sprite layer, which
   pack it came from, and buttons to open its folder on GitHub, copy the path,
   copy the PNG, download the PNG or `meta.json`, and browse all states of the RSI.
+- **Levels** (tool `L`, *Levels* tab): heights for the Blender importer
+  (`eininin/ss14-blender-importer`). Paint a level onto tiles (0, ±0.75, ±1.5,
+  ±2.25, ±3 m; drag, **Shift+drag** for a rectangle, or set it on the Area
+  selection), mark **cut tiles** (the cut runs through the tile's middle, north–south
+  or west–east; each half takes the level of its side), **edge cuts** (exactly on a
+  tile edge) and **stairs** (the direction they rise; shown as 0.75 small stairs,
+  1.5 steep stairs or a ladder). The overlay shows the level colours, cut lines,
+  the bottom and top stubs Blender adds at each cut, and stairs. A warning list
+  (click to jump) flags levels touching without a cut, steps over 3 m, cut tiles
+  without two different sides or with the line the wrong way, stairs whose sides
+  don't fit, and levels touching only at a corner (to check). Saved as
+  `<mapname>.levels.json` next to the map (format `ss14-levels`, version 1, with the
+  map's SHA-1); the map file isn't changed. Open or drop it together with the map
+  to carry on; a file made for another version of the map still loads, with a
+  warning. Work in progress is also kept in the browser per map.
 - **Area selection** (pick tool): drag to select whole tiles, **Shift+drag**
   adds, **Alt+drag** or **Ctrl+drag** removes, **Esc** clears. The *Area* tab
   lists every object, floor tile and decal inside, with counts, counting only

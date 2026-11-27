@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/app.css?v=70">
+<link rel="stylesheet" href="css/app.css?v=71">
 </head>
 <body>
 <header id="top">
@@ -15,10 +15,10 @@
   <div class="mapname" id="mapName">No map loaded</div>
   <div class="topbtns">
     <button id="btnServer" class="btn server" title="Server: whose prototypes and sprites draw the map"><span class="dot"></span><span class="sv">Server</span></button>
-    <button id="btnOpenFile" class="btn primary" title="Open a .yml map file (or drop it on the page)">Open .yml</button>
+    <button id="btnOpenFile" class="btn primary" title="Open a .yml map file, with its .levels.json if you have one (or drop them on the page)">Open .yml</button>
     <button id="btnBrowse" class="btn" title="Browse every server's maps">Browse maps</button>
     <button id="btnGuess" class="btn" title="A view from a random spot: find it on the station">Station Guesser</button>
-    <input type="file" id="fileInput" accept=".yml,.yaml" hidden>
+    <input type="file" id="fileInput" accept=".yml,.yaml,.json" multiple hidden>
   </div>
 </header>
 
@@ -68,6 +68,7 @@
     <button data-tool="pen" class="tool" title="Draw lines (B)"><svg viewBox="0 0 24 24"><path d="M4 20l4-1L19 8l-3-3L5 16zM14 7l3 3"/></svg></button>
     <button data-tool="eraser" class="tool" title="Erase drawings (E)"><svg viewBox="0 0 24 24"><path d="M8 20h12M5 15l8-8 6 6-6 6H9z"/></svg></button>
     <button data-tool="text" class="tool" title="Add text (T)"><svg viewBox="0 0 24 24"><path d="M5 5h14M12 5v15M9 20h6"/></svg></button>
+    <button data-tool="levels" class="tool" title="Levels (L): paint heights, cuts and stairs for the Blender importer"><svg viewBox="0 0 24 24"><path d="M3 19h6v-5h6V9h6"/></svg></button>
     <div class="sep"></div>
     <div class="swatches" id="swatches"></div>
     <label class="custom" title="Custom colour"><input type="color" id="colorPick" value="#ffd23f"></label>
@@ -88,6 +89,7 @@
       <button data-tab="layers" class="tab">View</button>
       <button data-tab="map" class="tab">Map</button>
       <button data-tab="draw" class="tab">Drawings</button>
+      <button data-tab="levels" class="tab">Levels</button>
       <button data-tab="repo" class="tab">Repo</button>
       <button id="btnCollapse" class="collapse" title="Hide panel">›</button>
     </div>
@@ -173,6 +175,7 @@
         <div id="drawStats" class="hint"></div>
       </section>
 
+      <section data-pane="levels" class="pane" id="paneLevels"></section>
       <section data-pane="repo" class="pane" id="paneRepo">
         <div id="repoInfo" class="kv"></div>
         <h3>Write access</h3>
@@ -207,6 +210,6 @@
 </div>
 <div id="toast" class="toast" hidden></div>
 
-<script type="module" src="js/app.js?v=85"></script>
+<script type="module" src="js/app.js?v=86"></script>
 </body>
 </html>

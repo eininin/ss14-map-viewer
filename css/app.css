@@ -475,3 +475,25 @@ label.dimmed { opacity: .45; }
   .gpics canvas { width: 140px; height: 140px; }
   .landst b { font-size: 13px; }
 }
+
+/* Levels editor */
+#stage[data-tool="levels"] #overlayCanvas { cursor: crosshair; }
+#paneLevels h4 { margin: 12px 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted, #9aa3ad); display: flex; justify-content: space-between; }
+#paneLevels .btn.on { background: #2f6fb3; border-color: #4f8fd3; color: #fff; }
+#paneLevels .row { align-items: center; gap: 6px; margin: 4px 0; }
+.lvlevels { display: grid; grid-template-columns: repeat(9, 1fr); gap: 3px; margin-bottom: 6px; }
+.lvlv { padding: 6px 0; border-radius: 6px; border: 2px solid transparent; background: color-mix(in srgb, var(--c) 45%, #1b1f24); color: #fff; font-weight: 600; font-size: 12px; cursor: pointer; }
+.lvlv.on { border-color: #fff; background: var(--c); color: #111; }
+.lvlegend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; }
+.lvlegend span { display: inline-flex; align-items: center; gap: 5px; }
+.lvlegend i { width: 14px; height: 10px; border-radius: 2px; display: inline-block; }
+.lvlegend i.cutsw { height: 3px; background: #ff2bd6; }
+.lvlegend i.stubb { width: 4px; height: 12px; border: 1.5px solid #3fe0ff; }
+.lvlegend i.stubt { width: 4px; height: 12px; background: #ffd23f; }
+.lvlegend i.errsw { height: 0; border-top: 2px dashed #ff3b3b; }
+.lvcount { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.lvwarn { max-height: 260px; overflow: auto; display: flex; flex-direction: column; gap: 2px; }
+.lvw { text-align: left; background: #20252b; border: 1px solid #2c333b; border-left: 3px solid #ff3b3b; color: inherit; padding: 4px 8px; border-radius: 4px; font-size: 12px; cursor: pointer; }
+.lvw.check { border-left-color: #ffa53b; }
+.lvw small { color: #9aa3ad; }
+.lvnote { background: #4a3410; border: 1px solid #a8741f; padding: 6px 8px; border-radius: 6px; font-size: 12px; }

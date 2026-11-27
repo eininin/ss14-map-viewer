@@ -1,6 +1,7 @@
 import { Pack, SpriteStore, localPackFromFiles, texRel, DEV } from './packs.js';
 import { buildScene, SceneRenderer, PX, CHUNK, LAYER_KEYS, DEFAULT_OPTS } from './scene.js?v=75';
 import { Annotations } from './annot.js';
+import { createLevels } from './levels.js?v=1';
 import { GitHub } from './github.js';
 import { openImageViewer } from './imageviewer.js';
 import { Parallax } from './parallax.js';
@@ -46,6 +47,7 @@ const S = {
 S.renderer = new SceneRenderer(S.store);
 const parallax = new Parallax();
 const annots = new Annotations(() => { saveAnnotsLocal(); drawOverlay(); updateDrawStats(); });
+let levels = null;   // Levels editor (js/levels.js), made in setupUI
 let gh = null;
 
 const mapCanvas = $('#mapCanvas'), overlay = $('#overlayCanvas');
@@ -277,7 +279,9 @@ async function openText(text, source) {
   document.title = shown + ' – SS14 Map Viewer';
   loadAnnotsLocal();
   loadZones();
+  if (levels) levels.mapLoaded();
   await resolveAndRender(false, token);
+  if (levels && token === S.loadToken) levels.sceneReady();
   renderInspect();
 }
 
@@ -717,6 +721,7 @@ function drawOverlay(cursor) {
       }
     }
   }
+  if (levels) levels.draw(g);
   g.setTransform(DPR, 0, 0, DPR, 0, 0);
   annots.draw(g, cam);
   // eraser / pen cursor
@@ -738,6 +743,7 @@ function setTool(t) {
   S.tool = t;
   $('#stage').dataset.tool = t;
   $$('.tool[data-tool]').forEach(b => b.classList.toggle('active', b.dataset.tool === t));
+  if (t === 'levels') showTab('levels');
   drawOverlay();
 }
 
@@ -770,6 +776,7 @@ function setupInput() {
     else if (S.tool === 'pen') { annots.beginLine(wx, wy, S.color, penWidth()); drag = { kind: 'pen' }; drawOverlay(); }
     else if (S.tool === 'eraser') { annots.beginErase(); annots.erase(wx, wy, eraserRadiusPx() / S.cam.s); drag = { kind: 'erase' }; }
     else if (S.tool === 'text') { e.preventDefault(); startText(e.offsetX, e.offsetY, wx, wy); }
+    else if (S.tool === 'levels' && levels) { e.preventDefault(); levels.down(wx, wy, e); drag = { kind: 'levels' }; }
   });
   overlay.addEventListener('pointermove', (e) => {
     if (pointers.has(e.pointerId)) pointers.set(e.pointerId, [e.offsetX, e.offsetY]);
@@ -783,6 +790,7 @@ function setupInput() {
     }
     drawOverlay.lastCursor = [e.offsetX, e.offsetY];
     if (S.fov && S.fovOpts && S.fovOpts.hover) fovHoverAt(wx, wy);
+    if (S.tool === 'levels' && levels && (!drag || drag.kind === 'levels')) { levels.move(wx, wy); return; }
     if (!drag) { if (S.tool === 'eraser' || S.tool === 'pen') drawOverlay(); return; }
     if (drag.kind === 'pick') {
       if (Math.abs(e.offsetX - drag.x) + Math.abs(e.offsetY - drag.y) > 4) drag.moved = true;
@@ -815,12 +823,13 @@ function setupInput() {
     }
     if (drag.kind === 'pen') annots.endLine();
     if (drag.kind === 'erase') annots.endErase();
+    if (drag.kind === 'levels' && levels) levels.up();
     drag = null;
     $('#stage').classList.remove('dragging');
   };
   overlay.addEventListener('pointerup', end);
   overlay.addEventListener('pointercancel', end);
-  overlay.addEventListener('pointerleave', () => { drawOverlay.lastCursor = null; if (S.fovHover) fovHoverAt(null); drawOverlay(); });
+  overlay.addEventListener('pointerleave', () => { if (levels) levels.leave(); drawOverlay.lastCursor = null; if (S.fovHover) fovHoverAt(null); drawOverlay(); });
   overlay.addEventListener('contextmenu', (e) => e.preventDefault());
   overlay.addEventListener('wheel', (e) => {
     e.preventDefault();
@@ -834,8 +843,9 @@ function setupInput() {
   window.addEventListener('keydown', (e) => {
     if (e.target.matches('input, textarea')) return;
     const k = e.key.toLowerCase();
-    if ((e.ctrlKey || e.metaKey) && k === 'z') { e.preventDefault(); e.shiftKey ? annots.redo() : annots.undo(); return; }
-    if ((e.ctrlKey || e.metaKey) && k === 'y') { e.preventDefault(); annots.redo(); return; }
+    const lvUndo = S.tool === 'levels' && levels;
+    if ((e.ctrlKey || e.metaKey) && k === 'z') { e.preventDefault(); if (lvUndo) { e.shiftKey ? levels.redo() : levels.undo(); } else { e.shiftKey ? annots.redo() : annots.undo(); } return; }
+    if ((e.ctrlKey || e.metaKey) && k === 'y') { e.preventDefault(); if (lvUndo) levels.redo(); else annots.redo(); return; }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (k === ' ') { spaceDown = true; e.preventDefault(); return; }
     if (k === 'f') fitView();
@@ -844,6 +854,7 @@ function setupInput() {
     else if (k === 'b' || k === 'p') setTool('pen');
     else if (k === 'e') setTool('eraser');
     else if (k === 't') setTool('text');
+    else if (k === 'l') { setTool('levels'); showTab('levels'); }
     else if (k === 'g') { S.showGrid = !S.showGrid; renderToggles(); drawOverlay(); }
     else if (k === 'q' || k === '[') rotateView(Math.PI / 2);
     else if (k === 'r' || k === ']') rotateView(-Math.PI / 2);
@@ -890,11 +901,12 @@ function setupInput() {
   window.addEventListener('drop', (e) => {
     e.preventDefault();
     document.body.classList.remove('dragover');
-    const f = e.dataTransfer.files && e.dataTransfer.files[0];
-    if (f) {
-      if (/\.json$/i.test(f.name)) importAnnots(f);
-      else openFile(f);
-    }
+    const files = [...(e.dataTransfer.files || [])];
+    (async () => {
+      const yml = files.find(f => !/\.json$/i.test(f.name));
+      if (yml) await openFile(yml);
+      for (const f of files.filter(f => /\.json$/i.test(f.name))) await openJsonFile(f);
+    })();
   });
 }
 
@@ -1839,6 +1851,7 @@ function contentsBlock(target, res, fileTag, removable) {
 }
 
 function renderArea() {
+  if (levels) levels.renderPane();
   const pane = $('#paneArea');
   if (!pane) return;
   pane.innerHTML = '';
@@ -2257,6 +2270,21 @@ async function loadAnnotsLocal() {
   }
   updateDrawStats();
 }
+// a dropped .json: a levels file, or drawings
+async function openJsonFile(f) {
+  let j = null;
+  try { j = JSON.parse(await f.text()); } catch (e) { toast('Not a JSON file: ' + f.name, true); return; }
+  if (j && j.format === 'ss14-levels' && levels) { showTab('levels'); await levels.loadJson(j, f.name); return; }
+  importAnnots(f);
+}
+function jumpToTile(uid, x, y) {
+  const r = S.renderer, gr = r.grids && (r.grids.get(+uid) || r.grids.get(uid));
+  if (!gr) return;
+  const [wx, wy] = gridWorld(gr, x, y);
+  S.cam.x = wx; S.cam.y = wy;
+  if (S.cam.s < 40) S.cam.s = 48;
+  draw();
+}
 async function importAnnots(file) {
   try {
     const j = JSON.parse(await file.text());
@@ -2372,7 +2400,19 @@ function setupUI() {
   if (savedOpts) for (const k of Object.keys(DEFAULT_OPTS)) if (typeof savedOpts[k] === typeof DEFAULT_OPTS[k]) S.renderer.opts[k] = savedOpts[k];
   $('#stage').dataset.tool = S.tool;
   $('#btnOpenFile').onclick = () => $('#fileInput').click();
-  $('#fileInput').onchange = (e) => { const f = e.target.files[0]; if (f) openFile(f); e.target.value = ''; };
+  $('#fileInput').onchange = async (e) => {
+    const files = [...e.target.files]; e.target.value = '';
+    const yml = files.find(f => !/\.json$/i.test(f.name));
+    if (yml) await openFile(yml);
+    for (const f of files.filter(f => /\.json$/i.test(f.name))) await openJsonFile(f);
+  };
+  levels = createLevels({
+    pane: $('#paneLevels'), getScene: () => S.scene, getRenderer: () => S.renderer, getModel: () => S.model,
+    gridLocal, gridWorld, setGridXf, camScale: () => S.cam.s, redraw: () => drawOverlay(), jumpTo: jumpToTile,
+    toast, download, mapSource: () => S.mapSource, mapKey, getArea: () => S.area, setTool,
+    isActive: () => S.tool === 'levels', safeName, lsGet: (k) => LS.get(k, null), lsSet: (k, v) => LS.set(k, v),
+  });
+  levels.renderPane();
   $('#btnBrowse').onclick = () => { S.autoGuess = false; browseMaps(); };
   $('#btnGuess').onclick = () => startGuesser();
   setupUIRest();
@@ -2470,8 +2510,8 @@ function setupUIRest() {
   $('#btnCollapse').onclick = () => togglePanel(false);
   $('#btnExpand').onclick = () => togglePanel(true);
   $$('.tool[data-tool]').forEach(b => b.onclick = () => setTool(b.dataset.tool));
-  $('#btnUndo').onclick = () => annots.undo();
-  $('#btnRedo').onclick = () => annots.redo();
+  $('#btnUndo').onclick = () => (S.tool === 'levels' && levels) ? levels.undo() : annots.undo();
+  $('#btnRedo').onclick = () => (S.tool === 'levels' && levels) ? levels.redo() : annots.redo();
 
   const colors = ['#ffd23f', '#ff5c5c', '#4fc3d9', '#7bd88f', '#c792ea', '#ffffff', '#ff9f43', '#000000'];
   const sw = $('#swatches');
