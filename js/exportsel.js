@@ -1,7 +1,8 @@
 // Cut a selection out of a map .yml and write it as a new, loadable map file.
 // Keeps: the map + the selected grid entity, every entity on a selected tile (and whatever is
-// inside it), floor tiles, decals and tile atmospheres in the selection. Custom YAML tags
-// (`!type:...`) survive the round trip.
+// inside it), floor tiles, decals and tile atmospheres in the selection. The file is parsed only to
+// decide what to keep; the output is the original text with lines cut out, so everything kept stays
+// exactly as the game wrote it (layout, quoting, custom `!type:` tags).
 
 let yaml = null;
 async function lib() {
@@ -99,24 +100,17 @@ export async function exportSelection(opts) {
       if (keep.has(x.parent) && x.parent !== grid && !isMap(x.parent)) { keep.add(uid); grew = true; }
     }
   }
-  const out = [];
-  for (const g of groups) {
-    const ents = (g.entities || []).filter(e => keep.has(e.uid));
-    if (ents.length) out.push({ ...g, entities: ents });
-  }
-  doc.entities = out;
-
-  // ---- trim the grid entity's per-tile data
+  // ---- work out the new per-tile data of the grid entity (from the parsed copy)
   const gx = all.get(grid);
   let tileCount = 0, decalCount = 0;
+  const chunkTiles = new Map();         // chunk key -> new base64, or null to drop the chunk
+  let atmosCs = 4;
   if (gx) {
-    // floor tiles: everything outside the selection becomes space
     const mg = gx.c.MapGrid;
     if (mg && mg.chunks) {
       let spaceId = 0;
       for (const [k, v] of Object.entries(doc.tilemap || {})) if (plain(v) === 'Space') spaceId = +k;
       const cs = mg.chunkSize || 16;
-      const chunks = {};
       for (const [key, ch] of Object.entries(mg.chunks)) {
         const ind = vec(ch.ind || key);
         const bytes = b64dec(ch.tiles || '');
@@ -135,58 +129,155 @@ export async function exportSelection(opts) {
             if (bpt === 4) dv.setUint16(o, spaceId, true); else dv.setInt32(o, spaceId, true);
           } else if (id !== spaceId) { any = true; tileCount++; }
         }
-        if (any) chunks[key] = { ...ch, tiles: b64enc(bytes) };
+        chunkTiles.set(String(key), any ? b64enc(bytes) : null);
       }
-      mg.chunks = chunks;
     }
-    // decals: keep those whose tile is selected
-    const dg = gx.c.DecalGrid;
-    const nodes = dg && dg.chunkCollection && dg.chunkCollection.nodes;
-    if (Array.isArray(nodes)) {
-      const kept = [];
-      for (const nd of nodes) {
-        const decals = {};
-        if (opts.keepDecals) for (const [idx, p] of Object.entries(nd.decals || {})) {
-          const v = vec(p);
-          if (inArea(v[0] + 0.5, v[1] + 0.5)) { decals[idx] = p; decalCount++; }
-        }
-        if (Object.keys(decals).length) kept.push({ ...nd, decals });
-      }
-      dg.chunkCollection.nodes = kept;
-    }
-    // tile atmospheres: chunks of chunkSize x chunkSize tiles, one bit per tile per unique mix
     const ga = gx.c.GridAtmosphere;
-    const data = ga && ga.data;
-    if (data && data.tiles) {
-      const cs = +plain(data.chunkSize) || 4;
-      const tiles = {};
-      for (const [key, mixes] of Object.entries(data.tiles)) {
-        const o = vec(key);
-        const nm = {};
-        for (const [mix, flags] of Object.entries(mixes || {})) {
-          let f = Number(plain(flags)) >>> 0, nf = 0;
-          for (let x = 0; x < cs; x++) for (let yy = 0; yy < cs; yy++) {
-            const bit = 1 << (x + yy * cs);
-            if ((f & bit) && area.has((o[0] * cs + x) + ',' + (o[1] * cs + yy))) nf |= bit;
-          }
-          if (nf) nm[mix] = nf >>> 0;
-        }
-        if (Object.keys(nm).length) tiles[key] = nm;
-      }
-      data.tiles = tiles;
-    }
+    if (ga && ga.data && ga.data.chunkSize != null) atmosCs = +plain(ga.data.chunkSize) || 4;
   }
 
-  // ---- top-level lists and meta
-  const filt = (a) => Array.isArray(a) ? a.filter(u => keep.has(plain(u))) : a;
-  if (doc.maps) doc.maps = filt(doc.maps);
-  if (doc.grids) doc.grids = filt(doc.grids);
-  if (doc.orphans) doc.orphans = filt(doc.orphans);
-  if (doc.nullspace) doc.nullspace = filt(doc.nullspace);
-  if (doc.meta) {
-    doc.meta.entityCount = keep.size;
-    doc.meta.time = new Date().toLocaleString('en-GB').replace(',', '');
+  // ---- cut the text: everything kept stays exactly as it was written; only removed entities and the
+  // trimmed per-tile data of the grid entity change
+  const nl = opts.text.includes('\r\n') ? '\r\n' : '\n';
+  const L = opts.text.split(/\r?\n/);
+  const drop = new Uint8Array(L.length), repl = new Map();
+  const ind = (i) => L[i].length - L[i].trimStart().length;
+  const blank = (i) => { const t = L[i].trim(); return !t || t[0] === '#'; };
+  const isItem = (i) => L[i].trimStart().startsWith('- ') || L[i].trim() === '-';
+  // end of a list item starting at i: the next line at the same or a lower indent
+  const itemEnd = (i, end) => { const n = ind(i); let j = i + 1; while (j < end && (blank(j) || ind(j) > n)) j++; return j; };
+  // end of a key's block: lower indent, or the same indent that isn't one of its list items
+  const keyEnd = (i, end) => { const n = ind(i); let j = i + 1; while (j < end && (blank(j) || ind(j) > n || (ind(j) === n && isItem(j)))) j++; return j; };
+  const dropRange = (a, b) => { for (let i = a; i < b; i++) drop[i] = 1; };
+  const findLine = (re, a, b, indent) => { for (let i = a; i < b; i++) if (!blank(i) && (indent == null || ind(i) === indent) && re.test(L[i])) return i; return -1; };
+  const unq = (t) => t.replace(/^['"]|['"]$/g, '');
+  // the items (or keys) directly under the block at line k
+  const childStarts = (k, end, wantItems) => {
+    const out = []; let n = -1;
+    for (let j = k + 1; j < end; j++) {
+      if (blank(j)) continue;
+      if (n < 0) n = ind(j);
+      if (ind(j) < n) break;
+      if (ind(j) === n && (!wantItems || isItem(j))) out.push(j);
+    }
+    return out;
+  };
+  const topKey = (name) => findLine(new RegExp('^' + name + ':'), 0, L.length, 0);
+
+  // entities
+  const ek = topKey('entities');
+  if (ek >= 0) {
+    const eEnd = keyEnd(ek, L.length);
+    for (const g of childStarts(ek, eEnd, true)) {
+      const gEnd = itemEnd(g, eEnd);
+      const sub = findLine(/^\s*(- )?entities:\s*$/, g + 1, gEnd);
+      if (sub < 0) continue;
+      let kept = 0;
+      for (const u of childStarts(sub, gEnd, true)) {
+        const m = /uid:\s*(\d+)/.exec(L[u]);
+        const uEnd = itemEnd(u, gEnd);
+        if (m && keep.has(+m[1])) kept++; else dropRange(u, uEnd);
+      }
+      if (!kept) dropRange(g, gEnd);
+    }
+    // the grid entity's per-tile data
+    if (gx) {
+      let gu = -1;
+      for (let i = ek; i < eEnd; i++) { const m = /^\s*- uid:\s*(\d+)\s*$/.exec(L[i]); if (m && +m[1] === grid) { gu = i; break; } }
+      const guEnd = gu >= 0 ? itemEnd(gu, eEnd) : -1;
+      const comp = (type) => { const c = findLine(new RegExp('^\\s*- type: ' + type + '\\s*$'), gu, guEnd); return c < 0 ? null : [c, itemEnd(c, guEnd)]; };
+      // MapGrid chunks
+      const mgc = gu >= 0 && comp('MapGrid');
+      if (mgc) {
+        const ch = findLine(/^\s*chunks:\s*$/, mgc[0], mgc[1]);
+        if (ch >= 0) {
+          const chEnd = keyEnd(ch, mgc[1]);
+          for (const c of childStarts(ch, chEnd, false)) {
+            const cEnd = itemEnd(c, chEnd);
+            const key = unq(L[c].trim().replace(/:\s*$/, ''));
+            if (!chunkTiles.has(key)) continue;
+            const t = chunkTiles.get(key);
+            if (t == null) { dropRange(c, cEnd); continue; }
+            const tl = findLine(/^\s*tiles:/, c + 1, cEnd);
+            if (tl < 0) continue;
+            repl.set(tl, L[tl].slice(0, ind(tl)) + 'tiles: ' + t);
+            let j = tl + 1; while (j < cEnd && !blank(j) && ind(j) > ind(tl)) { drop[j] = 1; j++; }
+          }
+        }
+      }
+      // decals: rows "index: x,y" under each node; a node with none left goes
+      const dgc = gu >= 0 && comp('DecalGrid');
+      if (dgc) {
+        for (let n = dgc[0]; n < dgc[1]; n++) {
+          if (!/^\s*- node:\s*$/.test(L[n])) continue;
+          const nEnd = itemEnd(n, dgc[1]);
+          const dk = findLine(/^\s*decals:\s*$/, n + 1, nEnd);
+          let kept = 0;
+          if (dk >= 0) {
+            const dEnd = keyEnd(dk, nEnd);
+            for (let r = dk + 1; r < dEnd; r++) {
+              if (blank(r)) continue;
+              const m = /^\s*['"]?\d+['"]?:\s*['"]?(-?[\d.eE+-]+)\s*,\s*(-?[\d.eE+-]+)/.exec(L[r]);
+              if (m && opts.keepDecals && inArea(+m[1] + 0.5, +m[2] + 0.5)) { kept++; decalCount++; } else drop[r] = 1;
+            }
+          }
+          if (!kept) dropRange(n, nEnd);
+          n = nEnd - 1;
+        }
+      }
+      // tile atmospheres: one bit per tile per mix, chunks of chunkSize × chunkSize tiles
+      const gac = gu >= 0 && comp('GridAtmosphere');
+      if (gac) {
+        const dl = findLine(/^\s*data:\s*$/, gac[0], gac[1]);
+        const tk = dl >= 0 ? findLine(/^\s*tiles:\s*$/, dl + 1, gac[1]) : -1;
+        if (tk >= 0) {
+          const tEnd = keyEnd(tk, gac[1]), cs = atmosCs;
+          for (const c of childStarts(tk, tEnd, false)) {
+            const cEnd = itemEnd(c, tEnd);
+            const o = vec(unq(L[c].trim().replace(/:\s*$/, '')));
+            let kept = 0;
+            for (let r = c + 1; r < cEnd; r++) {
+              if (blank(r)) continue;
+              const m = /^(\s*)(['"]?\d+['"]?):\s*(\d+)\s*$/.exec(L[r]);
+              if (!m) { kept++; continue; }
+              const f = (+m[3]) >>> 0;
+              let nf = 0;
+              for (let x = 0; x < cs; x++) for (let yy = 0; yy < cs; yy++) {
+                const bit = 1 << (x + yy * cs);
+                if ((f & bit) && area.has((o[0] * cs + x) + ',' + (o[1] * cs + yy))) nf |= bit;
+              }
+              nf >>>= 0;
+              if (!nf) { drop[r] = 1; continue; }
+              kept++;
+              if (nf !== f) repl.set(r, m[1] + m[2] + ': ' + nf);
+            }
+            if (!kept) dropRange(c, cEnd);
+          }
+        }
+      }
+    }
   }
-  const text = y.dump(doc, { schema: sch, lineWidth: -1, noRefs: true, noCompatMode: true });
+  // top-level uid lists
+  for (const name of ['maps', 'grids', 'orphans', 'nullspace']) {
+    const k = topKey(name);
+    if (k < 0 || /\[\s*\]/.test(L[k])) continue;
+    const kEnd = keyEnd(k, L.length);
+    let kept = 0;
+    for (let i = k + 1; i < kEnd; i++) {
+      if (blank(i)) continue;
+      const m = /^\s*-\s*['"]?(\d+)['"]?\s*$/.exec(L[i]);
+      if (m && !keep.has(+m[1])) drop[i] = 1; else kept++;
+    }
+    if (!kept) repl.set(k, name + ': []');
+  }
+  // meta.entityCount
+  const mk = topKey('meta');
+  if (mk >= 0) {
+    const ec = findLine(/^\s*entityCount:/, mk + 1, keyEnd(mk, L.length));
+    if (ec >= 0) repl.set(ec, L[ec].slice(0, ind(ec)) + 'entityCount: ' + keep.size);
+  }
+  const outLines = [];
+  for (let i = 0; i < L.length; i++) if (!drop[i]) outLines.push(repl.has(i) ? repl.get(i) : L[i]);
+  const text = outLines.join(nl);
   return { text, entities: keep.size, tiles: tileCount, decals: decalCount };
 }

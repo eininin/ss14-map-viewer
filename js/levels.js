@@ -15,6 +15,7 @@
 
 import { tileEyes, seenFrom } from './roomvis.js?v=3';
 import { eyePolygon, blockerCorners, tileKey } from './fov-view.js?v=72';
+import { exportSelection } from './exportsel.js?v=2';
 
 export const LV_MIN = -4, LV_MAX = 4, MAX_STEP = 4, LEVEL_M = 0.75;
 export const LEVELS = [-4, -3, -2, -1, 0, 1, 2, 3, 4];
@@ -1251,6 +1252,11 @@ export function createLevels(env) {
       ui.visLock = ui.visLock && ui.visLock.uid === h.uid && ui.visLock.x === x && ui.visLock.y === y ? null : { uid: h.uid, x, y };
       renderPane(); env.redraw(); return;
     }
+    if (ui.mode === 'rooms' && e.shiftKey) {
+      const [x, y] = tileOf(h), id = roomsOf(h.uid).roomAt(key(x, y), quarterAt(h));
+      if (id != null) { toggleExportRoom(h.uid, id); renderPane(); env.redraw(); }
+      return;
+    }
     if (ui.mode === 'rooms' && ui.roomTool === 'select') { selectRoom(h); return; }
     doc.snapshot();
     if (ui.mode === 'rooms') { drag = { kind: 'space', uid: h.uid, remove: !!e.altKey }; spaceAt(h, drag.remove); changed(); return; }
@@ -1442,6 +1448,13 @@ export function createLevels(env) {
         }
         g.globalAlpha = 0.35; g.fillStyle = '#ffffff'; g.fill(p); g.globalAlpha = 1;
       }
+      const xs = exportSel.get(uid);
+      if (xs && xs.size) {
+        const p = new Path2D();
+        for (const [k, id] of rooms.tileRoom) if (xs.has(id)) { const [x, y] = unkey(k); p.rect(x, y, 1, 1); }
+        for (const [k, ids] of rooms.partRoom) { const [x, y] = unkey(k); ids.forEach((id, i) => { if (xs.has(id)) p.rect(x + (i & 1) * 0.5, y + (i >> 1) * 0.5, 0.5, 0.5); }); }
+        g.fillStyle = 'rgba(120,200,255,.35)'; g.fill(p);
+      }
       for (const r of rooms.list) {
         if (r.name) text(g, s, r.name + (r.noHull ? ' (no hull)' : ''), r.lx, r.ly, '#ffffff', 0.34);
         else if (r.noHull) text(g, s, '#' + r.id + ' (no hull)', r.lx, r.ly, 'rgba(255,255,255,.8)', 0.26);
@@ -1619,12 +1632,12 @@ export function createLevels(env) {
     const src = env.mapSource();
     return String((src && src.name) || 'map').split('/').pop().replace(/\.ya?ml$/i, '');
   }
-  async function save() {
+  async function buildFile(extraUids = []) {
     const src = env.mapSource();
-    if (!src) { env.toast('Open a map first', true); return; }
     reanalyse();
     const sha = mapSha1 || (mapSha1 = await sha1(src.text));
     const keep = new Set([...vis.keys()].filter(u => visState(u).v));
+    for (const u of extraUids) keep.add(String(u));
     for (const u of keep) doc.g(u);
     const file = doc.toFile(String(src.name || 'map.yml').split('/').pop(), sha, (uid) => roomsOf(uid), keep);
     let staleVis = 0;
@@ -1634,11 +1647,69 @@ export function createLevels(env) {
       const fv = visFor(uid);
       if (fv) Object.assign(file.grids[uid], fv);
     }
+    return { file, staleVis, sha };
+  }
+  async function save() {
+    const src = env.mapSource();
+    if (!src) { env.toast('Open a map first', true); return; }
+    const { file, staleVis } = await buildFile();
     const all = [...analysis.values()].flatMap(a => a.warnings);
     const errors = all.filter(w => w.kind === 'error').length, checks = all.length - errors;
     env.download(new Blob([JSON.stringify(file, null, 2) + '\n'], { type: 'application/json' }), env.safeName(mapBaseName()) + '.levels.json');
     env.toast((all.length ? `Saved with ${errors} error${errors === 1 ? '' : 's'} and ${checks} to check` : 'Saved, no warnings')
       + (staleVis ? '. Visibility left out: the rooms changed since it was baked' : ''), !!staleVis);
+  }
+  // ---- export chosen rooms: the map cut down to their tiles (.yml, original text with lines cut out) and
+  // the matching part of the levels file, with the full file's room ids, names and visibility
+  const exportSel = new Map();                 // uid -> Set(room ids)
+  function toggleExportRoom(uid, id) {
+    for (const u of [...exportSel.keys()]) if (u !== uid) exportSel.delete(u);   // one grid at a time
+    const set = exportSel.get(uid) || new Set();
+    if (set.has(id)) set.delete(id); else set.add(id);
+    if (set.size) exportSel.set(uid, set); else exportSel.delete(uid);
+  }
+  function subsetGrid(g, tiles) {
+    const out = {};
+    const inT = (k) => tiles.has(k);
+    for (const [name, v] of Object.entries(g)) {
+      if (['floor', 'roof', 'cuts', 'subcuts', 'stairs', 'cut_levels', 'stair_levels', 'rooms', 'room_parts'].includes(name)) {
+        const o = {}; for (const [k, val] of Object.entries(v)) if (inT(k)) o[k] = val; out[name] = o;
+      } else if (name === 'edges') {
+        out.edges = v.filter(e => { const nk = e.side === 'E' ? key(e.x + 1, e.y) : key(e.x, e.y + 1); return inT(key(e.x, e.y)) || inT(nk); });
+      } else if (name === 'room_space_tiles') {
+        out.room_space_tiles = v.filter(inT);
+      } else if (name === 'tile_visibility') {
+        const t = {}; for (const [k, i] of Object.entries(v.tiles || {})) if (inT(k)) t[k] = i;
+        out.tile_visibility = { sets: v.sets, tiles: t };
+      } else out[name] = v;                    // room_names, room_no_hull, visibility: exactly as in the full file
+    }
+    for (const name of ['subcuts', 'cut_levels', 'stair_levels', 'room_parts']) if (out[name] && !Object.keys(out[name]).length) delete out[name];
+    if (out.room_space_tiles && !out.room_space_tiles.length) delete out.room_space_tiles;
+    return out;
+  }
+  async function exportRooms() {
+    const src = env.mapSource();
+    const [uid, set] = [...exportSel][0] || [];
+    if (!src || !set || !set.size) { env.toast('Shift+click rooms on the map to choose them first', true); return; }
+    const R = roomsOf(uid), ids = [...set].filter(id => R.byId.has(id)).sort((a, b) => a - b);
+    const tiles = new Set();
+    for (const id of ids) for (const k of R.byId.get(id).tiles) tiles.add(k);
+    try {
+      env.toast(`Exporting ${ids.length} room${ids.length === 1 ? '' : 's'}…`);
+      const res = await exportSelection({ text: src.text, gridUid: +uid, tiles, keepTiles: true, keepDecals: true });
+      const { file, staleVis, sha } = await buildFile([uid]);
+      const part = { ...file, grids: {}, source: { map: String(src.name || 'map.yml').split('/').pop(), map_sha1: sha || '', rooms: ids } };
+      part.map = String(src.name || 'map.yml').split('/').pop().replace(/\.ya?ml$/i, '') + '-rooms.yml';
+      if (file.grids[uid]) part.grids[uid] = subsetGrid(file.grids[uid], tiles);
+      const names = ids.map(id => R.byId.get(id).name).filter(Boolean);
+      const base = env.safeName(mapBaseName() + '-' + (names.length === ids.length && names.length <= 3 ? names.join('-') : 'rooms-' + ids.join('-')).slice(0, 80));
+      // the chunk's own sha1, so the levels file matches it
+      part.map = base + '.yml';
+      part.map_sha1 = (await sha1(res.text)) || '';
+      env.download(new Blob([res.text], { type: 'text/yaml' }), base + '.yml');
+      setTimeout(() => env.download(new Blob([JSON.stringify(part, null, 2) + '\n'], { type: 'application/json' }), base + '.levels.json'), 400);
+      env.toast(`Exported ${ids.length} room${ids.length === 1 ? '' : 's'}: ${res.entities} entities, ${res.tiles} floor tiles, ${res.decals} decals` + (staleVis ? '. Visibility left out: it is stale' : ''), !!staleVis);
+    } catch (e) { env.toast('Export failed: ' + e.message, true); }
   }
   async function loadFile(f) {
     let j;
@@ -1676,7 +1747,7 @@ export function createLevels(env) {
 
   async function mapLoaded() {
     doc.grids = new Map(); doc.undoStack = []; doc.redoStack = [];
-    fileNote = ''; mapSha1 = null; ui.roomSel = null; roomCache.clear();
+    fileNote = ''; mapSha1 = null; ui.roomSel = null; roomCache.clear(); exportSel.clear();
     if (bake) { bake.workers.forEach(w => w.terminate()); bake = null; }
     loadVisLocal();
     const saved = env.lsGet('levels2.' + env.mapKey()) || env.lsGet('levels.' + env.mapKey());
@@ -1697,6 +1768,19 @@ export function createLevels(env) {
 
   // ---- the pane
   const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  function exportHtml(sr) {
+    const [uid, set] = [...exportSel][0] || [];
+    const R = uid != null ? roomsOf(uid) : null;
+    const ids = set ? [...set].filter(id => R.byId.has(id)).sort((a, b) => a - b) : [];
+    return `
+      <h4>Export rooms <span class="lvcount">${ids.length} chosen</span></h4>
+      <p class="hint"><b>Shift+click</b> rooms to choose them (blue). Exports the map with only their tiles (<b>.yml</b>, same coordinates and grid, the original text with the rest cut out) and the matching <b>.levels.json</b> with the same room ids, names and visibility, plus where it came from.</p>
+      ${ids.length ? `<div class="lvvislist">${ids.map(id => `<span class="lvvis"><i style="background:${roomColor(id)}"></i>#${id}${R.byId.get(id).name ? ' ' + esc(R.byId.get(id).name) : ''}</span>`).join('')}</div>` : ''}
+      <div class="row gap wrap">
+        <button class="btn small primary" id="lvExpRooms" ${ids.length ? '' : 'disabled'}>Export ${ids.length || ''} room${ids.length === 1 ? '' : 's'}</button>
+        <button class="btn small" id="lvExpClear" ${ids.length ? '' : 'disabled'}>Clear choice</button>
+      </div>`;
+  }
   function visHtml(sr) {
     const uids = gridUids().filter(u => roomsOf(u).list.length);
     let baked = 0, total = 0, stale = false;
@@ -1731,6 +1815,7 @@ export function createLevels(env) {
         <label class="row tglbtn"><input type="checkbox" id="lvNoHull" ${sr.room.noHull ? 'checked' : ''}> Not part of the hull</label></div>`
         : '<p class="hint">Click a room on the map to name it. Enter sets the name.</p>'}
       <p class="hint">Rooms are made only by your main cuts: everything inside a closed cut is that room, floor, walls, lattice and space alike. The rest of the station is one room; space outside it is Outside. Subcuts don’t split rooms. A name stays with the room when cuts change elsewhere.</p>
+      ${exportHtml(sr)}
       ${visHtml(sr)}
       ${named.length ? `<div class="lvrooms">${named.map(({ uid, r }) => `<button class="lvroom" data-g="${esc(uid)}" data-r="${r.id}"><i style="background:${roomColor(r.id)}"></i>${esc(r.name)} <small>#${r.id}, ${r.size}</small></button>`).join('')}</div>` : ''}`;
   }
@@ -1852,6 +1937,8 @@ export function createLevels(env) {
     }
     p.querySelectorAll('.lvrt').forEach(b => b.onclick = () => { ui.roomTool = b.dataset.t; renderPane(); env.redraw(); });
     const nh = p.querySelector('#lvNoHull'); if (nh) nh.onchange = (e) => setNoHull(e.target.checked);
+    const xr = p.querySelector('#lvExpRooms'); if (xr) xr.onclick = exportRooms;
+    const xc = p.querySelector('#lvExpClear'); if (xc) xc.onclick = () => { exportSel.clear(); renderPane(); env.redraw(); };
     const vck = p.querySelector('#lvVisCheck'); if (vck) vck.onchange = (e) => { ui.visCheck = e.target.checked; ui.visLock = null; renderPane(); env.redraw(); };
     if (ui.visCheck) renderVisList();
     const v1 = p.querySelector('#lvVisOne'); if (v1) v1.onclick = () => { const sr = selRoom(); if (sr) bakeRooms(ui.roomSel.uid, [sr.room.id]); };

@@ -1,11 +1,11 @@
 import { Pack, SpriteStore, localPackFromFiles, texRel, DEV } from './packs.js';
 import { buildScene, SceneRenderer, PX, CHUNK, LAYER_KEYS, DEFAULT_OPTS } from './scene.js?v=75';
 import { Annotations } from './annot.js';
-import { createLevels } from './levels.js?v=18';
+import { createLevels } from './levels.js?v=19';
 import { GitHub } from './github.js';
 import { openImageViewer } from './imageviewer.js';
 import { Parallax } from './parallax.js';
-import { exportSelection } from './exportsel.js';
+import { exportSelection } from './exportsel.js?v=2';
 import { browse, pickServer } from './browse.js';
 import { grow, tileKey } from './fov.js?v=78';
 import { viewPolygons, eyePolygon } from './fov-view.js?v=72';
