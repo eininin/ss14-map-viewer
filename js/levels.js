@@ -1647,6 +1647,25 @@ export function createLevels(env) {
       const fv = visFor(uid);
       if (fv) Object.assign(file.grids[uid], fv);
     }
+    // the worked-out levels (output only; the viewer works them out again when loading)
+    for (const uid of Object.keys(file.grids)) {
+      const d = doc.grids.get(uid), an = analysis.get(uid);
+      if (!d || !an) continue;
+      const quarters = {}, stairs = {};
+      const sortK = (a, b) => { const [ax, ay] = unkey(a), [bx, by] = unkey(b); return ay - by || ax - bx; };
+      for (const k of [...d.cuts.keys()].sort(sortK)) {
+        if (d.stairs.has(k) || an.roomOnly(k) || d.cuts.get(k).length < 2) continue;
+        const [x, y] = unkey(k), o = {};
+        let ok = true;
+        QNAMES.forEach((q, i) => { const v = an.quarter(x, y, i); if (v && typeof v === 'object') o[q] = [v.f, v.r]; else ok = false; });
+        if (ok) quarters[k] = o;
+      }
+      for (const info of [...an.stairInfo].sort((a, b) => a.y - b.y || a.x - b.x)) {
+        stairs[key(info.x, info.y)] = { bottom: info.lo, top: info.hi, kind: info.kind ? info.kind.label : null, airlock: !!info.airlock };
+      }
+      const errors = an.warnings.filter(w => w.kind === 'error').length;
+      file.grids[uid].resolved = { errors, quarters, stairs };
+    }
     return { file, staleVis, sha };
   }
   async function save() {
@@ -1678,6 +1697,11 @@ export function createLevels(env) {
         out.edges = v.filter(e => { const nk = e.side === 'E' ? key(e.x + 1, e.y) : key(e.x, e.y + 1); return inT(key(e.x, e.y)) || inT(nk); });
       } else if (name === 'room_space_tiles') {
         out.room_space_tiles = v.filter(inT);
+      } else if (name === 'resolved') {
+        const q = {}, st = {};
+        for (const [k, val] of Object.entries(v.quarters || {})) if (inT(k)) q[k] = val;
+        for (const [k, val] of Object.entries(v.stairs || {})) if (inT(k)) st[k] = val;
+        out.resolved = { errors: v.errors, quarters: q, stairs: st };
       } else if (name === 'tile_visibility') {
         const t = {}; for (const [k, i] of Object.entries(v.tiles || {})) if (inT(k)) t[k] = i;
         out.tile_visibility = { sets: v.sets, tiles: t };
