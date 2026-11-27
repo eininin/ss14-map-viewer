@@ -205,3 +205,9 @@ function simplify(p) {
   }
   return Float64Array.from(out);
 }
+
+// the corners sight lines can graze: outer corners of everything that blocks sight (for eyePolygon)
+export function blockerCorners(opaque) {
+  const isOpq = (x, y) => (opaque.has(K(x, y)) ? 1 : 0);
+  return turningCorners(isOpq, opaque).map(c => [c[0], c[1]]);
+}

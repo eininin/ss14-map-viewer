@@ -3,7 +3,8 @@
 // isn't a door block sight; doors count as open, windows and grilles don't block. Every tile of a room
 // that doesn't block sight is sampled with an N×N grid of eye points, inset slightly from the tile edges.
 // From each eye point, a permissive cast: a cell counts as seen if any ray from the point reaches any part
-// of it. Rays that leave the grid see Outside (room id 0), as do seen cells with no room.
+// of it. Rays that leave the grid see Outside (room id 0), as do seen cells with no room. Cells that block
+// sight stop the rays and don't count as seen.
 // Runs in a worker (roomvis-worker.js) or directly.
 
 // grid: { w, h, block: Uint8Array(w*h), owner: Int32Array(w*h) }  (cell = half a tile; owner 0 = outside)
@@ -60,7 +61,8 @@ function cone(grid, px, py, q, seen, cells) {
         if (!vis) continue;
         if (u < 0 || u >= uMax) { seen.add(0); continue; }
         const c = cell(u, v);
-        seen.add(owner[c]);
+        // walls stop sight: a wall's face doesn't count as seeing the room it belongs to
+        if (!block[c]) seen.add(owner[c]);
         if (cells) cells[c] = 1;
         if (block[c]) (blocks || (blocks = [])).push(s0, s1);
       }

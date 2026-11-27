@@ -13,7 +13,8 @@
 // in half anyway, so levels may differ across them. A tile that was never painted counts as 0; a tile
 // painted 0 is "assigned" and shown in the 0 colour.
 
-import { tileEyes, seenFrom } from './roomvis.js?v=2';
+import { tileEyes, seenFrom } from './roomvis.js?v=3';
+import { eyePolygon, blockerCorners, tileKey } from './fov-view.js?v=72';
 
 export const LV_MIN = -4, LV_MAX = 4, MAX_STEP = 4, LEVEL_M = 0.75;
 export const LEVELS = [-4, -3, -2, -1, 0, 1, 2, 3, 4];
@@ -1106,6 +1107,23 @@ export function createLevels(env) {
     liveCache = { k: ck, uid, x, y, seen, own, path, blocked: sightBlockTiles(uid).has(k) };
     return liveCache;
   }
+  // the view from one exact point (the cursor), with the viewer's field-of-view code: a polygon
+  let eyeCache = null;
+  function pointView(uid, px, py) {
+    const scene = env.getScene();
+    if (!eyeCache || eyeCache.uid !== uid || eyeCache.ver !== ver || eyeCache.scene !== scene) {
+      const opaque = new Set();
+      for (const k of sightBlockTiles(uid)) { const [x, y] = unkey(k); opaque.add(tileKey(x, y)); }
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const k of tilesOf(uid)) { const [x, y] = unkey(k); if (x < x0) x0 = x; if (y < y0) y0 = y; if (x > x1) x1 = x; if (y > y1) y1 = y; }
+      eyeCache = { uid, ver, scene, opaque, targets: blockerCorners(opaque), maxT: Math.hypot(x1 - x0, y1 - y0) + 4 };
+    }
+    if (eyeCache.opaque.has(tileKey(Math.floor(px), Math.floor(py)))) return null;
+    const poly = eyePolygon(eyeCache.opaque, eyeCache.targets, px, py, eyeCache.maxT);
+    const path = new Path2D();
+    if (poly.length >= 6) { path.moveTo(poly[0], poly[1]); for (let i = 2; i < poly.length; i += 2) path.lineTo(poly[i], poly[i + 1]); path.closePath(); }
+    return path;
+  }
   function tileList(uid, x, y) {
     const st = visState(uid), k = key(x, y);
     if (st.v && !st.stale && st.v.tiles.has(k)) return { set: st.v.tiles.get(k), baked: true };
@@ -1143,7 +1161,7 @@ export function createLevels(env) {
     for (const j of jobs) for (const [x, y, eyes] of j.tiles) units.push([j.room, x, y, eyes]);
     const K = Math.max(1, Math.min(8, (navigator.hardwareConcurrency || 2) - 1, units.length));
     const workers = [];
-    try { for (let i = 0; i < K; i++) workers.push(new Worker(new URL('./roomvis-worker.js?v=3', import.meta.url), { type: 'module' })); }
+    try { for (let i = 0; i < K; i++) workers.push(new Worker(new URL('./roomvis-worker.js?v=4', import.meta.url), { type: 'module' })); }
     catch (e) { workers.forEach(w => w.terminate()); env.toast('Could not start the visibility workers: ' + e.message, true); return; }
     const t0 = performance.now();
     bake = { workers, uid, fresh: null, rooms: jobs.length, total: units.length, done: 0, eyes: units.reduce((n, u) => n + u[3].length / 2, 0) };
@@ -1388,12 +1406,16 @@ export function createLevels(env) {
       // its eye points see is lit
       const vt = ui.visCheck ? (ui.visLock || (hover && hover.uid === uid ? hover : null)) : null;
       if (vt && vt.uid === uid) {
-        const list = tileList(uid, vt.x, vt.y), lv = liveView(uid, vt.x, vt.y);
+        const list = tileList(uid, vt.x, vt.y);
         const hide = new Path2D();
         for (const [k, id] of rooms.tileRoom) if (!list.set.has(id)) { const [x, y] = unkey(k); hide.rect(x, y, 1, 1); }
         for (const [k, ids] of rooms.partRoom) { const [x, y] = unkey(k); ids.forEach((id, i) => { if (id != null && !list.set.has(id)) hide.rect(x + (i & 1) * 0.5, y + (i >> 1) * 0.5, 0.5, 0.5); }); }
         g.fillStyle = 'rgba(0,0,0,.92)'; g.fill(hide);
-        g.fillStyle = 'rgba(255,214,90,.28)'; g.fill(lv.path);
+        // the lit view: from the cursor point itself (smooth); from the held tile's centre when one is held
+        const eye = ui.visLock ? [vt.x + 0.5, vt.y + 0.5] : [hover.lx, hover.ly];
+        const vp = pointView(uid, eye[0], eye[1]);
+        if (vp) { g.fillStyle = 'rgba(255,214,90,.3)'; g.fill(vp); }
+        g.beginPath(); g.arc(eye[0], eye[1], Math.max(3, s * 0.08) / s, 0, Math.PI * 2); g.fillStyle = '#ffd65a'; g.fill();
         g.strokeStyle = '#ffd65a'; g.lineWidth = 3 / s; g.strokeRect(vt.x, vt.y, 1, 1);
         g.restore();
         continue;
@@ -1686,7 +1708,7 @@ export function createLevels(env) {
     }
     return `
       <h4>Visibility <span class="lvcount">${stale ? 'stale' : `${baked} of ${total} baked`}</span></h4>
-      <p class="hint">What each room can see, for Unity: ${VIS_N}×${VIS_N} eye points on every tile that doesn’t block sight, almost to the tile corners. Walls and other occluders block; doors count as open; windows, grilles and space don’t block. Levels are ignored.</p>
+      <p class="hint">What each room can see, for Unity: ${VIS_N}×${VIS_N} eye points on every tile that doesn’t block sight, almost to the tile corners. Walls and other occluders stop sight (a wall’s face doesn’t count); doors count as open; windows, grilles and space don’t block. Levels are ignored.</p>
       ${stale ? '<p class="lvnote">The rooms or walls changed since visibility was baked. Bake again; stale visibility isn’t saved.</p>' : ''}
       ${bake ? `<div class="row gap"><span class="hint">Baking ${bake.rooms} room${bake.rooms === 1 ? '' : 's'}… ${bake.done} of ${bake.total} tiles (${bake.eyes.toLocaleString()} eye points)</span><button class="btn small" id="lvVisCancel">Cancel</button></div>`
         : `<div class="row gap wrap">
@@ -1694,7 +1716,7 @@ export function createLevels(env) {
         <button class="btn small" id="lvVisAll" ${total ? '' : 'disabled'}>Bake all ${total} rooms</button></div>`}
       ${selInfo}
       <label class="row tglbtn"><input type="checkbox" id="lvVisCheck" ${ui.visCheck ? 'checked' : ''}> Check what each tile sees</label>
-      ${ui.visCheck ? `<p class="hint">Point at a tile (click to hold it): rooms not in its list are hidden, the area its ${VIS_N}×${VIS_N} eye points see is lit yellow.</p><div id="lvVisList"></div>` : ''}`;
+      ${ui.visCheck ? `<p class="hint">Point at a tile (click to hold it): rooms not in its list are hidden, and the view from the cursor (or the held tile’s centre) is lit yellow, following the mouse.</p><div id="lvVisList"></div>` : ''}`;
   }
   function roomsHtml() {
     const sr = selRoom();

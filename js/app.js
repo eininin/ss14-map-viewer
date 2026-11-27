@@ -1,14 +1,14 @@
 import { Pack, SpriteStore, localPackFromFiles, texRel, DEV } from './packs.js';
 import { buildScene, SceneRenderer, PX, CHUNK, LAYER_KEYS, DEFAULT_OPTS } from './scene.js?v=75';
 import { Annotations } from './annot.js';
-import { createLevels } from './levels.js?v=17';
+import { createLevels } from './levels.js?v=18';
 import { GitHub } from './github.js';
 import { openImageViewer } from './imageviewer.js';
 import { Parallax } from './parallax.js';
 import { exportSelection } from './exportsel.js';
 import { browse, pickServer } from './browse.js';
 import { grow, tileKey } from './fov.js?v=78';
-import { viewPolygons, eyePolygon } from './fov-view.js?v=71';
+import { viewPolygons, eyePolygon } from './fov-view.js?v=72';
 import { initLighting, drawLighting } from './lighting.js?v=85';   // lighting add-on
 import { openGuesser } from './guess.js?v=78';
 
