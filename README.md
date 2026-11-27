@@ -54,8 +54,10 @@ cables, doors and everything placed on it.
   (solid; worked-out parts are faint and hatched), and a stroke that starts on a plain tile
   passes over cut tiles. Right-click or *Clear set part* puts a part back. **Auto cuts**:
   drag (or run it everywhere) to add edge cuts, or middle cuts through the higher tile,
-  wherever different floors touch with no cut yet. **Rooms**: the station is one room until
-  you cut rooms out of it with main cuts (walls and doors don't split rooms); name them, and
+  wherever different floors touch with no cut yet. **Dot cut**: click a tile centre, side or
+  corner to drop a dot that joins the cuts and dots next to it, to draw cuts point by point.
+  **Rooms**: the station is one room until you close off rooms with main cuts (everything
+  inside, floor, walls, lattice or space, is that room); name them, and
   bake **visibility** (which rooms each room and tile can see: 9×9 eye points per tile,
   doors open, windows see through) one room at a time or all at once. **Edge cuts**
   on tile edges, whole or half (a half edge cut meets a middle cut). **Stairs**: the direction they rise, an optional set bottom step, and
