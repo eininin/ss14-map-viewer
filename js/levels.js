@@ -314,7 +314,7 @@ export function analyse(d, tiles, bounds = new Map()) {
     for (const [k, regions] of regionsOf) {
       const [x, y] = unkey(k), q = cutQ.get(k), man = manual.get(k);
       for (const reg of regions) {
-        const count = new Map();
+        const count = new Map(), wallCount = new Map();
         for (const i of reg) for (const [dx, dy, j] of OUTER[i]) {
           let v = quarter(x + dx, y + dy, j);
           if (v === 'S') {
@@ -323,10 +323,11 @@ export function analyse(d, tiles, bounds = new Map()) {
             const e = stairEnds(sk), f = (-dx === sx && -dy === sy) ? e.hi : (dx === sx && dy === sy) ? e.lo : null;
             v = f == null ? null : { f, r: d.roof.get(sk) || 0 };
           }
-          if (isVal(v)) { const kk = v.f + '|' + v.r; count.set(kk, (count.get(kk) || 0) + 1); }
+          if (isVal(v)) { const kk = v.f + '|' + v.r, m2 = v.w ? wallCount : count; m2.set(kk, (m2.get(kk) || 0) + 1); }
         }
+        // floor tiles next to the part decide; walls, windows and doors only when there's no floor next to it
         let best = null, bn = 0;
-        for (const [v, n] of count) if (n > bn) { best = v; bn = n; }
+        for (const [v, n] of (count.size ? count : wallCount)) if (n > bn) { best = v; bn = n; }
         const auto = best ? best.split('|').map(Number) : null;
         const m = man[reg[0]];
         const f = m.floor !== false ? m.floor : auto ? auto[0] : null;
@@ -546,7 +547,7 @@ export function createLevels(env) {
   // env: { pane, getScene, getRenderer, gridLocal, gridWorld, setGridXf, camScale, redraw, jumpTo, toast,
   //        download, mapSource, mapKey, getArea, setTool, isActive, safeName, lsGet, lsSet }
   const doc = new LevelsDoc();
-  const ui = { mode: 'paint', layer: 'floor', level: 1, edgeLen: 'full', tier: 'main', shape: 'ns', autoJoin: false, stairDir: 'auto', brush: 1, show: true, onlyMarks: false, autoKind: 'edge', roomSel: null, levelMem: { floor: 1, roof: 0 }, roomTool: 'select' };
+  const ui = { mode: 'paint', layer: 'floor', level: 1, edgeLen: 'full', tier: 'main', shape: 'ns', autoJoin: false, stairDir: 'auto', brush: 1, show: true, onlyMarks: false, autoKind: 'edge', roomSel: null, levelMem: { floor: 1, roof: 0 }, roomTool: 'select', clearLv: false };
   let analysis = new Map();
   let cache = { scene: null, map: new Map() };
   let mapSha1 = null, fileNote = '';
@@ -658,17 +659,22 @@ export function createLevels(env) {
     }
     if (Object.keys(o).length) d.cutLevels.set(k, o); else d.cutLevels.delete(k);
   }
-  function paintTile(d, x, y, v) { (ui.layer === 'floor' ? d.floor : d.roof).set(key(x, y), v); }
+  // the chosen level, or none when "Clear" is picked (the tile goes back to unassigned)
+  const curLv = () => ui.clearLv ? null : ui.level;
+  const lvText = () => ui.clearLv ? 'clear' : fmt(ui.level);
+  const lvColor = () => ui.clearLv ? '#ffffff' : levelColor(ui.level);
+  function paintTile(d, x, y, v) { const m = ui.layer === 'floor' ? d.floor : d.roof, k = key(x, y); if (ui.clearLv || v == null) m.delete(k); else m.set(k, v); }
   // Cut tiles follow the floors next to them. Only a stroke that starts on a cut tile (or stairs) with the
   // 1×1 brush sets a part by hand (or the bottom step); a stroke that starts on a plain tile passes over them.
   function paintAt(h, onCut) {
     const d = doc.g(h.uid), [x0, y0] = tileOf(h), k0 = key(x0, y0);
     if (onCut) {
-      if (d.stairs.has(k0)) { if (ui.layer === 'floor') d.stairLevels.set(k0, ui.level); else d.roof.set(k0, ui.level); }
-      else if (d.cuts.has(k0) && !boundsOf(h.uid).has(k0) && (tilesOf(h.uid).has(k0) || d.floor.has(k0))) setRegion(d, k0, quarterAt(h), ui.layer, ui.level);
+      if (d.stairs.has(k0)) { const m = ui.layer === 'floor' ? d.stairLevels : d.roof; if (ui.clearLv) m.delete(k0); else m.set(k0, ui.level); }
+      else if (d.cuts.has(k0) && (tilesOf(h.uid).has(k0) || d.floor.has(k0))) setRegion(d, k0, quarterAt(h), ui.layer, curLv());
       return;
     }
     const r = (ui.brush - 1) / 2, bounds = boundsOf(h.uid);
+    if (ui.brush === 1 && d.cuts.has(k0) && bounds.has(k0) && !d.stairs.has(k0)) { setRegion(d, k0, quarterAt(h), ui.layer, curLv()); return; }
     for (let y = y0 - r; y <= y0 + r; y++) for (let x = x0 - r; x <= x0 + r; x++) {
       const k = key(x, y);
       if (d.cuts.has(k) || (d.stairs.has(k) && ui.layer === 'floor')) continue;
@@ -986,11 +992,20 @@ export function createLevels(env) {
     const count = new Map();
     for (const id of seen) { const k = id.slice(0, id.lastIndexOf('#')); count.set(k, (count.get(k) || 0) + 1); }
     let n = 0;
+    const bounds = boundsOf(h.uid);
     for (const [k, c] of count) {
-      if (c < 4 || d.cuts.has(k) || d.stairs.has(k)) continue;
-      d.floor.set(k, ui.level); n++;
+      if (d.stairs.has(k)) continue;
+      if (d.cuts.has(k)) {
+        // a cut through a wall: the parts the fill reached take the level (set by hand)
+        if (!bounds.has(k)) continue;
+        for (let qi = 0; qi < 4; qi++) if (seen.has(k + '#' + qi)) setRegion(d, k, qi, 'floor', curLv());
+        n++; continue;
+      }
+      if (c < 4) continue;
+      if (ui.clearLv) d.floor.delete(k); else d.floor.set(k, ui.level);
+      n++;
     }
-    env.toast(`Floor ${fmt(ui.level)} on ${n} tiles`);
+    env.toast(`Floor ${lvText()} on ${n} tiles`);
     return n > 0;
   }
   function nameRoom(name) {
@@ -1265,7 +1280,7 @@ export function createLevels(env) {
     let n = 0;
     for (const k of a.tiles) { if (d.cuts.has(k) || (d.stairs.has(k) && ui.layer === 'floor') || (ui.layer === 'roof' && bounds.has(k))) continue; const [x, y] = unkey(k); paintTile(d, x, y, ui.level); n++; }
     changed();
-    env.toast(`${ui.layer === 'floor' ? 'Floor' : 'Roof'} ${fmt(ui.level)} set on ${n} floor tiles`);
+    env.toast(`${ui.layer === 'floor' ? 'Floor' : 'Roof'} ${lvText()} set on ${n} floor tiles`);
   }
 
   function showHover() {
@@ -1369,12 +1384,15 @@ export function createLevels(env) {
         // the chosen layer's colours; cut parts solid when set by hand, faint and hatched when worked out
         const solid = new Map(), faint = new Map();
         const add = (m, c, x, y, w, h) => { if (!m.has(c)) m.set(c, new Path2D()); m.get(c).rect(x, y, w, h); };
+        const roofLayer = ui.layer === 'roof', wallsHere = boundsOf(uid);
         for (const [k, v] of (ui.layer === 'floor' ? d.floor : d.roof)) {
           if (d.cuts.has(k) || (d.stairs.has(k) && ui.layer === 'floor')) continue;
+          if (roofLayer && wallsHere.has(k)) continue;           // walls have no roof: nothing drawn there
           const [x, y] = unkey(k); add(solid, levelColor(v), x, y, 1, 1);
         }
         const hatchLines = new Path2D();
         if (an) for (const k of d.cuts.keys()) {
+          if (roofLayer && wallsHere.has(k)) continue;
           const [x, y] = unkey(k), man = an.manual.get(k);
           [[0, 0], [0.5, 0], [0, 0.5], [0.5, 0.5]].forEach(([ox, oy], i) => {
             const v = an.quarter(x, y, i);
@@ -1461,7 +1479,7 @@ export function createLevels(env) {
       g.save(); env.setGridXf(g, drag.gr);
       const x0 = Math.floor(Math.min(drag.a[0], drag.b[0])), x1 = Math.floor(Math.max(drag.a[0], drag.b[0])) + 1;
       const y0 = Math.floor(Math.min(drag.a[1], drag.b[1])), y1 = Math.floor(Math.max(drag.a[1], drag.b[1])) + 1;
-      g.fillStyle = levelColor(ui.level); g.globalAlpha = 0.25; g.fillRect(x0, y0, x1 - x0, y1 - y0); g.globalAlpha = 1;
+      g.fillStyle = lvColor(); g.globalAlpha = 0.25; g.fillRect(x0, y0, x1 - x0, y1 - y0); g.globalAlpha = 1;
       g.strokeStyle = '#fff'; g.lineWidth = 1.5 / s; g.strokeRect(x0, y0, x1 - x0, y1 - y0);
       g.restore();
     } else if (hover && env.isActive()) {
@@ -1482,7 +1500,7 @@ export function createLevels(env) {
         g.beginPath(); g.arc(X / 2, Y / 2, Math.max(4, s * 0.09) / s, 0, Math.PI * 2);
         g.fillStyle = altDown ? '#ffffff' : '#ff2bd6'; g.fill();
       } else if (ui.mode === 'fill') {
-        g.strokeStyle = levelColor(ui.level); g.lineWidth = 3 / s; g.strokeRect(x + 0.1, y + 0.1, 0.8, 0.8);
+        g.strokeStyle = lvColor(); g.lineWidth = 3 / s; g.strokeRect(x + 0.1, y + 0.1, 0.8, 0.8);
       } else if (ui.mode === 'rooms') {
         if (ui.roomTool === 'space') { const r = (ui.brush - 1) / 2; g.strokeStyle = '#9ad0ff'; g.setLineDash([4 / s, 3 / s]); g.strokeRect(x - r, y - r, 1 + 2 * r, 1 + 2 * r); g.setLineDash([]); }
       } else if (ui.mode === 'edge') {
@@ -1502,11 +1520,11 @@ export function createLevels(env) {
         g.strokeStyle = '#ff2bd6'; g.lineWidth = 1.5 / s; g.strokeRect(x, y, 1, 1);
       } else if (((ui.mode === 'paint' && ui.brush === 1) || ui.mode === 'clear') && d && d.cuts.has(k) && !d.stairs.has(k)) {
         const qi = (hover.ly - y >= 0.5 ? 2 : 0) + (hover.lx - x >= 0.5 ? 1 : 0);
-        g.strokeStyle = ui.mode === 'clear' ? '#ffffff' : levelColor(ui.level);
+        g.strokeStyle = ui.mode === 'clear' ? '#ffffff' : lvColor();
         for (const i of regionOf(d, k, qi)) g.strokeRect(x + (i & 1) * 0.5, y + (i >> 1) * 0.5, 0.5, 0.5);
       } else {
         const r = (ui.mode === 'paint' || ui.mode === 'auto') ? (ui.brush - 1) / 2 : 0;
-        g.strokeStyle = ui.mode === 'paint' ? levelColor(ui.level) : ui.mode === 'erase' ? '#ffffff' : '#ff2bd6';
+        g.strokeStyle = ui.mode === 'paint' ? lvColor() : ui.mode === 'erase' ? '#ffffff' : '#ff2bd6';
         if (ui.mode === 'auto') g.setLineDash([4 / s, 3 / s]);
         g.strokeRect(x - r, y - r, 1 + 2 * r, 1 + 2 * r);
       }
@@ -1685,11 +1703,11 @@ export function createLevels(env) {
       ${ui.mode === 'cut' || ui.mode === 'edge' || ui.mode === 'auto' || ui.mode === 'connect' ? `<h4>Cut tier</h4><div class="row gap">${opt('tier', 'main', 'Main cut (splits rooms)', ui.tier)}${opt('tier', 'sub', 'Subcut (height step inside a room)', ui.tier)}</div>` : ''}
       ${ui.mode === 'edge' ? `<h4>Edge cut length</h4><div class="row gap">${opt('edgeLen', 'full', 'Whole edge', ui.edgeLen)}${opt('edgeLen', 'half', 'Half edge (meets a middle cut)', ui.edgeLen)}</div>` : ''}
       <h4>${L} level</h4>
-      <div class="lvlevels">${LEVELS.map(v => `<button class="lvlv${ui.level === v ? ' on' : ''}" data-v="${v}" style="--c:${levelColor(v)}">${v === 0 ? '0' : fmt(v)}</button>`).join('')}</div>
+      <div class="lvlevels">${LEVELS.map(v => `<button class="lvlv${!ui.clearLv && ui.level === v ? ' on' : ''}" data-v="${v}" style="--c:${levelColor(v)}">${v === 0 ? '0' : fmt(v)}</button>`).join('')}<button class="lvlv${ui.clearLv ? ' on' : ''}" data-v="clear" style="--c:#ffffff" title="Clear: paint and fill take the level away (unassigned)">✕</button></div>
       <div class="row gap">
         <label class="row">Brush ${[1, 3, 5, 9].map(b => `<button class="btn small lvbrush${ui.brush === b ? ' on' : ''}" data-b="${b}">${b}×${b}</button>`).join('')}</label>
       </div>
-      <button class="btn small" id="lvArea" ${area && area.tiles && area.tiles.size ? '' : 'disabled'}>Set ${L.toLowerCase()} ${fmt(ui.level)} on the Area selection${area && area.tiles && area.tiles.size ? ` (${area.tiles.size} tiles)` : ''}</button>
+      <button class="btn small" id="lvArea" ${area && area.tiles && area.tiles.size ? '' : 'disabled'}>Set ${L.toLowerCase()} ${lvText()} on the Area selection${area && area.tiles && area.tiles.size ? ` (${area.tiles.size} tiles)` : ''}</button>
       <h4>Stairs rise</h4>
       <div class="row gap">${opt('stairDir', 'auto', 'Auto', ui.stairDir)}${['N', 'E', 'S', 'W'].map(dd => opt('stairDir', dd, dd, ui.stairDir)).join('')}</div>
       <p class="lvhover" id="lvHover"></p>
@@ -1728,7 +1746,7 @@ export function createLevels(env) {
     });
     p.querySelectorAll('.lvshape').forEach(b => b.onclick = () => { ui.shape = b.dataset.s; ui.mode = 'cut'; env.setTool('levels'); renderPane(); });
     const join = p.querySelector('#lvJoin'); if (join) join.onchange = (e) => { ui.autoJoin = e.target.checked; };
-    p.querySelectorAll('.lvlv').forEach(b => b.onclick = () => { ui.level = +b.dataset.v; if (ui.mode !== 'paint' && ui.mode !== 'fill' && ui.mode !== 'rooms') ui.mode = 'paint'; env.setTool('levels'); renderPane(); });
+    p.querySelectorAll('.lvlv').forEach(b => b.onclick = () => { if (b.dataset.v === 'clear') ui.clearLv = true; else { ui.clearLv = false; ui.level = +b.dataset.v; } if (ui.mode !== 'paint' && ui.mode !== 'fill' && ui.mode !== 'rooms') ui.mode = 'paint'; env.setTool('levels'); renderPane(); });
     p.querySelectorAll('.lvbrush').forEach(b => b.onclick = () => { ui.brush = +b.dataset.b; renderPane(); });
     p.querySelector('#lvArea').onclick = applyToArea;
     p.querySelectorAll('.lvw').forEach(b => b.onclick = () => { const w = all[+b.dataset.i]; env.jumpTo(w.uid, w.x, w.y); });
