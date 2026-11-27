@@ -83,8 +83,10 @@ class GridLevels {
     this.subCuts = new Set();       // cut tiles that are subcuts (visual height steps inside one room)
     this.subEdges = new Set();      // edge-cut halves that are subcuts
     this.roomNames = new Map();     // "x,y#q" (a quarter of a tile in the room) -> room name
+    this.spaceTiles = new Set();    // "x,y" tiles with no floor (space, lattice) added to rooms by hand
+    this.noHull = new Set();        // "x,y#q" anchors of rooms that aren't part of the hull
   }
-  get empty() { return !this.floor.size && !this.roof.size && !this.cuts.size && !this.edges.size && !this.stairs.size && !this.cutLevels.size && !this.stairLevels.size && !this.roomNames.size; }
+  get empty() { return !this.floor.size && !this.roof.size && !this.cuts.size && !this.edges.size && !this.stairs.size && !this.cutLevels.size && !this.stairLevels.size && !this.roomNames.size && !this.spaceTiles.size && !this.noHull.size; }
 }
 // an edge is stored once, as E or N of a tile
 function edgeKey(x, y, side) {
@@ -108,7 +110,7 @@ export class LevelsDoc {
     const out = {};
     for (const [uid, d] of this.grids) {
       if (d.empty) continue;
-      out[uid] = { floor: [...d.floor], roof: [...d.roof], cuts: [...d.cuts], edges: [...d.edges], stairs: [...d.stairs], cutLevels: [...d.cutLevels], stairLevels: [...d.stairLevels], subCuts: [...d.subCuts], subEdges: [...d.subEdges], roomNames: [...d.roomNames] };
+      out[uid] = { floor: [...d.floor], roof: [...d.roof], cuts: [...d.cuts], edges: [...d.edges], stairs: [...d.stairs], cutLevels: [...d.cutLevels], stairLevels: [...d.stairLevels], subCuts: [...d.subCuts], subEdges: [...d.subEdges], roomNames: [...d.roomNames], spaceTiles: [...d.spaceTiles], noHull: [...d.noHull] };
     }
     return { v: 2, grids: out };
   }
@@ -124,6 +126,7 @@ export class LevelsDoc {
       d.cutLevels = new Map(s.cutLevels || []); d.stairLevels = new Map(s.stairLevels || []);
       d.subCuts = new Set(s.subCuts || []); d.subEdges = new Set(s.subEdges || []);
       d.roomNames = new Map(s.roomNames || []);
+      d.spaceTiles = new Set(s.spaceTiles || []); d.noHull = new Set(s.noHull || []);
     }
   }
   snapshot() {
@@ -179,6 +182,10 @@ export class LevelsDoc {
         grids[uid].rooms = rooms;
         if (Object.keys(parts).length) grids[uid].room_parts = parts;
         if (Object.keys(names).length) grids[uid].room_names = names;
+        const noHull = R.list.filter(r => r.noHull).map(r => r.id);
+        if (noHull.length) grids[uid].room_no_hull = noHull;
+        const space = [...d.spaceTiles].filter(k => R.tileRoom.has(k) || R.partRoom.has(k));
+        if (space.length) grids[uid].room_space_tiles = sorted(space.map(k => [k])).map(a => a[0]);
       }
     }
     return { format: 'ss14-levels', version: 2, map: mapName, map_sha1: mapSha1 || '', level_m: LEVEL_M, grids };
@@ -226,6 +233,13 @@ export class LevelsDoc {
         }
         if (anchor) d.roomNames.set(anchor, String(name).trim());
       }
+      for (const k of (s.room_space_tiles || [])) d.spaceTiles.add(String(k));
+      for (const id of (s.room_no_hull || [])) {
+        let anchor = null;
+        for (const [k, v] of Object.entries(s.rooms || {})) if (String(v) === String(id)) { anchor = k + '#0'; break; }
+        if (!anchor) for (const [k, o] of Object.entries(s.room_parts || {})) { const qi = QNAMES.findIndex(q => o && String(o[q]) === String(id)); if (qi >= 0) { anchor = k + '#' + qi; break; } }
+        if (anchor) d.noHull.add(anchor);
+      }
     }
   }
 }
@@ -234,12 +248,14 @@ export class LevelsDoc {
 // tiles: Set "x,y" of tiles with a floor; bounds: Map "x,y" -> 'wall'|'window'|'door' (boundary tiles).
 export function analyse(d, tiles, bounds = new Map()) {
   const exists = (x, y) => { const k = key(x, y); return tiles.has(k) || d.floor.has(k) || d.cuts.has(k) || d.stairs.has(k); };
+  // a cut on a wall, window, door or over space only splits rooms: that tile has no level of its own
+  const roomOnly = (k) => d.cuts.has(k) && !d.stairs.has(k) && (bounds.has(k) || (!tiles.has(k) && !d.floor.has(k)));
   // a quarter's value: { f, r } (floor, roof relative to the floor), null (no tile, wall/window/door, unknown) or 'S' (stairs)
   const base = (x, y) => {
     const k = key(x, y);
     if (!exists(x, y)) return null;
     if (d.stairs.has(k)) return 'S';
-    if (bounds.has(k) && !d.cuts.has(k)) return null;
+    if (bounds.has(k) || roomOnly(k)) return null;
     return { f: d.floor.get(k) || 0, r: d.roof.get(k) || 0 };
   };
   const isVal = (v) => v && typeof v === 'object';
@@ -250,7 +266,7 @@ export function analyse(d, tiles, bounds = new Map()) {
   const OUTER = [[[0, -1, 2], [-1, 0, 1]], [[0, -1, 3], [1, 0, 0]], [[0, 1, 0], [-1, 0, 3]], [[0, 1, 1], [1, 0, 2]]];
   const regionsOf = new Map(), cutQ = new Map(), manual = new Map();
   for (const [k, arms] of d.cuts) {
-    if (d.stairs.has(k)) continue;                 // stairs cut through: still stairs, the cut only splits them
+    if (d.stairs.has(k) || roomOnly(k)) continue;  // stairs cut through: still stairs; walls and space: rooms only
     const A = armsOf(arms), parent = [0, 1, 2, 3];
     const find = (i) => parent[i] === i ? i : (parent[i] = find(parent[i]));
     for (const a of ['n', 'e', 's', 'w']) if (!A.has(a)) { const [p, q] = ARM_SEP[a]; parent[find(p)] = find(q); }
@@ -322,7 +338,7 @@ export function analyse(d, tiles, bounds = new Map()) {
     }
     if (!moved) break;
   }
-  for (const k of d.cutLevels.keys()) if (!d.cuts.has(k) || d.stairs.has(k)) { const [x, y] = unkey(k); warn('check', x + 0.5, y + 0.5, 'Hand-set cut levels on a tile that is no longer a plain cut tile (ignored; the eraser drops them)'); }
+  for (const k of d.cutLevels.keys()) if (!d.cuts.has(k) || d.stairs.has(k) || roomOnly(k)) { const [x, y] = unkey(k); warn('check', x + 0.5, y + 0.5, 'Hand-set cut levels on a tile that is no longer a plain cut tile (ignored; the eraser drops them)'); }
 
   // the tiles worth looking at: everything marked and its neighbours
   const marked = new Set([...d.floor.keys(), ...d.roof.keys(), ...d.cuts.keys(), ...d.stairs.keys()]);
@@ -366,7 +382,8 @@ export function analyse(d, tiles, bounds = new Map()) {
         tooBig(a, b, mx, my);
       }
       if (floorErr) { errEdges.add(ek); warn('error', mx, my, `Floor ${fmt(floorErr[0])} and ${fmt(floorErr[1])} touch with no cut between them`); }
-      if (anyCut && any && sameFloor) warn('check', mx, my, 'Edge cut between two tiles on the same floor level');
+      const subOnly = [0, 1].every(pi => !halves[pi] || d.subEdges.has(ek + '#' + pi));
+      if (anyCut && any && sameFloor && subOnly) warn('check', mx, my, 'Edge subcut between two tiles on the same floor level');
     }
   }
 
@@ -374,7 +391,7 @@ export function analyse(d, tiles, bounds = new Map()) {
   const ARM_END = { n: [0.5, 1], s: [0.5, 0], w: [0, 0.5], e: [1, 0.5] };
   for (const [k, arms] of d.cuts) {
     const [x, y] = unkey(k);
-    if (d.stairs.has(k)) { for (const a of arms) { const [ex, ey] = ARM_END[a]; cutLines.push([x + 0.5, y + 0.5, x + ex, y + ey, d.subCuts.has(k)]); } continue; }
+    if (d.stairs.has(k) || roomOnly(k)) { for (const a of arms) { const [ex, ey] = ARM_END[a]; cutLines.push([x + 0.5, y + 0.5, x + ex, y + ey, d.subCuts.has(k)]); } continue; }
     const q = cutQ.get(k);
     const floors = new Set(q.filter(isVal).map(v => v.f));
     for (const a of arms) {
@@ -387,14 +404,14 @@ export function analyse(d, tiles, bounds = new Map()) {
       stubPair(qa, qb, sides[0], sides[1], pos);
       tooBig(qa, qb, x + 0.5, y + 0.5);
     }
-    if (floors.size < 2) {
+    if (floors.size < 2 && d.subCuts.has(k)) {      // a main cut between equal floors just splits rooms
       const lvl = (xx, yy) => { const v = base(xx, yy); return isVal(v) && !d.cuts.has(key(xx, yy)) ? v.f : null; };
       const n = lvl(x, y + 1), s2 = lvl(x, y - 1), w = lvl(x - 1, y), e = lvl(x + 1, y);
       const num = (v) => typeof v === 'number';
       const wrong = arms === 'ns' ? (num(n) && num(s2) && n !== s2) : arms === 'we' ? (num(w) && num(e) && w !== e) : false;
       warn('error', x + 0.5, y + 0.5, wrong
-        ? `Cut line runs the wrong way: the floor changes ${arms === 'ns' ? 'south to north (use a west–east line)' : 'west to east (use a north–south line)'}`
-        : 'Cut tile without two different floor levels around it');
+        ? `Subcut line runs the wrong way: the floor changes ${arms === 'ns' ? 'south to north (use a west–east line)' : 'west to east (use a north–south line)'}`
+        : 'Subcut without two different floor levels around it (subcuts are only for height steps)');
     }
   }
 
@@ -437,7 +454,7 @@ export function analyse(d, tiles, bounds = new Map()) {
     else if (isVal(br) && isVal(tl) && br.f !== tl.f && open(bl) && open(tr)) warn('check', cx, cy, `Floor ${fmt(br.f)} and ${fmt(tl.f)} touch only at a corner`);
   }
 
-  return { quarter, warnings, stubs, cutLines, stairInfo, errEdges, manual, regionsOf };
+  return { quarter, warnings, stubs, cutLines, stairInfo, errEdges, manual, regionsOf, roomOnly };
 }
 
 // ---------------------------------------------------------------- rooms
@@ -448,6 +465,7 @@ export function analyse(d, tiles, bounds = new Map()) {
 export function findRooms(d, roomTiles) {
   const idx = new Map(), keys = [];
   for (const k of roomTiles) { idx.set(k, keys.length * 4); keys.push(k); }
+  for (const k of d.spaceTiles) if (!idx.has(k)) { idx.set(k, keys.length * 4); keys.push(k); }
   const parent = new Int32Array(keys.length * 4);
   for (let i = 0; i < parent.length; i++) parent[i] = i;
   const find = (i) => { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; };
@@ -496,6 +514,10 @@ export function findRooms(d, roomTiles) {
     if (id == null) { warnings.push({ kind: 'check', x: x + 0.5, y: y + 0.5, msg: `Room name “${name}” is on a tile that is no longer in a room (not saved; set it again)` }); continue; }
     byId.get(id).names.push(name);
   }
+  for (const anchor of d.noHull) {
+    const i = anchor.lastIndexOf('#'), id = roomAt(anchor.slice(0, i), +anchor.slice(i + 1) || 0);
+    if (id != null) byId.get(id).noHull = true;
+  }
   const seen = new Map();
   for (const r of list) {
     if (!r.names.length) continue;
@@ -512,7 +534,7 @@ export function createLevels(env) {
   // env: { pane, getScene, getRenderer, gridLocal, gridWorld, setGridXf, camScale, redraw, jumpTo, toast,
   //        download, mapSource, mapKey, getArea, setTool, isActive, safeName, lsGet, lsSet }
   const doc = new LevelsDoc();
-  const ui = { mode: 'paint', layer: 'floor', level: 1, edgeLen: 'full', tier: 'main', shape: 'ns', autoJoin: false, stairDir: 'auto', brush: 1, show: true, onlyMarks: false, autoKind: 'edge', roomSel: null, levelMem: { floor: 1, roof: 0 } };
+  const ui = { mode: 'paint', layer: 'floor', level: 1, edgeLen: 'full', tier: 'main', shape: 'ns', autoJoin: false, stairDir: 'auto', brush: 1, show: true, onlyMarks: false, autoKind: 'edge', roomSel: null, levelMem: { floor: 1, roof: 0 }, roomTool: 'select' };
   let analysis = new Map();
   let cache = { scene: null, map: new Map() };
   let mapSha1 = null, fileNote = '';
@@ -631,7 +653,7 @@ export function createLevels(env) {
     const d = doc.g(h.uid), [x0, y0] = tileOf(h), k0 = key(x0, y0);
     if (onCut) {
       if (d.stairs.has(k0)) { if (ui.layer === 'floor') d.stairLevels.set(k0, ui.level); else d.roof.set(k0, ui.level); }
-      else if (d.cuts.has(k0)) setRegion(d, k0, quarterAt(h), ui.layer, ui.level);
+      else if (d.cuts.has(k0) && !boundsOf(h.uid).has(k0) && (tilesOf(h.uid).has(k0) || d.floor.has(k0))) setRegion(d, k0, quarterAt(h), ui.layer, ui.level);
       return;
     }
     const r = (ui.brush - 1) / 2, bounds = boundsOf(h.uid);
@@ -710,6 +732,48 @@ export function createLevels(env) {
       else { d.edges.add(k); if (sub) d.subEdges.add(k); else d.subEdges.delete(k); }
     }
   }
+  // ---- connect tool: a click in the middle of a tile makes it a cut tile joined to the cuts around it;
+  // a click near an edge toggles that half edge cut
+  const ARM_TO = { n: [0, 1, 's', 'N'], s: [0, -1, 'n', 'S'], e: [1, 0, 'w', 'E'], w: [-1, 0, 'e', 'W'] };
+  const connectZone = (h) => { const [x, y] = tileOf(h), fx = h.lx - x, fy = h.ly - y; return Math.abs(fx - 0.5) < 0.25 && Math.abs(fy - 0.5) < 0.25 ? 'centre' : 'edge'; };
+  // the arms a cut tile here would get: towards neighbouring cut tiles (or cut-through stairs) and edges
+  // that are cut. With only one of those, the line runs straight on through the tile. With none, it starts
+  // at a wall, window or door next to it (and runs straight on, unless walls are on two sides).
+  const OPP_ARM = { n: 's', s: 'n', w: 'e', e: 'w' };
+  function connectArms(d, x, y, uid) {
+    const arms = [];
+    for (const a of ['n', 's', 'w', 'e']) {
+      const [dx, dy, , side] = ARM_TO[a], ek = edgeKey(x, y, side);
+      if (d.cuts.has(key(x + dx, y + dy)) || d.edges.has(ek + '#0') || d.edges.has(ek + '#1')) arms.push(a);
+    }
+    if (arms.length === 1) arms.push(OPP_ARM[arms[0]]);
+    if (!arms.length) {
+      const bounds = boundsOf(uid);
+      for (const a of ['n', 's', 'w', 'e']) { const [dx, dy] = ARM_TO[a]; if (bounds.has(key(x + dx, y + dy))) arms.push(a); }
+      if (arms.length === 1) arms.push(OPP_ARM[arms[0]]);
+    }
+    return arms;
+  }
+  function connectAt(h) {
+    const d = doc.g(h.uid), [x, y] = tileOf(h), k = key(x, y);
+    if (connectZone(h) === 'edge') {
+      const { ek, half } = edgeHalfAt(h), hk = ek + '#' + half, sub = ui.tier === 'sub';
+      if (d.edges.has(hk) && d.subEdges.has(hk) === sub) { d.edges.delete(hk); d.subEdges.delete(hk); }
+      else addEdgeHalf(d, hk);
+      return true;
+    }
+    const arms = connectArms(d, x, y, h.uid);
+    if (arms.length < 2) { env.toast('Nothing to connect to here: start next to a wall, a cut tile or an edge cut', true); return false; }
+    d.cuts.set(k, canonArms(arms.join('')));
+    if (ui.tier === 'sub') d.subCuts.add(k); else d.subCuts.delete(k);
+    // the neighbouring cut tiles get the arm back towards this one
+    for (const a of arms) {
+      const [dx, dy, back] = ARM_TO[a], nk = key(x + dx, y + dy);
+      if (d.cuts.has(nk)) d.cuts.set(nk, canonArms(d.cuts.get(nk) + back));
+    }
+    return true;
+  }
+
   // put a hand-set part back to worked out (current layer); on stairs, the bottom step
   function clearPart(h) {
     const d = doc.g(h.uid), [x, y] = tileOf(h), k = key(x, y);
@@ -820,6 +884,29 @@ export function createLevels(env) {
     const a = ui.roomSel.anchor, i = a.lastIndexOf('#'), R = roomsOf(ui.roomSel.uid), id = R.roomAt(a.slice(0, i), +a.slice(i + 1));
     return id == null ? null : { R, room: R.byId.get(id) };
   };
+  // space tiles in rooms: tiles with no floor that the user adds, so cuts can make rooms out in space
+  function spaceAt(h, remove) {
+    const d = doc.g(h.uid), real = roomTilesOf(h.uid);
+    for (const k of brushKeys(h)) {
+      if (remove) d.spaceTiles.delete(k);
+      else if (!real.has(k)) d.spaceTiles.add(k);
+    }
+  }
+  function setNoHull(on) {
+    const sr = selRoom();
+    if (!sr) return;
+    doc.snapshot();
+    const d = doc.g(ui.roomSel.uid);
+    for (const a of [...d.noHull]) { const i = a.lastIndexOf('#'); if (sr.R.roomAt(a.slice(0, i), +a.slice(i + 1)) === sr.room.id) d.noHull.delete(a); }
+    if (on) d.noHull.add(ui.roomSel.anchor);
+    changed();
+  }
+  // roofs belong to floors: anything painted on walls, windows and doors is dropped
+  function stripWallRoofs() {
+    let n = 0;
+    for (const [uid, d] of doc.grids) { const b = boundsOf(uid); for (const k of [...d.roof.keys()]) if (b.has(k)) { d.roof.delete(k); n++; } }
+    if (n) { changed(); env.toast(`Removed the roof from ${n} wall, window and door tile${n === 1 ? '' : 's'} (they have no roof of their own)`); }
+  }
   function nameRoom(name) {
     const sr = selRoom();
     if (!sr) return;
@@ -864,7 +951,8 @@ export function createLevels(env) {
     return (h >>> 0).toString(36) + ':' + str.length;
   }
   function visGrid(uid) {
-    const R = roomsOf(uid), all = tilesOf(uid), blocks = sightBlockTiles(uid);
+    const R = roomsOf(uid), blocks = sightBlockTiles(uid), dd = doc.grids.get(uid);
+    const all = new Set([...tilesOf(uid), ...(dd ? dd.spaceTiles : [])]);
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (const k of all) { const [x, y] = unkey(k); if (x < x0) x0 = x; if (y < y0) y0 = y; if (x > x1) x1 = x; if (y > y1) y1 = y; }
     x0 -= 1; y0 -= 1; x1 += 1; y1 += 1;
@@ -1000,8 +1088,9 @@ export function createLevels(env) {
   function down(wx, wy, e) {
     const h = gridAt(wx, wy);
     if (!h) return;
-    if (ui.mode === 'rooms') { selectRoom(h); return; }
+    if (ui.mode === 'rooms' && ui.roomTool === 'select') { selectRoom(h); return; }
     doc.snapshot();
+    if (ui.mode === 'rooms') { drag = { kind: 'space', uid: h.uid, remove: !!e.altKey }; spaceAt(h, drag.remove); changed(); return; }
     const d = doc.g(h.uid), [x, y] = tileOf(h);
     if (ui.mode === 'paint') {
       if (e.shiftKey) { drag = { kind: 'rect', uid: h.uid, gr: h.gr, a: [h.lx, h.ly], b: [h.lx, h.ly] }; env.redraw(); return; }
@@ -1012,6 +1101,7 @@ export function createLevels(env) {
       else { placeCut(d, x, y); drag = { kind: 'cut', uid: h.uid, last: key(x, y) }; }
     } else if (ui.mode === 'clear') { clearPart(h); drag = null; }
     else if (ui.mode === 'edge') { edgeAt(h); drag = null; }
+    else if (ui.mode === 'connect') { drag = null; if (!connectAt(h)) { doc.undoStack.pop(); return; } }
     else if (ui.mode === 'stairs') { stairsAt(h, e.altKey); drag = null; }
     else if (ui.mode === 'erase') { drag = { kind: 'erase', uid: h.uid }; eraseAt(h); }
     else if (ui.mode === 'auto') { drag = { kind: 'auto', uid: h.uid }; autoAt(h); }
@@ -1026,6 +1116,7 @@ export function createLevels(env) {
     if (drag.kind === 'rect') { drag.b = [h.lx, h.ly]; env.redraw(); return; }
     if (drag.kind === 'paint') paintAt(h, drag.onCut);
     else if (drag.kind === 'auto') autoAt(h);
+    else if (drag.kind === 'space') spaceAt(h, drag.remove);
     else if (drag.kind === 'cut') {
       // the chosen shape on every tile the drag passes over (four-way steps, no gaps), nothing else
       const d = doc.g(h.uid), k = key(Math.floor(h.lx), Math.floor(h.ly));
@@ -1089,6 +1180,8 @@ export function createLevels(env) {
     if (d && d.stairs.has(k)) {
       const info = an && an.stairInfo.find(i => i.x === hover.x && i.y === hover.y);
       t += `: stairs rising ${d.stairs.get(k)}` + (info ? `, bottom ${info.lo != null ? fmt(info.lo) : '?'}${info.set ? ' (set)' : ''}, top ${info.hi != null ? fmt(info.hi) : '?'}${info.kind ? ` (${info.kind.name})` : ''}${info.cut ? `, cut through (${info.cut})` : ''}` : '') + `, roof ${fmt(d.roof.get(k) || 0)}${d.roof.has(k) ? '' : ' (unassigned)'} above the bottom step`;
+    } else if (d && d.cuts.has(k) && an && an.roomOnly(k)) {
+      t += `: ${d.subCuts.has(k) ? 'subcut' : 'main cut'} ${d.cuts.get(k)} ${bk ? 'through a ' + bk : 'over space'} (splits rooms only, no level)`;
     } else if (d && d.cuts.has(k) && an) {
       const qi = (hover.ly - hover.y >= 0.5 ? 2 : 0) + (hover.lx - hover.x >= 0.5 ? 1 : 0);
       const v = an.quarter(hover.x, hover.y, qi), m = an.manual.get(k)[qi];
@@ -1155,7 +1248,8 @@ export function createLevels(env) {
         g.globalAlpha = 0.35; g.fillStyle = '#ffffff'; g.fill(p); g.globalAlpha = 1;
       }
       for (const r of rooms.list) {
-        if (r.name) text(g, s, r.name, r.lx, r.ly, '#ffffff', 0.34);
+        if (r.name) text(g, s, r.name + (r.noHull ? ' (no hull)' : ''), r.lx, r.ly, '#ffffff', 0.34);
+        else if (r.noHull) text(g, s, '#' + r.id + ' (no hull)', r.lx, r.ly, 'rgba(255,255,255,.8)', 0.26);
         else if (s >= 14 && r.size >= 2) text(g, s, '#' + r.id, r.lx, r.ly, 'rgba(255,255,255,.7)', 0.22);
       }
       g.restore();
@@ -1274,8 +1368,21 @@ export function createLevels(env) {
       g.lineWidth = 2 / s;
       const x = hover.x, y = hover.y, d = doc.grids.get(hover.uid), k = key(x, y);
       const END = { n: [0.5, 1], s: [0.5, 0], w: [0, 0.5], e: [1, 0.5] };
-      if (ui.mode === 'rooms') {
-        // nothing: the rooms are drawn
+      if (ui.mode === 'connect') {
+        if (connectZone(hover) === 'edge') {
+          const { ek, half, side } = edgeHalfAt(hover), p = ek.split(','), ex = +p[0], ey = +p[1], a = half * 0.5, b = a + 0.5;
+          g.strokeStyle = '#ff2bd6'; g.lineWidth = 3 / s; if (ui.tier === 'sub') g.setLineDash([5 / s, 4 / s]); g.beginPath();
+          if (side === 'E') { g.moveTo(ex + 1, ey + a); g.lineTo(ex + 1, ey + b); } else { g.moveTo(ex + a, ey + 1); g.lineTo(ex + b, ey + 1); }
+          g.stroke(); g.setLineDash([]);
+        } else {
+          const arms = connectArms(d || doc.g(hover.uid), x, y, hover.uid);
+          g.strokeStyle = arms.length >= 2 ? 'rgba(255,43,214,.75)' : 'rgba(255,90,90,.8)'; g.lineWidth = Math.max(2.5, s * 0.07) / s;
+          if (ui.tier === 'sub') g.setLineDash([Math.max(4, s * 0.12) / s, Math.max(3, s * 0.08) / s]);
+          g.beginPath(); for (const a of arms) { g.moveTo(x + 0.5, y + 0.5); g.lineTo(x + END[a][0], y + END[a][1]); } g.stroke(); g.setLineDash([]);
+          g.strokeStyle = '#ff2bd6'; g.lineWidth = 1.5 / s; g.strokeRect(x + 0.25, y + 0.25, 0.5, 0.5);
+        }
+      } else if (ui.mode === 'rooms') {
+        if (ui.roomTool === 'space') { const r = (ui.brush - 1) / 2; g.strokeStyle = '#9ad0ff'; g.setLineDash([4 / s, 3 / s]); g.strokeRect(x - r, y - r, 1 + 2 * r, 1 + 2 * r); g.setLineDash([]); }
       } else if (ui.mode === 'edge') {
         const { ek, half, side } = edgeHalfAt(hover), p = ek.split(','), ex = +p[0], ey = +p[1];
         const a = ui.edgeLen === 'half' ? half * 0.5 : 0, b = ui.edgeLen === 'half' ? a + 0.5 : 1;
@@ -1353,6 +1460,7 @@ export function createLevels(env) {
       vis.set(uid, v);
     }
     saveVis();
+    stripWallRoofs();
     const src = env.mapSource();
     const sha = mapSha1 || (mapSha1 = await sha1(src.text));
     fileNote = '';
@@ -1376,7 +1484,7 @@ export function createLevels(env) {
     reanalyse();
     renderPane();
   }
-  function sceneReady() { cache = { scene: null, map: new Map() }; roomCache.clear(); reanalyse(); renderPane(); env.redraw(); }
+  function sceneReady() { cache = { scene: null, map: new Map() }; roomCache.clear(); reanalyse(); renderPane(); env.redraw(); stripWallRoofs(); }
 
   // ---- the pane
   const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -1406,9 +1514,12 @@ export function createLevels(env) {
     named.sort((a, b) => a.r.name.localeCompare(b.r.name));
     return `
       <h4>Rooms <span class="lvcount">${total} rooms, ${named.length} named</span></h4>
+      <div class="row gap">${['select', 'space'].map(t => `<button class="btn small lvrt${ui.roomTool === t ? ' on' : ''}" data-t="${t}">${t === 'select' ? 'Select and name' : 'Add space to rooms'}</button>`).join('')}</div>
+      ${ui.roomTool === 'space' ? '<p class="hint">Drag with the brush over space or lattice to make it part of the rooms, so you can cut rooms out there. Alt+drag removes. The tiles are written to the file as <b>room_space_tiles</b>.</p>' : ''}
       ${sr ? `<div class="lvroomsel"><b>Room #${sr.room.id}</b> · ${sr.room.size} tiles
         <div class="row gap"><input id="lvRoomName" type="text" maxlength="60" placeholder="Name, e.g. Bridge" value="${esc(sr.room.name || '')}">
-        <button class="btn small primary" id="lvRoomSet">Set</button><button class="btn small" id="lvRoomClr" ${sr.room.name ? '' : 'disabled'}>Remove name</button></div></div>`
+        <button class="btn small primary" id="lvRoomSet">Set</button><button class="btn small" id="lvRoomClr" ${sr.room.name ? '' : 'disabled'}>Remove name</button></div>
+        <label class="row tglbtn"><input type="checkbox" id="lvNoHull" ${sr.room.noHull ? 'checked' : ''}> Not part of the hull</label></div>`
         : '<p class="hint">Click a room on the map to name it. Enter sets the name.</p>'}
       <p class="hint">Rooms are made only by your main cuts (subcuts don’t split them; walls and doors don’t either). Cut through the middle of a wall to split it between two rooms. A name stays with the room when cuts change elsewhere.</p>
       ${visHtml(sr)}
@@ -1443,6 +1554,7 @@ export function createLevels(env) {
         ${modeBtn('paint', 'Paint level', 'Drag to paint floor tiles in the chosen layer; Shift+drag paints a rectangle. With the 1×1 brush: on a cut tile it sets the part under the cursor by hand, on stairs it sets the bottom step (floor layer) or the stairs’ roof (roof layer). The roof layer starts at 0.')}
         ${modeBtn('cut', 'Cut tile', 'Click places the chosen shape exactly; drag places it on every tile you pass. R turns the shape. Alt+click near an edge of a cut tile adds or removes that arm.')}
         ${modeBtn('clear', 'Clear set part', 'Click a part of a cut tile to put it back to worked out (this layer), or stairs to unset the bottom step. Right-click does the same in any mode.')}
+        ${modeBtn('connect', 'Connect', 'Click the middle of a tile: it becomes a cut tile joined to the cuts around it (neighbouring cut tiles get the arm back). Click near an edge: a half edge cut there (click again to remove).')}
         ${modeBtn('edge', 'Edge cut', 'Click next to a tile edge to cut exactly on that edge, whole or half (click again to remove). A half edge cut meets a middle cut at the edge.')}
         ${modeBtn('stairs', 'Stairs', 'Click a tile to make it stairs. Auto points them uphill; clicking again turns them. Alt+click removes. To cut through stairs, place a cut tile on them.')}
         ${modeBtn('erase', 'Eraser', 'Drag to remove cut tiles, stairs and edge cuts, and to unassign the level in this layer.')}
@@ -1462,7 +1574,7 @@ export function createLevels(env) {
       <h4>Cut shape <span class="lvcount">R turns it</span></h4>
       <div class="lvshapes">${SHAPES.map(([grp, list]) => `<div class="lvsgrp"><small>${grp}</small><div>${list.map(sh => `<button class="lvshape${ui.shape === sh ? ' on' : ''}" data-s="${sh}" title="${sh}">${shapeSvg(sh)}</button>`).join('')}</div></div>`).join('')}</div>
       <label class="row tglbtn" title="When on, a placed cut tile also joins neighbouring cut tiles and stairs (never walls, windows, doors or plain tiles)"><input type="checkbox" id="lvJoin" ${ui.autoJoin ? 'checked' : ''}> Join to neighbouring cuts and stairs</label>` : ''}
-      ${ui.mode === 'cut' || ui.mode === 'edge' || ui.mode === 'auto' ? `<h4>Cut tier</h4><div class="row gap">${opt('tier', 'main', 'Main cut (splits rooms)', ui.tier)}${opt('tier', 'sub', 'Subcut (height step inside a room)', ui.tier)}</div>` : ''}
+      ${ui.mode === 'cut' || ui.mode === 'edge' || ui.mode === 'auto' || ui.mode === 'connect' ? `<h4>Cut tier</h4><div class="row gap">${opt('tier', 'main', 'Main cut (splits rooms)', ui.tier)}${opt('tier', 'sub', 'Subcut (height step inside a room)', ui.tier)}</div>` : ''}
       ${ui.mode === 'edge' ? `<h4>Edge cut length</h4><div class="row gap">${opt('edgeLen', 'full', 'Whole edge', ui.edgeLen)}${opt('edgeLen', 'half', 'Half edge (meets a middle cut)', ui.edgeLen)}</div>` : ''}
       <h4>${L} level</h4>
       <div class="lvlevels">${LEVELS.map(v => `<button class="lvlv${ui.level === v ? ' on' : ''}" data-v="${v}" style="--c:${levelColor(v)}">${v === 0 ? '0' : fmt(v)}</button>`).join('')}</div>
@@ -1527,6 +1639,8 @@ export function createLevels(env) {
       p.querySelector('#lvRoomSet').onclick = () => nameRoom(rn.value);
       p.querySelector('#lvRoomClr').onclick = () => nameRoom('');
     }
+    p.querySelectorAll('.lvrt').forEach(b => b.onclick = () => { ui.roomTool = b.dataset.t; renderPane(); env.redraw(); });
+    const nh = p.querySelector('#lvNoHull'); if (nh) nh.onchange = (e) => setNoHull(e.target.checked);
     const v1 = p.querySelector('#lvVisOne'); if (v1) v1.onclick = () => { const sr = selRoom(); if (sr) bakeRooms(ui.roomSel.uid, [sr.room.id]); };
     const va = p.querySelector('#lvVisAll'); if (va) va.onclick = () => { for (const u of gridUids()) { const R = roomsOf(u); if (R.list.length) { bakeRooms(u, R.list.map(r => r.id)); break; } } };
     const vc = p.querySelector('#lvVisCancel'); if (vc) vc.onclick = cancelBake;
