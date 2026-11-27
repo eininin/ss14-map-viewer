@@ -9,21 +9,22 @@
 // grid: { w, h, block: Uint8Array(w*h), owner: Int32Array(w*h) }  (cell = half a tile; owner 0 = outside)
 // eyes: Float64Array of x, y pairs in cell units
 // returns the set of room ids seen (0 = outside)
-export function seenFrom(grid, eyes, seen = new Set(), onEye) {
+export function seenFrom(grid, eyes, seen = new Set(), onEye, cells) {
   const { w, h, block, owner } = grid;
   for (let e = 0; e < eyes.length; e += 2) {
     const px = eyes[e], py = eyes[e + 1];
     const own = owner[Math.floor(py) * w + Math.floor(px)];
     if (own) seen.add(own);
+    if (cells) cells[Math.floor(py) * w + Math.floor(px)] = 1;
     const local = onEye ? new Set() : seen;
-    for (let q = 0; q < 4; q++) cone(grid, px, py, q, local);
+    for (let q = 0; q < 4; q++) cone(grid, px, py, q, local, cells);
     if (onEye) { for (const v of local) seen.add(v); onEye(e / 2, local); }
   }
   return seen;
 }
 
 // one 90° cone (q: 0 north, 1 east, 2 south, 3 west), rows outward from the eye
-function cone(grid, px, py, q, seen) {
+function cone(grid, px, py, q, seen, cells) {
   const { w, h, block, owner } = grid;
   // turn the cone to "north": v outward from the eye, u across. North: x = u, y = v; east: x = v, y = u;
   // south: x = u, y = h - v; west: x = w - v, y = u (continuous; cells mirror accordingly)
@@ -60,6 +61,7 @@ function cone(grid, px, py, q, seen) {
         if (u < 0 || u >= uMax) { seen.add(0); continue; }
         const c = cell(u, v);
         seen.add(owner[c]);
+        if (cells) cells[c] = 1;
         if (block[c]) (blocks || (blocks = [])).push(s0, s1);
       }
       if (uHi > lastU) lastU = uHi;

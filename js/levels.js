@@ -13,7 +13,7 @@
 // in half anyway, so levels may differ across them. A tile that was never painted counts as 0; a tile
 // painted 0 is "assigned" and shown in the 0 colour.
 
-import { tileEyes } from './roomvis.js?v=1';
+import { tileEyes, seenFrom } from './roomvis.js?v=2';
 
 export const LV_MIN = -4, LV_MAX = 4, MAX_STEP = 4, LEVEL_M = 0.75;
 export const LEVELS = [-4, -3, -2, -1, 0, 1, 2, 3, 4];
@@ -547,7 +547,7 @@ export function createLevels(env) {
   // env: { pane, getScene, getRenderer, gridLocal, gridWorld, setGridXf, camScale, redraw, jumpTo, toast,
   //        download, mapSource, mapKey, getArea, setTool, isActive, safeName, lsGet, lsSet }
   const doc = new LevelsDoc();
-  const ui = { mode: 'paint', layer: 'floor', level: 1, edgeLen: 'full', tier: 'main', shape: 'ns', autoJoin: false, stairDir: 'auto', brush: 1, show: true, onlyMarks: false, autoKind: 'edge', roomSel: null, levelMem: { floor: 1, roof: 0 }, roomTool: 'select', clearLv: false };
+  const ui = { mode: 'paint', layer: 'floor', level: 1, edgeLen: 'full', tier: 'main', shape: 'ns', autoJoin: false, stairDir: 'auto', brush: 1, show: true, onlyMarks: false, autoKind: 'edge', roomSel: null, levelMem: { floor: 1, roof: 0 }, roomTool: 'select', clearLv: false, visCheck: false, visLock: null };
   let analysis = new Map();
   let cache = { scene: null, map: new Map() };
   let mapSha1 = null, fileNote = '';
@@ -1085,6 +1085,45 @@ export function createLevels(env) {
     }
     return { room: room.id, tiles };
   }
+  // what one tile sees, worked out live from its 9×9 eye points (for checking): cells seen and rooms seen
+  let gridCache = null, liveCache = null;
+  function visGridCached(uid) {
+    const scene = env.getScene();
+    if (!gridCache || gridCache.uid !== uid || gridCache.ver !== ver || gridCache.scene !== scene) gridCache = { uid, ver, scene, ...visGrid(uid) };
+    return gridCache;
+  }
+  function liveView(uid, x, y) {
+    const ck = uid + '|' + x + '|' + y + '|' + ver;
+    if (liveCache && liveCache.k === ck) return liveCache;
+    const G = visGridCached(uid), R = roomsOf(uid), k = key(x, y);
+    const cells = new Uint8Array(G.grid.w * G.grid.h), seen = new Set();
+    if (!sightBlockTiles(uid).has(k)) seenFrom(G.grid, Float64Array.from(tileEyes(x - G.x0, y - G.y0, VIS_N, VIS_INSET, [])), seen, null, cells);
+    const own = new Set([0, 1, 2, 3].map(qi => R.roomAt(k, qi)).filter(v => v != null));
+    for (const o of own) seen.add(o);
+    // the seen cells as one path, in tile units
+    const path = new Path2D(), { w, h } = G.grid;
+    for (let cy = 0; cy < h; cy++) for (let cx = 0; cx < w; cx++) if (cells[cy * w + cx]) path.rect(G.x0 + cx / 2, G.y0 + cy / 2, 0.5, 0.5);
+    liveCache = { k: ck, uid, x, y, seen, own, path, blocked: sightBlockTiles(uid).has(k) };
+    return liveCache;
+  }
+  function tileList(uid, x, y) {
+    const st = visState(uid), k = key(x, y);
+    if (st.v && !st.stale && st.v.tiles.has(k)) return { set: st.v.tiles.get(k), baked: true };
+    return { set: liveView(uid, x, y).seen, baked: false };
+  }
+  function renderVisList() {
+    const el = env.pane && env.pane.querySelector('#lvVisList');
+    if (!el) return;
+    const vt = ui.visLock || hover;
+    if (!vt) { el.innerHTML = '<p class="hint">Point at a tile.</p>'; return; }
+    const R = roomsOf(vt.uid), list = tileList(vt.uid, vt.x, vt.y), lv = liveView(vt.uid, vt.x, vt.y);
+    const ids = [...list.set].sort((a, b) => (a === 0) - (b === 0) || a - b);
+    const nm = (id) => id === 0 ? 'Outside' : `#${id}${R.byId.get(id) && R.byId.get(id).name ? ' ' + esc(R.byId.get(id).name) : ''}`;
+    const differs = list.baked && (ids.length !== lv.seen.size || ids.some(i => !lv.seen.has(i)));
+    el.innerHTML = `<p class="hint"><b>Tile ${vt.x}, ${vt.y}</b>${ui.visLock ? ' (held; click it again to let go)' : ''}: ${list.baked ? 'baked list' : 'not baked, worked out live'}${lv.blocked ? ' · this tile blocks sight, it has no eye points' : ''}</p>
+      <div class="lvvislist">${ids.map(id => `<span class="lvvis"><i style="background:${id === 0 ? '#555' : roomColor(id)}"></i>${nm(id)}</span>`).join('') || '<span class="hint">nothing</span>'}</div>
+      ${differs ? '<p class="lvnote">The live view differs from the baked list; bake again.</p>' : ''}`;
+  }
   function visState(uid) {
     const v = vis.get(uid);
     if (!v || !v.rooms.size) return { v: null, stale: false };
@@ -1104,7 +1143,7 @@ export function createLevels(env) {
     for (const j of jobs) for (const [x, y, eyes] of j.tiles) units.push([j.room, x, y, eyes]);
     const K = Math.max(1, Math.min(8, (navigator.hardwareConcurrency || 2) - 1, units.length));
     const workers = [];
-    try { for (let i = 0; i < K; i++) workers.push(new Worker(new URL('./roomvis-worker.js?v=2', import.meta.url), { type: 'module' })); }
+    try { for (let i = 0; i < K; i++) workers.push(new Worker(new URL('./roomvis-worker.js?v=3', import.meta.url), { type: 'module' })); }
     catch (e) { workers.forEach(w => w.terminate()); env.toast('Could not start the visibility workers: ' + e.message, true); return; }
     const t0 = performance.now();
     bake = { workers, uid, fresh: null, rooms: jobs.length, total: units.length, done: 0, eyes: units.reduce((n, u) => n + u[3].length / 2, 0) };
@@ -1189,6 +1228,11 @@ export function createLevels(env) {
   function down(wx, wy, e) {
     const h = gridAt(wx, wy);
     if (!h) return;
+    if (ui.mode === 'rooms' && ui.visCheck) {
+      const [x, y] = tileOf(h);
+      ui.visLock = ui.visLock && ui.visLock.uid === h.uid && ui.visLock.x === x && ui.visLock.y === y ? null : { uid: h.uid, x, y };
+      renderPane(); env.redraw(); return;
+    }
     if (ui.mode === 'rooms' && ui.roomTool === 'select') { selectRoom(h); return; }
     doc.snapshot();
     if (ui.mode === 'rooms') { drag = { kind: 'space', uid: h.uid, remove: !!e.altKey }; spaceAt(h, drag.remove); changed(); return; }
@@ -1211,7 +1255,9 @@ export function createLevels(env) {
   }
   function move(wx, wy) {
     const h = gridAt(wx, wy);
+    const prev = hover;
     hover = h ? { uid: h.uid, gr: h.gr, x: Math.floor(h.lx), y: Math.floor(h.ly), lx: h.lx, ly: h.ly } : null;
+    if (ui.mode === 'rooms' && ui.visCheck && !ui.visLock && hover && (!prev || prev.x !== hover.x || prev.y !== hover.y)) renderVisList();
     showHover();
     if (!drag) { env.redraw(); return; }
     if (!h || h.uid !== drag.uid) return;
@@ -1338,6 +1384,20 @@ export function createLevels(env) {
       g.globalAlpha = 0.33;
       for (const [c, p] of paths) { g.fillStyle = c; g.fill(p); }
       g.globalAlpha = 1;
+      // checking: everything the tile under the cursor (or the clicked one) doesn't list is hidden, the area
+      // its eye points see is lit
+      const vt = ui.visCheck ? (ui.visLock || (hover && hover.uid === uid ? hover : null)) : null;
+      if (vt && vt.uid === uid) {
+        const list = tileList(uid, vt.x, vt.y), lv = liveView(uid, vt.x, vt.y);
+        const hide = new Path2D();
+        for (const [k, id] of rooms.tileRoom) if (!list.set.has(id)) { const [x, y] = unkey(k); hide.rect(x, y, 1, 1); }
+        for (const [k, ids] of rooms.partRoom) { const [x, y] = unkey(k); ids.forEach((id, i) => { if (id != null && !list.set.has(id)) hide.rect(x + (i & 1) * 0.5, y + (i >> 1) * 0.5, 0.5, 0.5); }); }
+        g.fillStyle = 'rgba(0,0,0,.92)'; g.fill(hide);
+        g.fillStyle = 'rgba(255,214,90,.28)'; g.fill(lv.path);
+        g.strokeStyle = '#ffd65a'; g.lineWidth = 3 / s; g.strokeRect(vt.x, vt.y, 1, 1);
+        g.restore();
+        continue;
+      }
       // visibility of the selected room: what it can't see is dimmed
       const srv = selRoom();
       const stv = srv && ui.roomSel.uid === uid ? visState(uid) : null;
@@ -1632,7 +1692,9 @@ export function createLevels(env) {
         : `<div class="row gap wrap">
         <button class="btn small" id="lvVisOne" ${sr ? '' : 'disabled'}>Bake ${sr ? 'room #' + sr.room.id : 'the selected room'}</button>
         <button class="btn small" id="lvVisAll" ${total ? '' : 'disabled'}>Bake all ${total} rooms</button></div>`}
-      ${selInfo}`;
+      ${selInfo}
+      <label class="row tglbtn"><input type="checkbox" id="lvVisCheck" ${ui.visCheck ? 'checked' : ''}> Check what each tile sees</label>
+      ${ui.visCheck ? `<p class="hint">Point at a tile (click to hold it): rooms not in its list are hidden, the area its ${VIS_N}×${VIS_N} eye points see is lit yellow.</p><div id="lvVisList"></div>` : ''}`;
   }
   function roomsHtml() {
     const sr = selRoom();
@@ -1768,6 +1830,8 @@ export function createLevels(env) {
     }
     p.querySelectorAll('.lvrt').forEach(b => b.onclick = () => { ui.roomTool = b.dataset.t; renderPane(); env.redraw(); });
     const nh = p.querySelector('#lvNoHull'); if (nh) nh.onchange = (e) => setNoHull(e.target.checked);
+    const vck = p.querySelector('#lvVisCheck'); if (vck) vck.onchange = (e) => { ui.visCheck = e.target.checked; ui.visLock = null; renderPane(); env.redraw(); };
+    if (ui.visCheck) renderVisList();
     const v1 = p.querySelector('#lvVisOne'); if (v1) v1.onclick = () => { const sr = selRoom(); if (sr) bakeRooms(ui.roomSel.uid, [sr.room.id]); };
     const va = p.querySelector('#lvVisAll'); if (va) va.onclick = () => { for (const u of gridUids()) { const R = roomsOf(u); if (R.list.length) { bakeRooms(u, R.list.map(r => r.id)); break; } } };
     const vc = p.querySelector('#lvVisCancel'); if (vc) vc.onclick = cancelBake;
