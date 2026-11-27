@@ -49,9 +49,13 @@ cables, doors and everything placed on it.
   exact shape from the palette (straight, corner, T, cross), **R** turns it, click places
   it, drag places it on every tile you pass, **Alt+click** near an edge adds or removes
   that arm; joining to neighbouring cuts and stairs is an option, off by default. Cuts come in two tiers: **main cuts** (solid lines) split rooms, **subcuts**
-  (dashed) only move tiles up or down inside one room. With the
-  level brush, a click on a cut tile sets the level of that part by hand (solid; worked-out
-  parts are faint and hatched); right-click or *Clear set part* puts it back. **Edge cuts**
+  (dashed) only move tiles up or down inside one room. Cut parts follow the
+  floors next to them; only a 1×1 brush stroke that starts on a cut tile sets a part by hand
+  (solid; worked-out parts are faint and hatched), and a stroke that starts on a plain tile
+  passes over cut tiles. Right-click or *Clear set part* puts a part back. **Auto cuts**:
+  drag (or run it everywhere) to add edge cuts, or middle cuts through the higher tile,
+  wherever different floors touch with no cut yet. **Rooms**: shows the rooms the importer
+  will make (walls, windows, doors and main cuts split them) and lets you name them. **Edge cuts**
   on tile edges, whole or half (a half edge cut meets a middle cut). **Stairs**: the direction they rise, an optional set bottom step, and
   they can be cut through by putting a cut tile on them; shown as small, steep or ladder,
   marked when in an airlock. Walls, windows and doors are found as the importer does and
