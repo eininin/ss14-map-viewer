@@ -498,6 +498,12 @@ label.dimmed { opacity: .45; }
 .lvw.check { border-left-color: #ffa53b; }
 .lvw small { color: #9aa3ad; }
 .lvnote { background: #4a3410; border: 1px solid #a8741f; padding: 6px 8px; border-radius: 6px; font-size: 12px; }
+.lvroomsel { background: #20252b; border: 1px solid #2c333b; border-radius: 6px; padding: 6px 8px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+.lvroomsel input { flex: 1; min-width: 0; }
+.lvrooms { max-height: 220px; overflow: auto; display: flex; flex-direction: column; gap: 2px; }
+.lvroom { text-align: left; background: #20252b; border: 1px solid #2c333b; color: inherit; padding: 3px 8px; border-radius: 4px; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+.lvroom i { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+.lvroom small { color: #9aa3ad; margin-left: auto; }
 .lvshapes { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-bottom: 6px; }
 .lvsgrp small { display: block; color: #9aa3ad; font-size: 11px; margin-bottom: 2px; }
 .lvsgrp > div { display: flex; gap: 3px; }
