@@ -42,22 +42,22 @@ cables, doors and everything placed on it.
   pack it came from, and buttons to open its folder on GitHub, copy the path,
   copy the PNG, download the PNG or `meta.json`, and browse all states of the RSI.
 - **Levels** (tool `L`, *Levels* tab): heights for the Blender importer
-  (`eininin/ss14-blender-importer`). Paint a level onto tiles (0, ±0.75, ±1.5,
-  ±2.25, ±3 m; drag, **Shift+drag** for a rectangle, or set it on the Area
-  selection), mark **cut tiles** (drag along the tiles the cut runs through; it goes
-  through tile middles, bends around corners and joins other cuts as T or cross
-  shapes and ends at stairs; each part of a cut tile takes the level of its side;
-  click near an edge of a cut tile to add or remove that arm), **edge cuts** (exactly
-  on a tile edge) and **stairs** (the direction they rise; shown as 0.75 small
-  stairs, 1.5 steep stairs or a ladder, and marked when they sit in an airlock). The overlay shows the level colours, cut lines,
-  the bottom and top stubs Blender adds at each cut, and stairs. A warning list
-  (click to jump) flags levels touching without a cut, steps over 3 m, cut tiles
-  without two different sides or with the line the wrong way, stairs whose sides
-  don't fit, and levels touching only at a corner (to check). Saved as
-  `<mapname>.levels.json` next to the map (format `ss14-levels`, version 1, with the
-  map's SHA-1); the map file isn't changed. Open or drop it together with the map
-  to carry on; a file made for another version of the map still loads, with a
-  warning. Work in progress is also kept in the browser per map.
+  (`eininin/ss14-blender-importer`), file version 2. Two layers, **floor** and **roof**
+  (roof counted from the tile's own floor), in whole levels of 0.75 m from −4 to +4; 0 is
+  a colour of its own, unpainted tiles are shown clear and count as 0. Paint (drag,
+  **Shift+drag** for a rectangle, or set it on the Area selection). **Cut tiles**: pick the
+  exact shape from the palette (straight, corner, T, cross), **R** turns it, click places
+  it, drag places it on every tile you pass, **Alt+click** near an edge adds or removes
+  that arm; joining to neighbouring cuts and stairs is an option, off by default. With the
+  level brush, a click on a cut tile sets the level of that part by hand (solid; worked-out
+  parts are faint and hatched); right-click or *Clear set part* puts it back. **Edge cuts**
+  on tile edges. **Stairs**: the direction they rise, an optional set bottom step, and
+  they can be cut through by putting a cut tile on them; shown as small, steep or ladder,
+  marked when in an airlock. Walls, windows and doors are found as the importer does and
+  levels may differ across them. The overlay shows layer colours, cut lines, floor and
+  roof stubs with their heights, and stairs; a warning list (click to jump) checks the
+  rules. Saved as `<mapname>.levels.json` next to the map; the map file isn't changed.
+  Open or drop it together with the map to carry on.
 - **Area selection** (pick tool): drag to select whole tiles, **Shift+drag**
   adds, **Alt+drag** or **Ctrl+drag** removes, **Esc** clears. The *Area* tab
   lists every object, floor tile and decal inside, with counts, counting only

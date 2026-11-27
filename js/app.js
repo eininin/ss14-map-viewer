@@ -1,7 +1,7 @@
 import { Pack, SpriteStore, localPackFromFiles, texRel, DEV } from './packs.js';
 import { buildScene, SceneRenderer, PX, CHUNK, LAYER_KEYS, DEFAULT_OPTS } from './scene.js?v=75';
 import { Annotations } from './annot.js';
-import { createLevels } from './levels.js?v=2';
+import { createLevels } from './levels.js?v=3';
 import { GitHub } from './github.js';
 import { openImageViewer } from './imageviewer.js';
 import { Parallax } from './parallax.js';
@@ -816,6 +816,10 @@ function setupInput() {
     pointers.delete(e.pointerId);
     if (pointers.size < 2) pinch = null;
     if (!drag) return;
+    // right-click without moving, in the Levels tool: clear the hand-set part under the cursor
+    if (drag.kind === 'pan' && !drag.moved && e.button === 2 && S.tool === 'levels' && levels) {
+      const [wx, wy] = cam.toWorld(e.offsetX, e.offsetY); levels.clearAt(wx, wy);
+    }
     if (drag.kind === 'pick') {
       S.areaDrag = null;
       if (!drag.moved) pickAt(e.offsetX, e.offsetY);
@@ -847,6 +851,7 @@ function setupInput() {
     if ((e.ctrlKey || e.metaKey) && k === 'z') { e.preventDefault(); if (lvUndo) { e.shiftKey ? levels.redo() : levels.undo(); } else { e.shiftKey ? annots.redo() : annots.undo(); } return; }
     if ((e.ctrlKey || e.metaKey) && k === 'y') { e.preventDefault(); if (lvUndo) levels.redo(); else annots.redo(); return; }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (S.tool === 'levels' && levels && levels.key(k)) { e.preventDefault(); return; }
     if (k === ' ') { spaceDown = true; e.preventDefault(); return; }
     if (k === 'f') fitView();
     else if (k === 'h') setTool('pan');

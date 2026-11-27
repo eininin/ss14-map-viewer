@@ -498,3 +498,13 @@ label.dimmed { opacity: .45; }
 .lvw.check { border-left-color: #ffa53b; }
 .lvw small { color: #9aa3ad; }
 .lvnote { background: #4a3410; border: 1px solid #a8741f; padding: 6px 8px; border-radius: 6px; font-size: 12px; }
+.lvshapes { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-bottom: 6px; }
+.lvsgrp small { display: block; color: #9aa3ad; font-size: 11px; margin-bottom: 2px; }
+.lvsgrp > div { display: flex; gap: 3px; }
+.lvshape { padding: 2px; background: #20252b; border: 2px solid #2c333b; border-radius: 6px; color: #cfd6dd; cursor: pointer; line-height: 0; }
+.lvshape.on { border-color: #ff2bd6; background: #3a2036; }
+.lvhover { font-size: 12px; color: #cfd6dd; background: #1b1f24; border: 1px solid #2c333b; border-radius: 6px; padding: 5px 8px; margin: 8px 0; min-height: 1.4em; }
+.lvlegend i.hatchsw { background: repeating-linear-gradient(135deg, rgba(255,255,255,.55) 0 2px, rgba(255,255,255,.12) 2px 5px); }
+.lvlegend i.stubf { width: 4px; height: 12px; background: #3fe0ff; }
+.lvlegend i.stubr { width: 4px; height: 12px; border: 1.5px solid #ff9a3b; }
+.lvlegend i.unsw { border: 1px dashed #9aa3ad; }
