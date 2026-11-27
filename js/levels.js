@@ -13,6 +13,8 @@
 // in half anyway, so levels may differ across them. A tile that was never painted counts as 0; a tile
 // painted 0 is "assigned" and shown in the 0 colour.
 
+import { tileEyes } from './roomvis.js?v=1';
+
 export const LV_MIN = -4, LV_MAX = 4, MAX_STEP = 4, LEVEL_M = 0.75;
 export const LEVELS = [-4, -3, -2, -1, 0, 1, 2, 3, 4];
 const COLORS = {
@@ -135,11 +137,11 @@ export class LevelsDoc {
 
   // the sidecar file, version 2
   // roomsFor(uid) -> the rooms of that grid (findRooms), written as rooms / room_parts / room_names
-  toFile(mapName, mapSha1, roomsFor) {
+  toFile(mapName, mapSha1, roomsFor, keep = new Set()) {
     const grids = {};
     const sorted = (it) => [...it].sort((a, b) => { const [ax, ay] = unkey(a[0]), [bx, by] = unkey(b[0]); return ay - by || ax - bx; });
     for (const [uid, d] of this.grids) {
-      if (d.empty) continue;
+      if (d.empty && !keep.has(uid)) continue;
       const floor = {}, roof = {}, cuts = {}, stairs = {}, cutLevels = {}, stairLevels = {};
       for (const [k, v] of sorted(d.floor)) floor[k] = v;
       for (const [k, v] of sorted(d.roof)) roof[k] = v;
@@ -439,13 +441,13 @@ export function analyse(d, tiles, bounds = new Map()) {
 }
 
 // ---------------------------------------------------------------- rooms
-// Rooms with the importer's §1 rules: 4-connected floor tiles (not Space, Lattice, FloorLattice) that aren't
-// boundary tiles, plus main cuts as extra boundaries. Subcuts don't split rooms. Worked out per quarter, so a
-// main cut tile is split between the rooms on its sides. Ids from 1, in order of each room's lowest tile
-// (y, then x). roomTiles: Set "x,y"; bounds: Map "x,y" -> kind.
-export function findRooms(d, roomTiles, bounds) {
+// Rooms are made only by the user's main cuts (no automatic splitting at walls, windows or doors): every
+// tile except Space, Lattice and FloorLattice, 4-connected, split only by main cuts (middle and edge).
+// Subcuts don't split rooms. Worked out per quarter, so a main cut tile is split between the rooms on its
+// sides. Ids from 1, in order of each room's lowest tile (y, then x). roomTiles: Set "x,y".
+export function findRooms(d, roomTiles) {
   const idx = new Map(), keys = [];
-  for (const k of roomTiles) if (!bounds.has(k)) { idx.set(k, keys.length * 4); keys.push(k); }
+  for (const k of roomTiles) { idx.set(k, keys.length * 4); keys.push(k); }
   const parent = new Int32Array(keys.length * 4);
   for (let i = 0; i < parent.length; i++) parent[i] = i;
   const find = (i) => { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; };
@@ -510,7 +512,7 @@ export function createLevels(env) {
   // env: { pane, getScene, getRenderer, gridLocal, gridWorld, setGridXf, camScale, redraw, jumpTo, toast,
   //        download, mapSource, mapKey, getArea, setTool, isActive, safeName, lsGet, lsSet }
   const doc = new LevelsDoc();
-  const ui = { mode: 'paint', layer: 'floor', level: 1, edgeLen: 'full', tier: 'main', shape: 'ns', autoJoin: false, stairDir: 'auto', brush: 1, show: true, onlyMarks: false, autoKind: 'edge', roomSel: null };
+  const ui = { mode: 'paint', layer: 'floor', level: 1, edgeLen: 'full', tier: 'main', shape: 'ns', autoJoin: false, stairDir: 'auto', brush: 1, show: true, onlyMarks: false, autoKind: 'edge', roomSel: null, levelMem: { floor: 1, roof: 0 } };
   let analysis = new Map();
   let cache = { scene: null, map: new Map() };
   let mapSha1 = null, fileNote = '';
@@ -538,7 +540,7 @@ export function createLevels(env) {
     uid = String(uid);
     const c = roomCache.get(uid), scene = env.getScene();
     if (c && c.ver === ver && c.scene === scene) return c.rooms;
-    const rooms = findRooms(doc.grids.get(uid) || new GridLevels(), roomTilesOf(uid), boundsOf(uid));
+    const rooms = findRooms(doc.grids.get(uid) || new GridLevels(), roomTilesOf(uid));
     roomCache.set(uid, { ver, scene, rooms });
     return rooms;
   }
@@ -628,14 +630,16 @@ export function createLevels(env) {
   function paintAt(h, onCut) {
     const d = doc.g(h.uid), [x0, y0] = tileOf(h), k0 = key(x0, y0);
     if (onCut) {
-      if (d.stairs.has(k0)) { if (ui.layer === 'floor') d.stairLevels.set(k0, ui.level); }
+      if (d.stairs.has(k0)) { if (ui.layer === 'floor') d.stairLevels.set(k0, ui.level); else d.roof.set(k0, ui.level); }
       else if (d.cuts.has(k0)) setRegion(d, k0, quarterAt(h), ui.layer, ui.level);
       return;
     }
-    const r = (ui.brush - 1) / 2;
+    const r = (ui.brush - 1) / 2, bounds = boundsOf(h.uid);
     for (let y = y0 - r; y <= y0 + r; y++) for (let x = x0 - r; x <= x0 + r; x++) {
       const k = key(x, y);
-      if (!d.cuts.has(k) && !d.stairs.has(k)) paintTile(d, x, y, ui.level);
+      if (d.cuts.has(k) || (d.stairs.has(k) && ui.layer === 'floor')) continue;
+      if (ui.layer === 'roof' && bounds.has(k)) continue;        // walls, windows and doors have no roof of their own
+      paintTile(d, x, y, ui.level);
     }
   }
   function placeCut(d, x, y) {
@@ -806,7 +810,7 @@ export function createLevels(env) {
   function selectRoom(h) {
     const [x, y] = tileOf(h), k = key(x, y), qi = quarterAt(h), R = roomsOf(h.uid), id = R.roomAt(k, qi);
     ui.roomSel = id == null ? null : { uid: h.uid, anchor: k + '#' + qi };
-    if (id == null) env.toast('That tile isn’t in a room (walls, windows, doors, lattice and space have none)', true);
+    if (id == null) env.toast('That tile isn’t in a room (space and lattice have none)', true);
     renderPane(); env.redraw();
     const inp = env.pane && env.pane.querySelector('#lvRoomName');
     if (inp) { inp.focus(); inp.select(); }
@@ -825,6 +829,171 @@ export function createLevels(env) {
     for (const a of [...d.roomNames.keys()]) { const i = a.lastIndexOf('#'); if (sr.R.roomAt(a.slice(0, i), +a.slice(i + 1)) === sr.room.id) d.roomNames.delete(a); }
     if (name) d.roomNames.set(ui.roomSel.anchor, name);
     changed();
+  }
+
+  // ---- room visibility: which rooms each room (and each tile) can see, baked on demand
+  // vis: uid -> { sig, rooms: Map id -> Set(ids, 0 = outside), tiles: Map "x,y" -> Set }
+  const vis = new Map();
+  const VIS_N = 9, VIS_INSET = 0.02;
+  let bake = null;                               // { worker, uid, total, done }
+  const sightBlockTiles = (uid) => sceneCache('o|' + uid, (scene) => {
+    const s = new Set();
+    if (scene) for (const it of scene.items) {
+      if (it.kind !== 'ent' || String(it.grid) !== String(uid) || !it.info || !it.info.oc || it.info.door != null) continue;
+      s.add(key(it.tx != null ? it.tx : Math.floor(it.x), it.ty != null ? it.ty : Math.floor(it.y)));
+    }
+    return s;
+  });
+  // a fingerprint of the rooms and what blocks sight; a bake is stale when it changes
+  const sigCache = new Map();
+  function visSig(uid) {
+    const c = sigCache.get(uid), scene = env.getScene();
+    if (c && c.ver === ver && c.scene === scene) return c.sig;
+    const sig = visSig1(uid);
+    sigCache.set(uid, { ver, scene, sig });
+    return sig;
+  }
+  function visSig1(uid) {
+    const R = roomsOf(uid), parts = [];
+    for (const [k, id] of R.tileRoom) parts.push(k + '=' + id);
+    for (const [k, ids] of R.partRoom) parts.push(k + '=' + ids.join('/'));
+    parts.sort();
+    let h = 2166136261;
+    const str = parts.join(';') + '|' + [...sightBlockTiles(uid)].sort().join(';');
+    for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return (h >>> 0).toString(36) + ':' + str.length;
+  }
+  function visGrid(uid) {
+    const R = roomsOf(uid), all = tilesOf(uid), blocks = sightBlockTiles(uid);
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const k of all) { const [x, y] = unkey(k); if (x < x0) x0 = x; if (y < y0) y0 = y; if (x > x1) x1 = x; if (y > y1) y1 = y; }
+    x0 -= 1; y0 -= 1; x1 += 1; y1 += 1;
+    const w = (x1 - x0 + 1) * 2, h = (y1 - y0 + 1) * 2, block = new Uint8Array(w * h), owner = new Int32Array(w * h);
+    const put = (x, y, qi, b, o) => { const c = ((y - y0) * 2 + (qi >> 1)) * w + (x - x0) * 2 + (qi & 1); block[c] = b; owner[c] = o; };
+    for (const k of all) {
+      const [x, y] = unkey(k), b = blocks.has(k) ? 1 : 0;
+      for (let qi = 0; qi < 4; qi++) put(x, y, qi, b, R.roomAt(k, qi) || 0);
+    }
+    for (const k of blocks) if (!all.has(k)) { const [x, y] = unkey(k); if (x >= x0 && x <= x1 && y >= y0 && y <= y1) for (let qi = 0; qi < 4; qi++) put(x, y, qi, 1, 0); }
+    return { grid: { w, h, block, owner }, x0, y0 };
+  }
+  // eye points of one room: 9×9 per tile that doesn't block sight (only in its own quarters on a split tile)
+  function roomJob(uid, R, room, x0, y0) {
+    const blocks = sightBlockTiles(uid), tiles = [];
+    for (const k of room.tiles) {
+      if (blocks.has(k)) continue;
+      const [x, y] = unkey(k), pts = tileEyes(x - x0, y - y0, VIS_N, VIS_INSET, []);
+      let eyes = pts;
+      if (R.partRoom.has(k)) {
+        const ids = R.partRoom.get(k);
+        eyes = [];
+        for (let i = 0; i < pts.length; i += 2) {
+          const qi = ((pts[i + 1] / 2 - (y - y0)) >= 0.5 ? 2 : 0) + ((pts[i] / 2 - (x - x0)) >= 0.5 ? 1 : 0);
+          if (ids[qi] === room.id) eyes.push(pts[i], pts[i + 1]);
+        }
+      }
+      if (eyes.length) tiles.push([x, y, Float64Array.from(eyes)]);
+    }
+    return { room: room.id, tiles };
+  }
+  function visState(uid) {
+    const v = vis.get(uid);
+    if (!v || !v.rooms.size) return { v: null, stale: false };
+    return { v, stale: v.sig !== visSig(uid) };
+  }
+  function bakeRooms(uid, ids) {
+    if (bake) { env.toast('Already baking; wait or cancel it', true); return; }
+    if (!env.getScene()) return;
+    const R = roomsOf(uid), sig = visSig(uid);
+    let v = vis.get(uid);
+    if (!v || v.sig !== sig) { v = { sig, rooms: new Map(), tiles: new Map() }; vis.set(uid, v); }
+    const { grid, x0, y0 } = visGrid(uid);
+    const jobs = ids.map(id => roomJob(uid, R, R.byId.get(id), x0, y0)).filter(j => j.tiles.length);
+    if (!jobs.length) { env.toast('Nothing to bake: those rooms have no tiles to stand on', true); return; }
+    // every tile of every room is one piece of work, shared out over several workers
+    const units = [];
+    for (const j of jobs) for (const [x, y, eyes] of j.tiles) units.push([j.room, x, y, eyes]);
+    const K = Math.max(1, Math.min(8, (navigator.hardwareConcurrency || 2) - 1, units.length));
+    const workers = [];
+    try { for (let i = 0; i < K; i++) workers.push(new Worker(new URL('./roomvis-worker.js?v=2', import.meta.url), { type: 'module' })); }
+    catch (e) { workers.forEach(w => w.terminate()); env.toast('Could not start the visibility workers: ' + e.message, true); return; }
+    const t0 = performance.now();
+    bake = { workers, uid, fresh: null, rooms: jobs.length, total: units.length, done: 0, eyes: units.reduce((n, u) => n + u[3].length / 2, 0) };
+    // start the baked rooms afresh (a tile split between rooms keeps the other room's view)
+    const fresh = new Set(jobs.map(j => j.room));
+    bake.fresh = fresh;
+    for (const id of fresh) v.rooms.set(id, new Set());
+    for (const j of jobs) for (const [x, y] of j.tiles) { const k = key(x, y); if (!R.partRoom.has(k)) v.tiles.delete(k); }
+    let finished = 0, lastPaint = 0;
+    const finish = () => {
+      workers.forEach(w => w.terminate());
+      const ms = performance.now() - t0, n = bake.rooms;
+      bake = null;
+      saveVis();
+      renderPane(); env.redraw();
+      env.toast(`Visibility baked for ${n} room${n === 1 ? '' : 's'} (${(ms / 1000).toFixed(1)} s)`);
+    };
+    workers.forEach((w, wi) => {
+      w.onmessage = (ev) => {
+        const m = ev.data;
+        if (!bake) return;
+        if (m.type === 'tiles') {
+          for (const [room, x, y, ids] of m.items) {
+            const rs = v.rooms.get(room);
+            for (const id of ids) if (id !== room) rs.add(id);
+            const k = key(x, y);
+            if (!v.tiles.has(k)) v.tiles.set(k, new Set());
+            const ts = v.tiles.get(k);
+            for (const id of ids) ts.add(id);
+          }
+          bake.done += m.items.length;
+          if (performance.now() - lastPaint > 400) { lastPaint = performance.now(); renderPane(); }
+        } else if (m.type === 'done' && ++finished === workers.length) finish();
+      };
+      w.onerror = (e) => { if (!bake) return; env.toast('Visibility failed: ' + (e.message || 'worker error'), true); workers.forEach(x => x.terminate()); bake = null; renderPane(); };
+      w.postMessage({ grid, tiles: units.filter((u, i) => i % K === wi) });
+    });
+    renderPane();
+  }
+  function cancelBake() {
+    if (!bake) return;
+    bake.workers.forEach(w => w.terminate());
+    const v = vis.get(bake.uid);
+    if (v) for (const id of bake.fresh) v.rooms.delete(id);     // half-baked rooms don't count
+    bake = null; saveVis(); renderPane(); env.redraw(); env.toast('Baking cancelled');
+  }
+  function saveVis() {
+    try {
+      if (!env.mapSource()) return;
+      const o = {};
+      for (const [uid, v] of vis) o[uid] = { sig: v.sig, rooms: [...v.rooms].map(([id, s]) => [id, [...s]]), tiles: [...v.tiles].map(([k, s]) => [k, [...s]]) };
+      env.lsSet('levelsvis.' + env.mapKey(), o);
+    } catch (e) { /* too big for local storage: kept in memory, saved with the file */ }
+  }
+  function loadVisLocal() {
+    vis.clear();
+    const o = env.lsGet('levelsvis.' + env.mapKey());
+    if (o) for (const uid of Object.keys(o)) vis.set(uid, { sig: o[uid].sig, rooms: new Map(o[uid].rooms.map(([id, a]) => [id, new Set(a)])), tiles: new Map(o[uid].tiles.map(([k, a]) => [k, new Set(a)])) });
+  }
+  // the lists as written: both directions, sorted, "outside" for 0 and last
+  const visName = (id) => id === 0 ? 'outside' : String(id);
+  const visSort = (a, b) => (a === 0) - (b === 0) || a - b;
+  function visFor(uid) {
+    const { v, stale } = visState(uid);
+    if (!v || stale) return null;
+    const lists = new Map();
+    const add = (a, b) => { if (a === b) return; if (!lists.has(a)) lists.set(a, new Set()); lists.get(a).add(b); };
+    for (const [id, s] of v.rooms) for (const o of s) { add(id, o); add(o, id); }
+    const visibility = {};
+    for (const id of [...lists.keys()].sort(visSort)) visibility[visName(id)] = [...lists.get(id)].sort(visSort).map(visName);
+    const sets = [], index = new Map(), tiles = {};
+    const sorted = [...v.tiles].sort((a, b) => { const [ax, ay] = unkey(a[0]), [bx, by] = unkey(b[0]); return ay - by || ax - bx; });
+    for (const [k, s] of sorted) {
+      const list = [...s].sort(visSort).map(visName), sk = list.join(',');
+      if (!index.has(sk)) { index.set(sk, sets.length); sets.push(list); }
+      tiles[k] = index.get(sk);
+    }
+    return { visibility, tile_visibility: { sets, tiles } };
   }
 
   // ---- pointer (called by app.js while the Levels tool is active)
@@ -881,7 +1050,7 @@ export function createLevels(env) {
         const tiles = tilesOf(drag.uid), bounds = boundsOf(drag.uid);
         for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
           const k = key(x, y);
-          if (d.cuts.has(k) || d.stairs.has(k)) continue;
+          if (d.cuts.has(k) || (d.stairs.has(k) && ui.layer === 'floor')) continue;
           if (tiles.has(k) && !bounds.has(k)) paintTile(d, x, y, ui.level);
         }
       } else env.toast('That area is too large', true);
@@ -905,7 +1074,7 @@ export function createLevels(env) {
     doc.snapshot();
     const d = doc.g(a.grid), bounds = boundsOf(String(a.grid));
     let n = 0;
-    for (const k of a.tiles) { if (d.cuts.has(k) || d.stairs.has(k) || bounds.has(k)) continue; const [x, y] = unkey(k); paintTile(d, x, y, ui.level); n++; }
+    for (const k of a.tiles) { if (d.cuts.has(k) || (d.stairs.has(k) && ui.layer === 'floor') || bounds.has(k)) continue; const [x, y] = unkey(k); paintTile(d, x, y, ui.level); n++; }
     changed();
     env.toast(`${ui.layer === 'floor' ? 'Floor' : 'Roof'} ${fmt(ui.level)} set on ${n} floor tiles`);
   }
@@ -919,7 +1088,7 @@ export function createLevels(env) {
     let t = `Tile ${hover.x}, ${hover.y}`;
     if (d && d.stairs.has(k)) {
       const info = an && an.stairInfo.find(i => i.x === hover.x && i.y === hover.y);
-      t += `: stairs rising ${d.stairs.get(k)}` + (info ? `, bottom ${info.lo != null ? fmt(info.lo) : '?'}${info.set ? ' (set)' : ''}, top ${info.hi != null ? fmt(info.hi) : '?'}${info.kind ? ` (${info.kind.name})` : ''}${info.cut ? `, cut through (${info.cut})` : ''}` : '');
+      t += `: stairs rising ${d.stairs.get(k)}` + (info ? `, bottom ${info.lo != null ? fmt(info.lo) : '?'}${info.set ? ' (set)' : ''}, top ${info.hi != null ? fmt(info.hi) : '?'}${info.kind ? ` (${info.kind.name})` : ''}${info.cut ? `, cut through (${info.cut})` : ''}` : '') + `, roof ${fmt(d.roof.get(k) || 0)}${d.roof.has(k) ? '' : ' (unassigned)'} above the bottom step`;
     } else if (d && d.cuts.has(k) && an) {
       const qi = (hover.ly - hover.y >= 0.5 ? 2 : 0) + (hover.lx - hover.x >= 0.5 ? 1 : 0);
       const v = an.quarter(hover.x, hover.y, qi), m = an.manual.get(k)[qi];
@@ -963,6 +1132,17 @@ export function createLevels(env) {
       g.globalAlpha = 0.33;
       for (const [c, p] of paths) { g.fillStyle = c; g.fill(p); }
       g.globalAlpha = 1;
+      // visibility of the selected room: what it can't see is dimmed
+      const srv = selRoom();
+      const stv = srv && ui.roomSel.uid === uid ? visState(uid) : null;
+      const seen = stv && stv.v && !stv.stale ? stv.v.rooms.get(srv.room.id) : null;
+      if (seen) {
+        const dim = new Path2D(), lit = new Path2D();
+        const pick = (id) => (id === srv.room.id || seen.has(id)) ? lit : dim;
+        for (const [k, id] of rooms.tileRoom) { const [x, y] = unkey(k); pick(id).rect(x, y, 1, 1); }
+        for (const [k, ids] of rooms.partRoom) { const [x, y] = unkey(k); ids.forEach((id, i) => pick(id).rect(x + (i & 1) * 0.5, y + (i >> 1) * 0.5, 0.5, 0.5)); }
+        g.fillStyle = 'rgba(0,0,0,.72)'; g.fill(dim);
+      }
       // the selected room: outlined tile by tile
       const sr = selRoom();
       if (sr && ui.roomSel.uid === uid) {
@@ -998,7 +1178,7 @@ export function createLevels(env) {
         const solid = new Map(), faint = new Map();
         const add = (m, c, x, y, w, h) => { if (!m.has(c)) m.set(c, new Path2D()); m.get(c).rect(x, y, w, h); };
         for (const [k, v] of (ui.layer === 'floor' ? d.floor : d.roof)) {
-          if (d.cuts.has(k) || d.stairs.has(k)) continue;
+          if (d.cuts.has(k) || (d.stairs.has(k) && ui.layer === 'floor')) continue;
           const [x, y] = unkey(k); add(solid, levelColor(v), x, y, 1, 1);
         }
         const hatchLines = new Path2D();
@@ -1029,6 +1209,7 @@ export function createLevels(env) {
         g.fillStyle = 'rgba(20,24,30,.55)'; g.fillRect(x + 0.04, y + 0.04, 0.92, 0.92);
         g.strokeStyle = info && info.airlock ? '#5ad1ff' : '#ffffff'; g.lineWidth = (info && info.airlock ? 3 : 1.5) / s;
         g.strokeRect(x + 0.04, y + 0.04, 0.92, 0.92);
+        if (ui.layer === 'roof' && !ui.onlyMarks) { g.strokeStyle = levelColor(d.roof.get(k) || 0); g.lineWidth = 3 / s; g.setLineDash(d.roof.has(k) ? [] : [4 / s, 3 / s]); g.strokeRect(x + 0.12, y + 0.12, 0.76, 0.76); g.setLineDash([]); }
         g.save(); g.translate(x + 0.5, y + 0.5);
         g.rotate({ N: 0, E: -Math.PI / 2, S: Math.PI, W: Math.PI / 2 }[dir]);
         g.beginPath(); g.moveTo(0, 0.36); g.lineTo(0.22, 0.12); g.lineTo(0.08, 0.12); g.lineTo(0.08, -0.34); g.lineTo(-0.08, -0.34); g.lineTo(-0.08, 0.12); g.lineTo(-0.22, 0.12); g.closePath();
@@ -1134,11 +1315,21 @@ export function createLevels(env) {
     if (!src) { env.toast('Open a map first', true); return; }
     reanalyse();
     const sha = mapSha1 || (mapSha1 = await sha1(src.text));
-    const file = doc.toFile(String(src.name || 'map.yml').split('/').pop(), sha, (uid) => roomsOf(uid));
+    const keep = new Set([...vis.keys()].filter(u => visState(u).v));
+    for (const u of keep) doc.g(u);
+    const file = doc.toFile(String(src.name || 'map.yml').split('/').pop(), sha, (uid) => roomsOf(uid), keep);
+    let staleVis = 0;
+    for (const uid of Object.keys(file.grids)) {
+      const st = visState(uid);
+      if (st.v && st.stale) staleVis++;
+      const fv = visFor(uid);
+      if (fv) Object.assign(file.grids[uid], fv);
+    }
     const all = [...analysis.values()].flatMap(a => a.warnings);
     const errors = all.filter(w => w.kind === 'error').length, checks = all.length - errors;
     env.download(new Blob([JSON.stringify(file, null, 2) + '\n'], { type: 'application/json' }), env.safeName(mapBaseName()) + '.levels.json');
-    env.toast(all.length ? `Saved with ${errors} error${errors === 1 ? '' : 's'} and ${checks} to check` : 'Saved, no warnings');
+    env.toast((all.length ? `Saved with ${errors} error${errors === 1 ? '' : 's'} and ${checks} to check` : 'Saved, no warnings')
+      + (staleVis ? '. Visibility left out: the rooms changed since it was baked' : ''), !!staleVis);
   }
   async function loadFile(f) {
     let j;
@@ -1149,6 +1340,19 @@ export function createLevels(env) {
     if (!j || j.format !== 'ss14-levels') return false;
     if (!env.mapSource()) { env.toast('Open the map first, then its levels file', true); return true; }
     try { doc.snapshot(); doc.fromFile(j); } catch (e) { env.toast('Could not read the levels file: ' + e.message, true); return true; }
+    // visibility from the file belongs to the rooms in the file, so it counts as current
+    vis.clear(); ver++;
+    for (const uid of Object.keys(j.grids || {})) {
+      const g = j.grids[uid];
+      if (!g.visibility) continue;
+      const num = (n) => n === 'outside' ? 0 : +n;
+      const v = { sig: visSig(uid), rooms: new Map(), tiles: new Map() };
+      for (const [id, list] of Object.entries(g.visibility)) if (id !== 'outside') v.rooms.set(num(id), new Set(list.map(num)));
+      const tv = g.tile_visibility;
+      if (tv && tv.sets && tv.tiles) for (const [k, i] of Object.entries(tv.tiles)) if (tv.sets[i]) v.tiles.set(k, new Set(tv.sets[i].map(num)));
+      vis.set(uid, v);
+    }
+    saveVis();
     const src = env.mapSource();
     const sha = mapSha1 || (mapSha1 = await sha1(src.text));
     fileNote = '';
@@ -1163,6 +1367,8 @@ export function createLevels(env) {
   async function mapLoaded() {
     doc.grids = new Map(); doc.undoStack = []; doc.redoStack = [];
     fileNote = ''; mapSha1 = null; ui.roomSel = null; roomCache.clear();
+    if (bake) { bake.workers.forEach(w => w.terminate()); bake = null; }
+    loadVisLocal();
     const saved = env.lsGet('levels2.' + env.mapKey()) || env.lsGet('levels.' + env.mapKey());
     if (saved) doc.restore(saved);
     const src = env.mapSource();
@@ -1174,6 +1380,25 @@ export function createLevels(env) {
 
   // ---- the pane
   const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  function visHtml(sr) {
+    const uids = gridUids().filter(u => roomsOf(u).list.length);
+    let baked = 0, total = 0, stale = false;
+    for (const u of uids) { total += roomsOf(u).list.length; const st = visState(u); if (st.v) { baked += st.v.rooms.size; stale = stale || st.stale; } }
+    let selInfo = '';
+    if (sr) {
+      const st = visState(ui.roomSel.uid), seen = st.v && !st.stale ? st.v.rooms.get(sr.room.id) : null;
+      selInfo = seen ? `<p class="hint">Room #${sr.room.id} sees ${seen.size} room${seen.size === 1 ? '' : 's'}${seen.has(0) ? ', including Outside' : ''}; they are lit on the map, everything else is dimmed.</p>` : '';
+    }
+    return `
+      <h4>Visibility <span class="lvcount">${stale ? 'stale' : `${baked} of ${total} baked`}</span></h4>
+      <p class="hint">What each room can see, for Unity: ${VIS_N}×${VIS_N} eye points on every tile that doesn’t block sight, almost to the tile corners. Walls and other occluders block; doors count as open; windows, grilles and space don’t block. Levels are ignored.</p>
+      ${stale ? '<p class="lvnote">The rooms or walls changed since visibility was baked. Bake again; stale visibility isn’t saved.</p>' : ''}
+      ${bake ? `<div class="row gap"><span class="hint">Baking ${bake.rooms} room${bake.rooms === 1 ? '' : 's'}… ${bake.done} of ${bake.total} tiles (${bake.eyes.toLocaleString()} eye points)</span><button class="btn small" id="lvVisCancel">Cancel</button></div>`
+        : `<div class="row gap wrap">
+        <button class="btn small" id="lvVisOne" ${sr ? '' : 'disabled'}>Bake ${sr ? 'room #' + sr.room.id : 'the selected room'}</button>
+        <button class="btn small" id="lvVisAll" ${total ? '' : 'disabled'}>Bake all ${total} rooms</button></div>`}
+      ${selInfo}`;
+  }
   function roomsHtml() {
     const sr = selRoom();
     let total = 0, named = [];
@@ -1185,7 +1410,8 @@ export function createLevels(env) {
         <div class="row gap"><input id="lvRoomName" type="text" maxlength="60" placeholder="Name, e.g. Bridge" value="${esc(sr.room.name || '')}">
         <button class="btn small primary" id="lvRoomSet">Set</button><button class="btn small" id="lvRoomClr" ${sr.room.name ? '' : 'disabled'}>Remove name</button></div></div>`
         : '<p class="hint">Click a room on the map to name it. Enter sets the name.</p>'}
-      <p class="hint">Rooms are split by walls, windows, doors and main cuts (subcuts don’t split them). Add or remove main cuts to split or join rooms. A name stays with the room when cuts change elsewhere.</p>
+      <p class="hint">Rooms are made only by your main cuts (subcuts don’t split them; walls and doors don’t either). Cut through the middle of a wall to split it between two rooms. A name stays with the room when cuts change elsewhere.</p>
+      ${visHtml(sr)}
       ${named.length ? `<div class="lvrooms">${named.map(({ uid, r }) => `<button class="lvroom" data-g="${esc(uid)}" data-r="${r.id}"><i style="background:${roomColor(r.id)}"></i>${esc(r.name)} <small>#${r.id}, ${r.size}</small></button>`).join('')}</div>` : ''}`;
   }
   function renderPane() {
@@ -1214,14 +1440,14 @@ export function createLevels(env) {
       <div class="row gap">${opt('layer', 'floor', 'Floor', ui.layer)}${opt('layer', 'roof', 'Roof (from the tile’s floor)', ui.layer)}</div>
       <h4>Tool</h4>
       <div class="row gap wrap">
-        ${modeBtn('paint', 'Paint level', 'Drag to paint floor tiles in the chosen layer; Shift+drag paints a rectangle. With the 1×1 brush: on a cut tile it sets the part under the cursor by hand, on stairs it sets the bottom step (floor layer).')}
+        ${modeBtn('paint', 'Paint level', 'Drag to paint floor tiles in the chosen layer; Shift+drag paints a rectangle. With the 1×1 brush: on a cut tile it sets the part under the cursor by hand, on stairs it sets the bottom step (floor layer) or the stairs’ roof (roof layer). The roof layer starts at 0.')}
         ${modeBtn('cut', 'Cut tile', 'Click places the chosen shape exactly; drag places it on every tile you pass. R turns the shape. Alt+click near an edge of a cut tile adds or removes that arm.')}
         ${modeBtn('clear', 'Clear set part', 'Click a part of a cut tile to put it back to worked out (this layer), or stairs to unset the bottom step. Right-click does the same in any mode.')}
         ${modeBtn('edge', 'Edge cut', 'Click next to a tile edge to cut exactly on that edge, whole or half (click again to remove). A half edge cut meets a middle cut at the edge.')}
         ${modeBtn('stairs', 'Stairs', 'Click a tile to make it stairs. Auto points them uphill; clicking again turns them. Alt+click removes. To cut through stairs, place a cut tile on them.')}
         ${modeBtn('erase', 'Eraser', 'Drag to remove cut tiles, stairs and edge cuts, and to unassign the level in this layer.')}
         ${modeBtn('auto', 'Auto cuts', 'Drag over where floors change: adds edge cuts or middle cuts wherever different floors touch with no cut yet. Fix any wrong ones with the other tools.')}
-        ${modeBtn('rooms', 'Rooms', 'Shows the rooms the importer will make (walls, windows, doors and main cuts split them; subcuts don’t). Click a room to name it.')}
+        ${modeBtn('rooms', 'Rooms', 'Shows the rooms made by your main cuts (subcuts don’t split them). Click a room to name it, and bake what each room can see.')}
       </div>
       ${ui.mode === 'auto' ? `
       <h4>Automatic cuts</h4>
@@ -1275,7 +1501,10 @@ export function createLevels(env) {
     p.querySelector('#lvShow').onchange = (e) => { ui.show = e.target.checked; env.redraw(); };
     p.querySelector('#lvOnly').onchange = (e) => { ui.onlyMarks = e.target.checked; env.redraw(); };
     p.querySelectorAll('.lvmode').forEach(b => b.onclick = () => { ui.mode = b.dataset.m; env.setTool('levels'); renderPane(); });
-    p.querySelectorAll('.lvopt').forEach(b => b.onclick = () => { ui[b.dataset.o] = b.dataset.v; renderPane(); env.redraw(); });
+    p.querySelectorAll('.lvopt').forEach(b => b.onclick = () => {
+      if (b.dataset.o === 'layer' && b.dataset.v !== ui.layer) { ui.levelMem[ui.layer] = ui.level; ui.level = ui.levelMem[b.dataset.v]; }
+      ui[b.dataset.o] = b.dataset.v; renderPane(); env.redraw();
+    });
     p.querySelectorAll('.lvshape').forEach(b => b.onclick = () => { ui.shape = b.dataset.s; ui.mode = 'cut'; env.setTool('levels'); renderPane(); });
     const join = p.querySelector('#lvJoin'); if (join) join.onchange = (e) => { ui.autoJoin = e.target.checked; };
     p.querySelectorAll('.lvlv').forEach(b => b.onclick = () => { ui.level = +b.dataset.v; if (ui.mode !== 'paint') ui.mode = 'paint'; env.setTool('levels'); renderPane(); });
@@ -1298,6 +1527,9 @@ export function createLevels(env) {
       p.querySelector('#lvRoomSet').onclick = () => nameRoom(rn.value);
       p.querySelector('#lvRoomClr').onclick = () => nameRoom('');
     }
+    const v1 = p.querySelector('#lvVisOne'); if (v1) v1.onclick = () => { const sr = selRoom(); if (sr) bakeRooms(ui.roomSel.uid, [sr.room.id]); };
+    const va = p.querySelector('#lvVisAll'); if (va) va.onclick = () => { for (const u of gridUids()) { const R = roomsOf(u); if (R.list.length) { bakeRooms(u, R.list.map(r => r.id)); break; } } };
+    const vc = p.querySelector('#lvVisCancel'); if (vc) vc.onclick = cancelBake;
     p.querySelectorAll('.lvroom').forEach(b => b.onclick = () => {
       const uid = b.dataset.g, r = roomsOf(uid).byId.get(+b.dataset.r);
       if (!r) return;
