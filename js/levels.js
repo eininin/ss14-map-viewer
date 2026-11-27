@@ -944,6 +944,17 @@ export function createLevels(env) {
     changed();
   }
   // roofs belong to floors: anything painted on walls, windows and doors is dropped
+  function resetFloors(quiet) {
+    let n = 0;
+    for (const d of doc.grids.values()) {
+      n += d.floor.size; d.floor.clear();
+      for (const [k, o] of [...d.cutLevels]) {
+        for (const q of QNAMES) if (o[q]) { if (o[q].floor != null) n++; delete o[q].floor; if (o[q].roof == null) delete o[q]; }
+        if (!Object.keys(o).length) d.cutLevels.delete(k);
+      }
+    }
+    return n;
+  }
   function stripWallRoofs() {
     let n = 0;
     for (const [uid, d] of doc.grids) { const b = boundsOf(uid); for (const k of [...d.roof.keys()]) if (b.has(k)) { d.roof.delete(k); n++; } }
@@ -1177,7 +1188,7 @@ export function createLevels(env) {
     } else if (ui.mode === 'clear') { clearPart(h); drag = null; }
     else if (ui.mode === 'edge') { edgeAt(h); drag = null; }
     else if (ui.mode === 'fill') { drag = null; if (!fillAt(h)) { doc.undoStack.pop(); return; } }
-    else if (ui.mode === 'connect') { drag = null; if (!dotAt(h, e.altKey)) { doc.undoStack.pop(); return; } }
+    else if (ui.mode === 'connect') { const [X, Y] = latticeAt(h); dotAt(h, e.altKey); drag = { kind: 'dot', uid: h.uid, last: [X, Y], remove: e.altKey }; }
     else if (ui.mode === 'stairs') { stairsAt(h, e.altKey); drag = null; }
     else if (ui.mode === 'erase') { drag = { kind: 'erase', uid: h.uid }; eraseAt(h); }
     else if (ui.mode === 'auto') { drag = { kind: 'auto', uid: h.uid }; autoAt(h); }
@@ -1193,6 +1204,17 @@ export function createLevels(env) {
     if (drag.kind === 'paint') paintAt(h, drag.onCut);
     else if (drag.kind === 'auto') autoAt(h);
     else if (drag.kind === 'space') spaceAt(h, drag.remove);
+    else if (drag.kind === 'dot') {
+      // a dot on every lattice point the drag passes, one step at a time, so they join into a line
+      const [tX, tY] = latticeAt(h);
+      let [X, Y] = drag.last, guard = 0;
+      if (X === tX && Y === tY) return;
+      while ((X !== tX || Y !== tY) && guard++ < 400) {
+        if (Math.abs(tX - X) >= Math.abs(tY - Y)) X += Math.sign(tX - X); else Y += Math.sign(tY - Y);
+        dotAt({ uid: h.uid, lx: X / 2, ly: Y / 2 }, drag.remove);
+      }
+      drag.last = [tX, tY];
+    }
     else if (drag.kind === 'cut') {
       // the chosen shape on every tile the drag passes over (four-way steps, no gaps), nothing else
       const d = doc.g(h.uid), k = key(Math.floor(h.lx), Math.floor(h.ly));
@@ -1559,6 +1581,13 @@ export function createLevels(env) {
     loadVisLocal();
     const saved = env.lsGet('levels2.' + env.mapKey()) || env.lsGet('levels.' + env.mapKey());
     if (saved) doc.restore(saved);
+    if (saved && !env.lsGet('levelsFloorReset1.' + env.mapKey())) {
+      env.lsSet('levelsFloorReset1.' + env.mapKey(), 1);
+      doc.snapshot();
+      const n = resetFloors();
+      if (n) { try { env.lsSet('levels2.' + env.mapKey(), doc.serialize()); } catch (e) { /* ignore */ } setTimeout(() => env.toast(`Floor levels reset on this map (${n}), as asked. Ctrl+Z brings them back.`), 500); }
+      else doc.undoStack.pop();
+    }
     const src = env.mapSource();
     if (src) sha1(src.text).then(s => { mapSha1 = s; });
     reanalyse();
@@ -1632,8 +1661,8 @@ export function createLevels(env) {
         ${modeBtn('paint', 'Paint level', 'Drag to paint floor tiles in the chosen layer; Shift+drag paints a rectangle. With the 1×1 brush: on a cut tile it sets the part under the cursor by hand, on stairs it sets the bottom step (floor layer) or the stairs’ roof (roof layer). The roof layer starts at 0.')}
         ${modeBtn('cut', 'Cut tile', 'Click places the chosen shape exactly; drag places it on every tile you pass. R turns the shape. Alt+click near an edge of a cut tile adds or removes that arm.')}
         ${modeBtn('clear', 'Clear set part', 'Click a part of a cut tile to put it back to worked out (this layer), or stairs to unset the bottom step. Right-click does the same in any mode.')}
-        ${modeBtn('fill', 'Fill floor', 'Fill bucket for floors: click a tile and the floor level spreads over every tile it can reach, walls, windows and doors included, until it meets a cut (main or sub, middle or edge) or space. Cut tiles and stairs keep following their neighbours.')}
-        ${modeBtn('connect', 'Dot cut', 'Click a tile centre, the middle of a tile side, or a tile corner to put a dot there. It joins itself to the cuts and dots next to it (also across one free point in a straight line). Place dots one after another to draw a cut. Alt+click removes the cut pieces at that point.')}
+        ${modeBtn('fill', '🪣 Floor fill bucket', 'Fill bucket for floors: click a tile and the floor level spreads over every tile it can reach, walls, windows and doors included, until it meets a cut (main or sub, middle or edge) or space. Cut tiles and stairs keep following their neighbours.')}
+        ${modeBtn('connect', 'Dot cut', 'Click a tile centre, the middle of a tile side, or a tile corner to put a dot there. It joins itself to the cuts and dots next to it (also across one free point in a straight line). Click dots one after another, or drag, to draw a cut. Alt+click or Alt+drag removes the cut pieces at those points.')}
         ${modeBtn('edge', 'Edge cut', 'Click next to a tile edge to cut exactly on that edge, whole or half (click again to remove). A half edge cut meets a middle cut at the edge.')}
         ${modeBtn('stairs', 'Stairs', 'Click a tile to make it stairs. Auto points them uphill; clicking again turns them. Alt+click removes. To cut through stairs, place a cut tile on them.')}
         ${modeBtn('erase', 'Eraser', 'Drag to remove cut tiles, stairs and edge cuts, and to unassign the level in this layer.')}
@@ -1686,6 +1715,7 @@ export function createLevels(env) {
         <button class="btn primary small" id="lvSave">Save .levels.json</button>
         <button class="btn small" id="lvOpen">Open .levels.json</button>
         <button class="btn small" id="lvUnset" ${set ? '' : 'disabled'} title="Every cut part set by hand goes back to following the floors next to it">Unset hand-set cut parts</button>
+        <button class="btn small" id="lvResetFloor" title="Removes every floor level (and hand-set floor parts of cut tiles); roofs, cuts and stairs stay">Reset floor levels</button>
         <button class="btn small" id="lvClear">Clear all</button>
         <input type="file" id="lvFile" accept=".json,application/json" hidden>
       </div>`;
@@ -1731,6 +1761,12 @@ export function createLevels(env) {
       ui.roomSel = { uid, anchor: k + '#' + qi };
       env.jumpTo(uid, r.lx, r.ly); renderPane(); env.redraw();
     });
+    p.querySelector('#lvResetFloor').onclick = () => {
+      doc.snapshot();
+      const n = resetFloors();
+      if (!n) { doc.undoStack.pop(); env.toast('No floor levels to reset'); return; }
+      changed(); env.toast(`Floor levels reset (${n}); Ctrl+Z brings them back`);
+    };
     p.querySelector('#lvClear').onclick = () => {
       if (doc.empty) return;
       if (!confirm('Remove every level, cut and stairs from this map?')) return;
