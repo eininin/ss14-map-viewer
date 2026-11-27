@@ -957,6 +957,26 @@ export function createLevels(env) {
     for (const [uid, d] of doc.grids) { const b = boundsOf(uid); for (const k of [...d.roof.keys()]) if (b.has(k)) { d.roof.delete(k); n++; } }
     if (n) { changed(); env.toast(`Removed the roof from ${n} wall, window and door tile${n === 1 ? '' : 's'} (they have no roof of their own)`); }
   }
+  // fill a room with the chosen level in the current layer: its floor tiles (not walls, windows, doors,
+  // cut tiles, stairs, or space)
+  function fillRoom(uid, id) {
+    const R = roomsOf(uid), room = R.byId.get(id);
+    if (!room) return 0;
+    const d = doc.g(uid), tiles = tilesOf(uid), bounds = boundsOf(uid);
+    let n = 0;
+    for (const k of room.tiles) {
+      if (!tiles.has(k) || bounds.has(k) || d.cuts.has(k) || d.stairs.has(k) || R.partRoom.has(k)) continue;
+      const [x, y] = unkey(k); paintTile(d, x, y, ui.level); n++;
+    }
+    return n;
+  }
+  function fillAt(h) {
+    const [x, y] = tileOf(h), id = roomsOf(h.uid).roomAt(key(x, y), quarterAt(h));
+    if (id == null) { env.toast('That tile isn’t in a room', true); return false; }
+    const n = fillRoom(h.uid, id);
+    env.toast(`${ui.layer === 'floor' ? 'Floor' : 'Roof'} ${fmt(ui.level)} on ${n} tiles of room #${id}`);
+    return n > 0;
+  }
   function nameRoom(name) {
     const sr = selRoom();
     if (!sr) return;
@@ -1151,6 +1171,7 @@ export function createLevels(env) {
       else { placeCut(d, x, y); drag = { kind: 'cut', uid: h.uid, last: key(x, y) }; }
     } else if (ui.mode === 'clear') { clearPart(h); drag = null; }
     else if (ui.mode === 'edge') { edgeAt(h); drag = null; }
+    else if (ui.mode === 'fill') { drag = null; if (!fillAt(h)) { doc.undoStack.pop(); return; } }
     else if (ui.mode === 'connect') { drag = null; if (!dotAt(h, e.altKey)) { doc.undoStack.pop(); return; } }
     else if (ui.mode === 'stairs') { stairsAt(h, e.altKey); drag = null; }
     else if (ui.mode === 'erase') { drag = { kind: 'erase', uid: h.uid }; eraseAt(h); }
@@ -1433,6 +1454,18 @@ export function createLevels(env) {
         g.stroke(); g.setLineDash([]);
         g.beginPath(); g.arc(X / 2, Y / 2, Math.max(4, s * 0.09) / s, 0, Math.PI * 2);
         g.fillStyle = altDown ? '#ffffff' : '#ff2bd6'; g.fill();
+      } else if (ui.mode === 'fill') {
+        const R = roomsOf(hover.uid), id = R.roomAt(k, (hover.ly - y >= 0.5 ? 2 : 0) + (hover.lx - x >= 0.5 ? 1 : 0));
+        if (id != null) {
+          const ck = hover.uid + '|' + id + '|' + ver;
+          if (!draw.fillCache || draw.fillCache.k !== ck) {
+            const p = new Path2D();
+            for (const t of R.byId.get(id).tiles) { const [tx, ty] = unkey(t); p.rect(tx, ty, 1, 1); }
+            draw.fillCache = { k: ck, p };
+          }
+          g.globalAlpha = 0.3; g.fillStyle = levelColor(ui.level); g.fill(draw.fillCache.p); g.globalAlpha = 1;
+        }
+        g.strokeStyle = levelColor(ui.level); g.strokeRect(x, y, 1, 1);
       } else if (ui.mode === 'rooms') {
         if (ui.roomTool === 'space') { const r = (ui.brush - 1) / 2; g.strokeStyle = '#9ad0ff'; g.setLineDash([4 / s, 3 / s]); g.strokeRect(x - r, y - r, 1 + 2 * r, 1 + 2 * r); g.setLineDash([]); }
       } else if (ui.mode === 'edge') {
@@ -1569,7 +1602,8 @@ export function createLevels(env) {
       ${sr ? `<div class="lvroomsel"><b>Room #${sr.room.id}</b> · ${sr.room.size} tiles
         <div class="row gap"><input id="lvRoomName" type="text" maxlength="60" placeholder="Name, e.g. Bridge" value="${esc(sr.room.name || '')}">
         <button class="btn small primary" id="lvRoomSet">Set</button><button class="btn small" id="lvRoomClr" ${sr.room.name ? '' : 'disabled'}>Remove name</button></div>
-        <label class="row tglbtn"><input type="checkbox" id="lvNoHull" ${sr.room.noHull ? 'checked' : ''}> Not part of the hull</label></div>`
+        <label class="row tglbtn"><input type="checkbox" id="lvNoHull" ${sr.room.noHull ? 'checked' : ''}> Not part of the hull</label>
+        <div class="row gap wrap"><button class="btn small" id="lvRoomFill">Fill ${ui.layer} ${fmt(ui.level)}</button><span class="hint">(layer and level below)</span></div></div>`
         : '<p class="hint">Click a room on the map to name it. Enter sets the name.</p>'}
       <p class="hint">Rooms are made only by your main cuts: everything inside a closed cut is that room, floor, walls, lattice and space alike. The rest of the station is one room; space outside it is Outside. Subcuts don’t split rooms. A name stays with the room when cuts change elsewhere.</p>
       ${visHtml(sr)}
@@ -1604,6 +1638,7 @@ export function createLevels(env) {
         ${modeBtn('paint', 'Paint level', 'Drag to paint floor tiles in the chosen layer; Shift+drag paints a rectangle. With the 1×1 brush: on a cut tile it sets the part under the cursor by hand, on stairs it sets the bottom step (floor layer) or the stairs’ roof (roof layer). The roof layer starts at 0.')}
         ${modeBtn('cut', 'Cut tile', 'Click places the chosen shape exactly; drag places it on every tile you pass. R turns the shape. Alt+click near an edge of a cut tile adds or removes that arm.')}
         ${modeBtn('clear', 'Clear set part', 'Click a part of a cut tile to put it back to worked out (this layer), or stairs to unset the bottom step. Right-click does the same in any mode.')}
+        ${modeBtn('fill', 'Fill room', 'Click a room: every floor tile in it gets the chosen level in this layer (walls, windows, doors, cut tiles and stairs are left alone).')}
         ${modeBtn('connect', 'Dot cut', 'Click a tile centre, the middle of a tile side, or a tile corner to put a dot there. It joins itself to the cuts and dots next to it (also across one free point in a straight line). Place dots one after another to draw a cut. Alt+click removes the cut pieces at that point.')}
         ${modeBtn('edge', 'Edge cut', 'Click next to a tile edge to cut exactly on that edge, whole or half (click again to remove). A half edge cut meets a middle cut at the edge.')}
         ${modeBtn('stairs', 'Stairs', 'Click a tile to make it stairs. Auto points them uphill; clicking again turns them. Alt+click removes. To cut through stairs, place a cut tile on them.')}
@@ -1669,7 +1704,7 @@ export function createLevels(env) {
     });
     p.querySelectorAll('.lvshape').forEach(b => b.onclick = () => { ui.shape = b.dataset.s; ui.mode = 'cut'; env.setTool('levels'); renderPane(); });
     const join = p.querySelector('#lvJoin'); if (join) join.onchange = (e) => { ui.autoJoin = e.target.checked; };
-    p.querySelectorAll('.lvlv').forEach(b => b.onclick = () => { ui.level = +b.dataset.v; if (ui.mode !== 'paint') ui.mode = 'paint'; env.setTool('levels'); renderPane(); });
+    p.querySelectorAll('.lvlv').forEach(b => b.onclick = () => { ui.level = +b.dataset.v; if (ui.mode !== 'paint' && ui.mode !== 'fill' && ui.mode !== 'rooms') ui.mode = 'paint'; env.setTool('levels'); renderPane(); });
     p.querySelectorAll('.lvbrush').forEach(b => b.onclick = () => { ui.brush = +b.dataset.b; renderPane(); });
     p.querySelector('#lvArea').onclick = applyToArea;
     p.querySelectorAll('.lvw').forEach(b => b.onclick = () => { const w = all[+b.dataset.i]; env.jumpTo(w.uid, w.x, w.y); });
@@ -1690,6 +1725,7 @@ export function createLevels(env) {
       p.querySelector('#lvRoomClr').onclick = () => nameRoom('');
     }
     p.querySelectorAll('.lvrt').forEach(b => b.onclick = () => { ui.roomTool = b.dataset.t; renderPane(); env.redraw(); });
+    const rf = p.querySelector('#lvRoomFill'); if (rf) rf.onclick = () => { const sr = selRoom(); if (!sr) return; doc.snapshot(); const n = fillRoom(ui.roomSel.uid, sr.room.id); changed(); env.toast(`${ui.layer === 'floor' ? 'Floor' : 'Roof'} ${fmt(ui.level)} on ${n} tiles of room #${sr.room.id}`); };
     const nh = p.querySelector('#lvNoHull'); if (nh) nh.onchange = (e) => setNoHull(e.target.checked);
     const v1 = p.querySelector('#lvVisOne'); if (v1) v1.onclick = () => { const sr = selRoom(); if (sr) bakeRooms(ui.roomSel.uid, [sr.room.id]); };
     const va = p.querySelector('#lvVisAll'); if (va) va.onclick = () => { for (const u of gridUids()) { const R = roomsOf(u); if (R.list.length) { bakeRooms(u, R.list.map(r => r.id)); break; } } };
