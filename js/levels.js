@@ -85,6 +85,14 @@ function edgeKey(x, y, side) {
   if (side === 'S') { y -= 1; side = 'N'; }
   return x + ',' + y + ',' + side;
 }
+// edge cuts are kept per half edge: "<edge>#0" / "<edge>#1". On an E edge 0 is the south half and 1 the
+// north half; on an N edge 0 is the west half and 1 the east half. A full edge cut is both halves.
+const HALF_NAME = { E: ['S', 'N'], N: ['W', 'E'] };
+const halvesOf = (edges) => {        // -> Map edge -> [bool, bool]
+  const m = new Map();
+  for (const h of edges) { const i = h.lastIndexOf('#'), ek = h.slice(0, i); if (!m.has(ek)) m.set(ek, [false, false]); m.get(ek)[+h.slice(i + 1)] = true; }
+  return m;
+};
 
 export class LevelsDoc {
   constructor() { this.grids = new Map(); this.undoStack = []; this.redoStack = []; }
@@ -105,7 +113,7 @@ export class LevelsDoc {
       const d = this.g(uid), s = grids[uid];
       d.floor = new Map(s.floor || (s.levels || []).map(([k, v]) => [k, CLAMP(v / LEVEL_M)]));
       d.roof = new Map(s.roof || []); d.cuts = new Map(s.cuts || []);
-      d.edges = new Set(s.edges || []); d.stairs = new Map(s.stairs || []);
+      d.edges = new Set((s.edges || []).flatMap(e => e.includes('#') ? [e] : [e + '#0', e + '#1'])); d.stairs = new Map(s.stairs || []);
       d.cutLevels = new Map(s.cutLevels || []); d.stairLevels = new Map(s.stairLevels || []);
     }
   }
@@ -139,8 +147,13 @@ export class LevelsDoc {
         }
         if (Object.keys(o).length) cutLevels[k] = o;
       }
-      const edges = [...d.edges].map(e => { const p = e.split(','); return { x: +p[0], y: +p[1], side: p[2] }; })
-        .sort((a, b) => a.y - b.y || a.x - b.x || (a.side < b.side ? -1 : 1));
+      const edges = [];
+      for (const [ek, [h0, h1]] of halvesOf(d.edges)) {
+        const p = ek.split(','), e = { x: +p[0], y: +p[1], side: p[2] };
+        if (!(h0 && h1)) e.half = HALF_NAME[p[2]][h0 ? 0 : 1];
+        edges.push(e);
+      }
+      edges.sort((a, b) => a.y - b.y || a.x - b.x || (a.side < b.side ? -1 : 1) || String(a.half || '').localeCompare(String(b.half || '')));
       grids[uid] = { floor, roof, cuts, edges, stairs };
       if (Object.keys(cutLevels).length) grids[uid].cut_levels = cutLevels;
       if (Object.keys(stairLevels).length) grids[uid].stair_levels = stairLevels;
@@ -169,7 +182,14 @@ export class LevelsDoc {
         for (const [k, v] of Object.entries(s.stair_levels || {})) d.stairLevels.set(k, CLAMP(v));
       }
       for (const [k, v] of Object.entries(s.cuts || {})) { const a = canonArms(v); if (a.length >= 2 && a.length === String(v).length) d.cuts.set(k, a); }
-      for (const e of (s.edges || [])) if (DIRS[e.side]) d.edges.add(edgeKey(+e.x, +e.y, e.side));
+      for (const e of (s.edges || [])) {
+        if (!DIRS[e.side]) continue;
+        const ek = edgeKey(+e.x, +e.y, e.side), side = ek.split(',')[2];
+        if (!e.half) { d.edges.add(ek + '#0'); d.edges.add(ek + '#1'); continue; }
+        // a half named from a W or S edge is the same half of the stored E or N edge
+        const i = HALF_NAME[side].indexOf(String(e.half).toUpperCase());
+        if (i >= 0) d.edges.add(ek + '#' + i);
+      }
       for (const [k, v] of Object.entries(s.stairs || {})) if (DIRS[v]) d.stairs.set(k, v);
     }
   }
@@ -245,7 +265,8 @@ export function analyse(d, tiles, bounds = new Map()) {
 
   // the tiles worth looking at: everything marked and its neighbours
   const marked = new Set([...d.floor.keys(), ...d.roof.keys(), ...d.cuts.keys(), ...d.stairs.keys()]);
-  for (const e of d.edges) { const p = e.split(','); marked.add(p[0] + ',' + p[1]); const [dx, dy] = DIRS[p[2]]; marked.add(key(+p[0] + dx, +p[1] + dy)); }
+  const edgeHalves = halvesOf(d.edges);
+  for (const ek of edgeHalves.keys()) { const p = ek.split(','); marked.add(p[0] + ',' + p[1]); const [dx, dy] = DIRS[p[2]]; marked.add(key(+p[0] + dx, +p[1] + dy)); }
   const look = new Set();
   for (const k of marked) { const [x, y] = unkey(k); for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) look.add(key(x + dx, y + dy)); }
 
@@ -266,10 +287,10 @@ export function analyse(d, tiles, bounds = new Map()) {
     for (const side of ['E', 'N']) {
       const [dx, dy] = DIRS[side], bx = x + dx, by = y + dy;
       if (!exists(x, y) || !exists(bx, by)) continue;
-      const ek = edgeKey(x, y, side), isEdgeCut = d.edges.has(ek);
+      const ek = edgeKey(x, y, side), halves = edgeHalves.get(ek) || [false, false], anyCut = halves[0] || halves[1];
       const pairs = side === 'E' ? [[1, 0], [3, 2]] : [[2, 0], [3, 1]];
       const mx = x + 0.5 + dx / 2, my = y + 0.5 + dy / 2;
-      if (isEdgeCut) cutLines.push(side === 'E' ? [x + 1, y, x + 1, y + 1] : [x, y + 1, x + 1, y + 1]);
+      for (let pi = 0; pi < 2; pi++) if (halves[pi]) cutLines.push(side === 'E' ? [x + 1, y + pi * 0.5, x + 1, y + pi * 0.5 + 0.5] : [x + pi * 0.5, y + 1, x + pi * 0.5 + 0.5, y + 1]);
       let floorErr = null, sameFloor = true, any = false;
       for (let pi = 0; pi < 2; pi++) {
         const [qa, qb] = pairs[pi];
@@ -279,12 +300,12 @@ export function analyse(d, tiles, bounds = new Map()) {
         const half = side === 'E' ? { x: x + 1, y: y + 0.25 + pi * 0.5, ax: 'v', len: 0.3 } : { x: x + 0.25 + pi * 0.5, y: y + 1, ax: 'h', len: 0.3 };
         const sa = side === 'E' ? 'W' : 'S', sb = side === 'E' ? 'E' : 'N';
         if (a.f !== b.f) sameFloor = false;
-        if (a.f !== b.f && !isEdgeCut) { floorErr = floorErr || [a.f, b.f]; continue; }
+        if (a.f !== b.f && !halves[pi]) { floorErr = floorErr || [a.f, b.f]; continue; }
         stubPair(a, b, sa, sb, half);
         tooBig(a, b, mx, my);
       }
       if (floorErr) { errEdges.add(ek); warn('error', mx, my, `Floor ${fmt(floorErr[0])} and ${fmt(floorErr[1])} touch with no cut between them`); }
-      if (isEdgeCut && any && sameFloor) warn('check', mx, my, 'Edge cut between two tiles on the same floor level');
+      if (anyCut && any && sameFloor) warn('check', mx, my, 'Edge cut between two tiles on the same floor level');
     }
   }
 
@@ -367,7 +388,7 @@ export function createLevels(env) {
   // env: { pane, getScene, getRenderer, gridLocal, gridWorld, setGridXf, camScale, redraw, jumpTo, toast,
   //        download, mapSource, mapKey, getArea, setTool, isActive, safeName, lsGet, lsSet }
   const doc = new LevelsDoc();
-  const ui = { mode: 'paint', layer: 'floor', level: 1, shape: 'ns', autoJoin: false, stairDir: 'auto', brush: 1, show: true, onlyMarks: false };
+  const ui = { mode: 'paint', layer: 'floor', level: 1, edgeLen: 'full', shape: 'ns', autoJoin: false, stairDir: 'auto', brush: 1, show: true, onlyMarks: false };
   let analysis = new Map();
   let cache = { scene: null, map: new Map() };
   let mapSha1 = null, fileNote = '';
@@ -517,13 +538,21 @@ export function createLevels(env) {
   function eraseAt(h) {
     const d = doc.g(h.uid), [x, y] = tileOf(h), k = key(x, y);
     d.cuts.delete(k); d.cutLevels.delete(k); d.stairs.delete(k); d.stairLevels.delete(k);
-    for (const s of ['N', 'E', 'S', 'W']) d.edges.delete(edgeKey(x, y, s));
+    for (const s of ['N', 'E', 'S', 'W']) { const ek = edgeKey(x, y, s); d.edges.delete(ek + '#0'); d.edges.delete(ek + '#1'); }
     (ui.layer === 'floor' ? d.floor : d.roof).delete(k);
   }
-  function edgeAt(h) {
-    const d = doc.g(h.uid), [x, y] = tileOf(h), side = nearestSide(h).toUpperCase();
+  // the edge (stored E/N form) and half nearest the cursor
+  function edgeHalfAt(h) {
+    const [x, y] = tileOf(h), side = nearestSide(h).toUpperCase(), fx = h.lx - x, fy = h.ly - y;
     const ek = edgeKey(x, y, side);
-    if (d.edges.has(ek)) d.edges.delete(ek); else d.edges.add(ek);
+    const half = (side === 'E' || side === 'W') ? (fy < 0.5 ? 0 : 1) : (fx < 0.5 ? 0 : 1);
+    return { ek, half, side: ek.split(',')[2] };
+  }
+  function edgeAt(h) {
+    const d = doc.g(h.uid), { ek, half } = edgeHalfAt(h);
+    const keys = ui.edgeLen === 'half' ? [ek + '#' + half] : [ek + '#0', ek + '#1'];
+    const allSet = keys.every(k => d.edges.has(k));
+    for (const k of keys) { if (allSet) d.edges.delete(k); else d.edges.add(k); }
   }
   // put a hand-set part back to worked out (current layer); on stairs, the bottom step
   function clearPart(h) {
@@ -757,10 +786,10 @@ export function createLevels(env) {
       const x = hover.x, y = hover.y, d = doc.grids.get(hover.uid), k = key(x, y);
       const END = { n: [0.5, 1], s: [0.5, 0], w: [0, 0.5], e: [1, 0.5] };
       if (ui.mode === 'edge') {
-        const side = nearestSide(hover);
-        g.strokeStyle = '#ff2bd6'; g.beginPath();
-        if (side === 'w') { g.moveTo(x, y); g.lineTo(x, y + 1); } else if (side === 'e') { g.moveTo(x + 1, y); g.lineTo(x + 1, y + 1); }
-        else if (side === 's') { g.moveTo(x, y); g.lineTo(x + 1, y); } else { g.moveTo(x, y + 1); g.lineTo(x + 1, y + 1); }
+        const { ek, half, side } = edgeHalfAt(hover), p = ek.split(','), ex = +p[0], ey = +p[1];
+        const a = ui.edgeLen === 'half' ? half * 0.5 : 0, b = ui.edgeLen === 'half' ? a + 0.5 : 1;
+        g.strokeStyle = '#ff2bd6'; g.lineWidth = 3 / s; g.beginPath();
+        if (side === 'E') { g.moveTo(ex + 1, ey + a); g.lineTo(ex + 1, ey + b); } else { g.moveTo(ex + a, ey + 1); g.lineTo(ex + b, ey + 1); }
         g.stroke();
       } else if (ui.mode === 'cut' && altDown) {
         const e = END[nearestSide(hover)];
@@ -842,7 +871,7 @@ export function createLevels(env) {
     all.sort((a, b) => (a.kind === b.kind ? 0 : a.kind === 'error' ? -1 : 1));
     const errors = all.filter(w => w.kind === 'error').length, checks = all.length - errors;
     let nf = 0, nr = 0, cuts = 0, edges = 0, stairs = 0, set = 0, sset = 0, air = 0;
-    for (const d of doc.grids.values()) { nf += d.floor.size; nr += d.roof.size; cuts += d.cuts.size; edges += d.edges.size; stairs += d.stairs.size; set += d.cutLevels.size; sset += d.stairLevels.size; }
+    for (const d of doc.grids.values()) { nf += d.floor.size; nr += d.roof.size; cuts += d.cuts.size; edges += halvesOf(d.edges).size; stairs += d.stairs.size; set += d.cutLevels.size; sset += d.stairLevels.size; }
     for (const a of analysis.values()) air += a.stairInfo.filter(i => i.airlock).length;
     const area = env.getArea();
     const L = ui.layer === 'floor' ? 'Floor' : 'Roof';
@@ -863,7 +892,7 @@ export function createLevels(env) {
         ${modeBtn('paint', 'Paint level', 'Drag to paint floor tiles in the chosen layer; Shift+drag paints a rectangle. With the 1×1 brush: on a cut tile it sets the part under the cursor by hand, on stairs it sets the bottom step (floor layer).')}
         ${modeBtn('cut', 'Cut tile', 'Click places the chosen shape exactly; drag places it on every tile you pass. R turns the shape. Alt+click near an edge of a cut tile adds or removes that arm.')}
         ${modeBtn('clear', 'Clear set part', 'Click a part of a cut tile to put it back to worked out (this layer), or stairs to unset the bottom step. Right-click does the same in any mode.')}
-        ${modeBtn('edge', 'Edge cut', 'Click next to a tile edge to cut exactly on that edge (or remove it).')}
+        ${modeBtn('edge', 'Edge cut', 'Click next to a tile edge to cut exactly on that edge, whole or half (click again to remove). A half edge cut meets a middle cut at the edge.')}
         ${modeBtn('stairs', 'Stairs', 'Click a tile to make it stairs. Auto points them uphill; clicking again turns them. Alt+click removes. To cut through stairs, place a cut tile on them.')}
         ${modeBtn('erase', 'Eraser', 'Drag to remove cut tiles, stairs and edge cuts, and to unassign the level in this layer.')}
       </div>
@@ -871,6 +900,7 @@ export function createLevels(env) {
       <h4>Cut shape <span class="lvcount">R turns it</span></h4>
       <div class="lvshapes">${SHAPES.map(([grp, list]) => `<div class="lvsgrp"><small>${grp}</small><div>${list.map(sh => `<button class="lvshape${ui.shape === sh ? ' on' : ''}" data-s="${sh}" title="${sh}">${shapeSvg(sh)}</button>`).join('')}</div></div>`).join('')}</div>
       <label class="row tglbtn" title="When on, a placed cut tile also joins neighbouring cut tiles and stairs (never walls, windows, doors or plain tiles)"><input type="checkbox" id="lvJoin" ${ui.autoJoin ? 'checked' : ''}> Join to neighbouring cuts and stairs</label>` : ''}
+      ${ui.mode === 'edge' ? `<h4>Edge cut length</h4><div class="row gap">${opt('edgeLen', 'full', 'Whole edge', ui.edgeLen)}${opt('edgeLen', 'half', 'Half edge (meets a middle cut)', ui.edgeLen)}</div>` : ''}
       <h4>${L} level</h4>
       <div class="lvlevels">${LEVELS.map(v => `<button class="lvlv${ui.level === v ? ' on' : ''}" data-v="${v}" style="--c:${levelColor(v)}">${v === 0 ? '0' : fmt(v)}</button>`).join('')}</div>
       <div class="row gap">

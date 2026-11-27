@@ -1,7 +1,7 @@
 import { Pack, SpriteStore, localPackFromFiles, texRel, DEV } from './packs.js';
 import { buildScene, SceneRenderer, PX, CHUNK, LAYER_KEYS, DEFAULT_OPTS } from './scene.js?v=75';
 import { Annotations } from './annot.js';
-import { createLevels } from './levels.js?v=3';
+import { createLevels } from './levels.js?v=4';
 import { GitHub } from './github.js';
 import { openImageViewer } from './imageviewer.js';
 import { Parallax } from './parallax.js';

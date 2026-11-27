@@ -51,7 +51,7 @@ cables, doors and everything placed on it.
   that arm; joining to neighbouring cuts and stairs is an option, off by default. With the
   level brush, a click on a cut tile sets the level of that part by hand (solid; worked-out
   parts are faint and hatched); right-click or *Clear set part* puts it back. **Edge cuts**
-  on tile edges. **Stairs**: the direction they rise, an optional set bottom step, and
+  on tile edges, whole or half (a half edge cut meets a middle cut). **Stairs**: the direction they rise, an optional set bottom step, and
   they can be cut through by putting a cut tile on them; shown as small, steep or ladder,
   marked when in an airlock. Walls, windows and doors are found as the importer does and
   levels may differ across them. The overlay shows layer colours, cut lines, floor and
