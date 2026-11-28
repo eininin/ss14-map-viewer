@@ -1078,10 +1078,23 @@ export function createLevels(env) {
     }
     return n;
   }
+  // one time (asked 2026-11-28): drop the ceilings painted on walls, windows and doors, also hand-set roofs
+  // on cut parts of such tiles; everything else stays. Undoable.
   function stripWallRoofs() {
     let n = 0;
-    for (const [uid, d] of doc.grids) { const b = boundsOf(uid); for (const k of [...d.roof.keys()]) if (b.has(k)) { d.roof.delete(k); n++; } }
-    if (n) { changed(); env.toast(`Removed the roof from ${n} wall, window and door tile${n === 1 ? '' : 's'} (they have no roof of their own)`); }
+    doc.snapshot();
+    for (const [uid, d] of doc.grids) {
+      const b = boundsOf(uid);
+      for (const k of [...d.roof.keys()]) if (b.has(k)) { d.roof.delete(k); n++; }
+      for (const [k, o] of [...d.cutLevels]) {
+        if (!b.has(k)) continue;
+        for (const q of Object.keys(o)) if (o[q] && o[q].roof != null) { delete o[q].roof; n++; if (o[q].floor == null) delete o[q]; }
+        if (!Object.keys(o).length) d.cutLevels.delete(k);
+      }
+    }
+    if (!n) { doc.undoStack.pop(); return; }
+    changed();
+    env.toast(`Removed ${n} ceiling height${n === 1 ? '' : 's'} from walls, windows and doors (one time). Ctrl+Z brings them back.`);
   }
   // fill bucket for floors: spreads over the map's tiles (walls, windows and doors included) from the
   // clicked part of a tile, stopped by every cut, main and sub, middle and edge, and by space
@@ -1930,7 +1943,10 @@ export function createLevels(env) {
     reanalyse();
     renderPane();
   }
-  function sceneReady() { cache = { scene: null, map: new Map() }; roomCache.clear(); reanalyse(); renderPane(); env.redraw(); }
+  function sceneReady() {
+    cache = { scene: null, map: new Map() }; roomCache.clear(); reanalyse(); renderPane(); env.redraw();
+    if (env.mapSource() && !doc.empty && !env.lsGet('levelsWallRoofReset1.' + env.mapKey())) { env.lsSet('levelsWallRoofReset1.' + env.mapKey(), 1); stripWallRoofs(); }
+  }
 
   // ---- the pane
   const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -2069,6 +2085,7 @@ export function createLevels(env) {
         <button class="btn primary small" id="lvSave">Save .levels.json</button>
         <button class="btn small" id="lvOpen">Open .levels.json</button>
         <button class="btn small" id="lvUnset" ${set ? '' : 'disabled'} title="Every cut part set by hand goes back to following the floors next to it">Unset hand-set cut parts</button>
+        <button class="btn small" id="lvStripRoofs" title="Removes every ceiling height on walls, windows and doors (also hand-set roofs on cut parts of them); everything else stays">Remove ceilings on walls</button>
         <button class="btn small" id="lvResetFloor" title="Removes every floor level (and hand-set floor parts of cut tiles); roofs, cuts and stairs stay">Reset floor levels</button>
         <button class="btn small" id="lvClear">Clear all</button>
         <input type="file" id="lvFile" accept=".json,application/json" hidden>
@@ -2120,6 +2137,7 @@ export function createLevels(env) {
       ui.roomSel = { uid, anchor: k + '@' + si };
       env.jumpTo(uid, r.lx, r.ly); renderPane(); env.redraw();
     });
+    p.querySelector('#lvStripRoofs').onclick = () => { const before = doc.undoStack.length; stripWallRoofs(); if (doc.undoStack.length === before) env.toast('No ceilings on walls, windows or doors'); };
     p.querySelector('#lvResetFloor').onclick = () => {
       doc.snapshot();
       const n = resetFloors();
