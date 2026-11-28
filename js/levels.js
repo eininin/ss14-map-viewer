@@ -347,7 +347,8 @@ export function analyse(d, tiles, bounds = new Map()) {
     if (d.stairs.has(k)) return 'S';
     if (roomOnly(k)) return null;
     // walls, windows and doors have a floor level but no roof of their own (w)
-    if (bounds.has(k)) return { f: d.floor.get(k) || 0, r: d.roof.get(k) || 0, w: true };
+    // walls, windows and doors: a floor; a roof only when set on purpose (nr: none of its own, not compared)
+    if (bounds.has(k)) return { f: d.floor.get(k) || 0, r: d.roof.get(k) || 0, w: true, nr: !d.roof.has(k) };
     return { f: d.floor.get(k) || 0, r: d.roof.get(k) || 0 };
   };
   const isVal = (v) => v && typeof v === 'object';
@@ -418,7 +419,7 @@ export function analyse(d, tiles, bounds = new Map()) {
         const m = man[reg[0]];
         const f = m.floor !== false ? m.floor : auto ? auto[0] : null;
         const r = m.roof !== false ? m.roof : auto ? auto[1] : 0;
-        const val = f == null ? null : bounds.has(k) ? { f, r, w: true } : { f, r };
+        const val = f == null ? null : bounds.has(k) ? { f, r, w: true, nr: m.roof === false } : { f, r };
         for (const i of reg) {
           const o = q[i];
           if ((o === null) !== (val === null) || (o && val && (o.f !== val.f || o.r !== val.r))) { q[i] = val; moved = true; }
@@ -440,11 +441,11 @@ export function analyse(d, tiles, bounds = new Map()) {
   const stubPair = (a, b, sa, sb, pos) => {
     if (a.f !== b.f) stubs.push({ ...pos, side: a.f < b.f ? sa : sb, kind: 'floor', h: Math.abs(a.f - b.f) });
     const ra = a.f + a.r, rb = b.f + b.r;
-    if (ra !== rb) stubs.push({ ...pos, side: ra > rb ? sa : sb, kind: 'roof', h: Math.abs(ra - rb) });
+    if (ra !== rb && !a.nr && !b.nr) stubs.push({ ...pos, side: ra > rb ? sa : sb, kind: 'roof', h: Math.abs(ra - rb) });
   };
   const tooBig = (a, b, x, y) => {
     if (Math.abs(a.f - b.f) > MAX_STEP) warn('error', x, y, `Floor step of ${Math.abs(a.f - b.f)} levels (more than ${MAX_STEP})`);
-    else if (Math.abs((a.f + a.r) - (b.f + b.r)) > MAX_STEP) warn('error', x, y, `Roof step of ${Math.abs((a.f + a.r) - (b.f + b.r))} levels (more than ${MAX_STEP})`);
+    else if (!a.nr && !b.nr && Math.abs((a.f + a.r) - (b.f + b.r)) > MAX_STEP) warn('error', x, y, `Roof step of ${Math.abs((a.f + a.r) - (b.f + b.r))} levels (more than ${MAX_STEP})`);
   };
 
   // every edge cut is drawn, also next to space
@@ -469,9 +470,10 @@ export function analyse(d, tiles, bounds = new Map()) {
         any = true;
         const half = side === 'E' ? { x: x + 1, y: y + 0.25 + pi * 0.5, ax: 'v', len: 0.3 } : { x: x + 0.25 + pi * 0.5, y: y + 1, ax: 'h', len: 0.3 };
         const sa = side === 'E' ? 'W' : 'S', sb = side === 'E' ? 'E' : 'N';
-        if (a.f !== b.f || a.f + a.r !== b.f + b.r) sameFloor = false;
+        const ceilDiff = !a.nr && !b.nr && a.f + a.r !== b.f + b.r;
+        if (a.f !== b.f || ceilDiff) sameFloor = false;
         if (a.f !== b.f && !halves[pi]) { floorErr = floorErr || [a.f, b.f]; continue; }
-        if (a.f + a.r !== b.f + b.r && !halves[pi]) { roofErr = roofErr || [a.f + a.r, b.f + b.r]; continue; }
+        if (ceilDiff && !halves[pi]) { roofErr = roofErr || [a.f + a.r, b.f + b.r]; continue; }
         stubPair(a, b, sa, sb, half);
         tooBig(a, b, mx, my);
       }
@@ -489,7 +491,7 @@ export function analyse(d, tiles, bounds = new Map()) {
     if (d.stairs.has(k) || roomOnly(k)) { for (const a of arms) { const [ex, ey] = ARM_END[a]; cutLines.push([x + 0.5, y + 0.5, x + ex, y + ey, d.subCuts.has(k)]); } continue; }
     const q = cutQ.get(k);
     if (arms.length === 1) warn('check', x + 0.5, y + 0.5, 'A cut line ends in the middle of this tile');
-    const floors = new Set(q.filter(isVal).map(v => v.f + '|' + (v.f + v.r)));
+    const floors = new Set(q.filter(isVal).map(v => v.f + '|' + (v.nr ? '-' : v.f + v.r)));
     for (const a of arms) {
       const [ex, ey] = ARM_END[a];
       cutLines.push([x + 0.5, y + 0.5, x + ex, y + ey, d.subCuts.has(k)]);
@@ -646,7 +648,7 @@ export function createLevels(env) {
   // env: { pane, getScene, getRenderer, gridLocal, gridWorld, setGridXf, camScale, redraw, jumpTo, toast,
   //        download, mapSource, mapKey, getArea, setTool, isActive, safeName, lsGet, lsSet }
   const doc = new LevelsDoc();
-  const ui = { mode: 'paint', layer: 'floor', level: 1, edgeLen: 'full', tier: 'main', shape: 'ns', autoJoin: false, stairDir: 'auto', brush: 1, show: true, onlyMarks: false, autoKind: 'edge', roomSel: null, levelMem: { floor: 1, roof: 0 }, roomTool: 'select', clearLv: false, visCheck: false, visLock: null };
+  const ui = { mode: 'paint', layer: 'floor', level: 1, edgeLen: 'full', tier: 'main', shape: 'ns', autoJoin: false, stairDir: 'auto', brush: 1, show: true, onlyMarks: false, autoKind: 'edge', roomSel: null, levelMem: { floor: 1, roof: 0 }, roomTool: 'select', clearLv: false, roofWalls: false, visCheck: false, visLock: null };
   let analysis = new Map();
   let cache = { scene: null, map: new Map() };
   let mapSha1 = null, fileNote = '';
@@ -773,6 +775,9 @@ export function createLevels(env) {
   function paintTile(d, x, y, v) { const m = ui.layer === 'floor' ? d.floor : d.roof, k = key(x, y); if (ui.clearLv || v == null) m.delete(k); else m.set(k, v); }
   // Cut tiles follow the floors next to them. Only a stroke that starts on a cut tile (or stairs) with the
   // 1×1 brush sets a part by hand (or the bottom step); a stroke that starts on a plain tile passes over them.
+  // ceilings go on floors only: walls, windows and doors are skipped in the roof layer unless the override
+  // is on (thin windows and windoors aren't boundary tiles, so they always take a roof)
+  const noRoofHere = (bounds, k) => ui.layer === 'roof' && !ui.roofWalls && bounds.has(k);
   function paintAt(h, onCut) {
     const d = doc.g(h.uid), [x0, y0] = tileOf(h), k0 = key(x0, y0);
     if (onCut) {
@@ -781,10 +786,10 @@ export function createLevels(env) {
       return;
     }
     const r = (ui.brush - 1) / 2, bounds = boundsOf(h.uid);
-    if (ui.brush === 1 && d.cuts.has(k0) && bounds.has(k0) && !d.stairs.has(k0)) { setRegion(d, k0, sliceAt(h), ui.layer, curLv()); return; }
+    if (ui.brush === 1 && d.cuts.has(k0) && bounds.has(k0) && !d.stairs.has(k0)) { if (noRoofHere(bounds, k0)) return; setRegion(d, k0, sliceAt(h), ui.layer, curLv()); return; }
     for (let y = y0 - r; y <= y0 + r; y++) for (let x = x0 - r; x <= x0 + r; x++) {
       const k = key(x, y);
-      if (d.cuts.has(k) || (d.stairs.has(k) && ui.layer === 'floor')) continue;
+      if (d.cuts.has(k) || (d.stairs.has(k) && ui.layer === 'floor') || noRoofHere(bounds, k)) continue;
       paintTile(d, x, y, ui.level);
     }
   }
@@ -1108,11 +1113,11 @@ export function createLevels(env) {
       if (d.stairs.has(k)) continue;
       if (d.cuts.has(k)) {
         // a cut through a wall: the parts the fill reached take the level (set by hand)
-        if (!bounds.has(k)) continue;
+        if (!bounds.has(k) || noRoofHere(bounds, k)) continue;
         for (let si = 0; si < 8; si++) if (seen.has(k + '#' + si)) setRegion(d, k, si, ui.layer, curLv());
         n++; continue;
       }
-      if (c < 8) continue;
+      if (c < 8 || noRoofHere(bounds, k)) continue;
       const m = ui.layer === 'floor' ? d.floor : d.roof;
       if (ui.clearLv) m.delete(k); else m.set(k, ui.level);
       n++;
@@ -1441,7 +1446,7 @@ export function createLevels(env) {
         const tiles = tilesOf(drag.uid), bounds = boundsOf(drag.uid);
         for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
           const k = key(x, y);
-          if (d.cuts.has(k) || (d.stairs.has(k) && ui.layer === 'floor')) continue;
+          if (d.cuts.has(k) || (d.stairs.has(k) && ui.layer === 'floor') || noRoofHere(bounds, k)) continue;
           if (tiles.has(k)) paintTile(d, x, y, ui.level);
         }
       } else env.toast('That area is too large', true);
@@ -1465,7 +1470,7 @@ export function createLevels(env) {
     doc.snapshot();
     const d = doc.g(a.grid), bounds = boundsOf(String(a.grid));
     let n = 0;
-    for (const k of a.tiles) { if (d.cuts.has(k) || (d.stairs.has(k) && ui.layer === 'floor') ) continue; const [x, y] = unkey(k); paintTile(d, x, y, ui.level); n++; }
+    for (const k of a.tiles) { if (d.cuts.has(k) || (d.stairs.has(k) && ui.layer === 'floor') || noRoofHere(bounds, k)) continue; const [x, y] = unkey(k); paintTile(d, x, y, ui.level); n++; }
     changed();
     env.toast(`${ui.layer === 'floor' ? 'Floor' : 'Roof'} ${lvText()} set on ${n} floor tiles`);
   }
@@ -1487,7 +1492,7 @@ export function createLevels(env) {
       const v = an.slice(hover.x, hover.y, si), m = an.manual.get(k)[si], arms = d.cuts.get(k);
       const armsTxt = [straightOf(arms), diagNames(arms)].filter(Boolean).join(' + ');
       t += `: ${d.subCuts.has(k) ? 'subcut' : 'main cut'} ${armsTxt}, part ${hasDiag(arms) ? SNAMES[si] : QNAMES[SQ[si]]}` + (v ? `: floor ${fmt(v.f)}${m.floor !== false ? ' (set)' : ''}, roof ${fmt(v.r)}${m.roof !== false ? ' (set)' : ''}, absolute roof ${fmt(v.f + v.r)}` : ': no level');
-    } else if (bk) t += `: ${bk}, floor ${fmt((d && d.floor.get(k)) || 0)}${d && d.floor.has(k) ? '' : ' (unassigned)'}, roof ${fmt((d && d.roof.get(k)) || 0)}${d && d.roof.has(k) ? '' : ' (unassigned)'}`;
+    } else if (bk) t += `: ${bk}, floor ${fmt((d && d.floor.get(k)) || 0)}${d && d.floor.has(k) ? '' : ' (unassigned)'}, ${d && d.roof.has(k) ? 'roof ' + fmt(d.roof.get(k)) + ' (set on purpose)' : 'no roof of its own'}`;
     else if (!tilesOf(hover.uid).has(k) && !(d && d.floor.has(k))) t += ': no floor';
     else {
       const f = (d && d.floor.get(k)) || 0, r = (d && d.roof.get(k)) || 0;
@@ -2004,6 +2009,7 @@ export function createLevels(env) {
       </div>
       <h4>Layer</h4>
       <div class="row gap">${opt('layer', 'floor', 'Floor', ui.layer)}${opt('layer', 'roof', 'Roof (from the tile’s floor)', ui.layer)}</div>
+      ${ui.layer === 'roof' ? `<label class="row tglbtn" title="Normally ceilings only go on floors: walls, windows and doors are skipped (thin windows and windoors always take a roof). Turn on to set them anyway, for a special effect in one area."><input type="checkbox" id="lvRoofWalls" ${ui.roofWalls ? 'checked' : ''}> Also on walls, windows and doors (override)</label>` : ''}
       <h4>Tool</h4>
       <div class="row gap wrap">
         ${modeBtn('paint', 'Paint level', 'Drag to paint floor tiles in the chosen layer; Shift+drag paints a rectangle. With the 1×1 brush: on a cut tile it sets the part under the cursor by hand, on stairs it sets the bottom step (floor layer) or the stairs’ roof (roof layer). The roof layer starts at 0.')}
@@ -2054,7 +2060,7 @@ export function createLevels(env) {
         <span><i class="airsw"></i>stairs in an airlock</span>
         <span>“· cut”: stairs cut through</span>
       </div>
-      <p class="hint">Stairs: 1 level small, 2 steep, 3–4 a ladder. Walls, windows and doors have a floor and a roof like any tile. Floors and ceilings (floor + roof) may only change across a cut, main or sub.</p>
+      <p class="hint">Stairs: 1 level small, 2 steep, 3–4 a ladder. Walls, windows and doors have a floor; ceilings go on floors only (unless overridden). Floors and ceilings (floor + roof) may only change across a cut, main or sub.</p>
       <h4>Warnings <span class="lvcount">${errors} error${errors === 1 ? '' : 's'}, ${checks} to check</span></h4>
       <div class="lvwarn">${all.length ? all.slice(0, 300).map((w, i) => `<button class="lvw ${w.kind}" data-i="${i}">${w.kind === 'check' ? 'Check: ' : ''}${esc(w.msg)} <small>(${Math.floor(w.x)}, ${Math.floor(w.y)})</small></button>`).join('') + (all.length > 300 ? `<p class="hint">…and ${all.length - 300} more</p>` : '') : '<p class="hint">None.</p>'}</div>
       <h4>File</h4>
@@ -2097,6 +2103,7 @@ export function createLevels(env) {
       p.querySelector('#lvRoomClr').onclick = () => nameRoom('');
     }
     p.querySelectorAll('.lvrt').forEach(b => b.onclick = () => { ui.roomTool = b.dataset.t; renderPane(); env.redraw(); });
+    const rw = p.querySelector('#lvRoofWalls'); if (rw) rw.onchange = (e) => { ui.roofWalls = e.target.checked; };
     const nh = p.querySelector('#lvNoHull'); if (nh) nh.onchange = (e) => setNoHull(e.target.checked);
     const xr = p.querySelector('#lvExpRooms'); if (xr) xr.onclick = exportRooms;
     const xc = p.querySelector('#lvExpClear'); if (xc) xc.onclick = () => { exportSel.clear(); renderPane(); env.redraw(); };
